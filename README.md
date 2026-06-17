@@ -89,9 +89,10 @@ See `docs/issue-map.md` for dependencies and implementation order.
 ## Local setup
 
 The current runtime foundation is a minimal Python package with SQLite storage
-for Banking MVP deal data, a YAML-backed source policy registry, and an
-offline-first collector framework. Storage uses stdlib `sqlite3` and versioned
-SQL migrations under `src/pdi/storage/migrations/`.
+for Banking MVP deal data, a YAML-backed source policy registry, an
+offline-first collector framework, and a deterministic banking extractor.
+Storage uses stdlib `sqlite3` and versioned SQL migrations under
+`src/pdi/storage/migrations/`.
 
 Install for local development:
 
@@ -127,6 +128,12 @@ records that can be persisted to `raw_deal_snapshots`. HTML fetching has no
 built-in live network client and is blocked unless an enabled, approved source
 policy explicitly allows non-login scraping and frequency metadata permits the
 attempt.
+
+Extractor support exists under `pdi.extractors` for offline, rule-based parsing
+of raw banking snapshot text into `banking_deal_candidates`. Extracted
+candidates preserve evidence spans, missing fields, confidence, and notes, but
+do not create or update canonical `banking_deals`; dedupe and canonical merge
+logic is deferred to the next Banking MVP layer.
 
 Run tests:
 
@@ -173,6 +180,14 @@ For collector changes, run:
 ```bash
 python3 -m pytest tests/collectors
 python3 -m pytest tests/sources
+python3 -m pytest tests/storage
+python3 -m pytest
+```
+
+For extractor changes, run:
+
+```bash
+python3 -m pytest tests/extractors
 python3 -m pytest tests/storage
 python3 -m pytest
 ```

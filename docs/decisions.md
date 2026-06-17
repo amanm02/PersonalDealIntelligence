@@ -207,3 +207,24 @@ Consequences:
   policy allows approved, non-login, low-frequency scraping.
 - No proxy, CAPTCHA bypass, browser automation, credentials, or private-session
   collection behavior is introduced.
+
+## DEC-012: Store extracted candidates separately from canonical deals
+
+Date: 2026-06-17
+
+Decision: Store Issue #5 extractor output in `banking_deal_candidates` rather
+than writing directly to canonical `banking_deals`.
+
+Rationale:
+
+- Extraction is intentionally imperfect and pre-dedupe.
+- Canonical deal creation, merge decisions, conflicts, and change tracking belong
+  to the later dedupe/canonicalization layer.
+- Candidate rows can preserve raw snapshot links, evidence spans, missing fields,
+  confidence, and rejection state without implying a reviewed canonical deal.
+
+Consequences:
+
+- Issue #5 can persist extraction results without overwriting canonical records.
+- Issue #6 should consume candidate rows and decide when to create or update
+  canonical `banking_deals`.

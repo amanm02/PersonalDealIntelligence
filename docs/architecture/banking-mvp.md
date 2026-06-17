@@ -145,7 +145,12 @@ Raw snapshots allow re-extraction when extractor logic improves.
 
 Purpose: transform raw text into structured banking deal candidates.
 
-Extractor should identify:
+Implemented extraction is deterministic and offline-only under `pdi.extractors`.
+It reads raw snapshot text and source metadata, produces pre-dedupe
+`banking_deal_candidates`, and does not create or update canonical
+`banking_deals`.
+
+Extractor identifies:
 
 - institution name
 - promotion title
@@ -165,6 +170,8 @@ Extractor should identify:
 - missing fields
 
 Extraction must not guess. Unknown fields should remain null/unknown.
+Evidence spans, missing fields, extraction notes, and tiered bonus matches are
+stored with candidates for review and later dedupe/canonicalization.
 
 ### 5. Dedupe and canonicalization
 
