@@ -1,0 +1,170 @@
+{
+  "deals": [
+    {
+      "source_record": {
+        "source_name": "Mock Manual Banking Notes",
+        "source_url": "https://example.test/mock-checking-bonus",
+        "source_type": "manual_url",
+        "collection_method": "manual_text",
+        "enabled": true,
+        "max_frequency": "manual_only",
+        "compliance_notes": "Fictional fixture for offline storage tests."
+      },
+      "raw_snapshot": {
+        "source_url": "https://example.test/mock-checking-bonus",
+        "source_name": "Mock Manual Banking Notes",
+        "retrieved_at": "2026-06-17T12:00:00+00:00",
+        "raw_text": "Northstar Mock Bank offers a $300 checking bonus after qualifying direct deposits totaling $1,000 within 90 days.",
+        "collector_name": "fixture"
+      },
+      "banking_deal": {
+        "canonical_key": "northstar-mock-bank-checking-300-2026",
+        "title": "Northstar Mock Bank $300 Checking Bonus",
+        "institution_name": "Northstar Mock Bank",
+        "category": "banking",
+        "subcategory": "checking_bonus",
+        "bonus_amount_cents": 30000,
+        "estimated_net_value_cents": null,
+        "currency": "USD",
+        "source_url": "https://example.test/mock-checking-bonus",
+        "source_name": "Mock Manual Banking Notes",
+        "discovered_at": "2026-06-17T12:00:00+00:00",
+        "last_seen_at": "2026-06-17T12:00:00+00:00",
+        "expires_at": "2026-12-31",
+        "application_deadline": null,
+        "status": "new",
+        "confidence_score": 0.85,
+        "terms": {
+          "minimum_deposit_amount_cents": null,
+          "direct_deposit_required": true,
+          "direct_deposit_minimum_cents": 100000,
+          "minimum_balance_required_cents": null,
+          "balance_hold_days": 90,
+          "monthly_fee_cents": 1200,
+          "monthly_fee_waiver_terms": "Waived with qualifying direct deposit.",
+          "early_closure_fee_cents": null,
+          "hard_pull_risk": null,
+          "soft_pull_only": null,
+          "state_restrictions": null,
+          "new_customer_only": true,
+          "household_limit": null,
+          "terms_json": {
+            "fixture_note": "Fictional checking promotion."
+          }
+        }
+      }
+    },
+    {
+      "source_record": {
+        "source_name": "Mock Savings Email Export",
+        "source_url": "email-export://mock-savings",
+        "source_type": "newsletter_email",
+        "collection_method": "email_export",
+        "enabled": true,
+        "max_frequency": "manual_only",
+        "compliance_notes": "Fictional user-provided email export fixture."
+      },
+      "raw_snapshot": {
+        "source_url": "email-export://mock-savings",
+        "source_name": "Mock Savings Email Export",
+        "retrieved_at": "2026-06-17T12:05:00+00:00",
+        "raw_text": "Riverbend Sample Bank has a savings bonus. Bonus amount and deposit requirements are not shown in the excerpt.",
+        "collector_name": "fixture"
+      },
+      "banking_deal": {
+        "canonical_key": "riverbend-sample-bank-savings-unknown-2026",
+        "title": "Riverbend Sample Bank Savings Bonus",
+        "institution_name": "Riverbend Sample Bank",
+        "category": "banking",
+        "subcategory": "savings_bonus",
+        "bonus_amount_cents": null,
+        "estimated_net_value_cents": null,
+        "currency": "USD",
+        "source_url": "email-export://mock-savings",
+        "source_name": "Mock Savings Email Export",
+        "discovered_at": "2026-06-17T12:05:00+00:00",
+        "last_seen_at": "2026-06-17T12:05:00+00:00",
+        "expires_at": null,
+        "application_deadline": null,
+        "status": "needs_review",
+        "confidence_score": 0.45,
+        "terms": {
+          "minimum_deposit_amount_cents": null,
+          "direct_deposit_required": null,
+          "direct_deposit_minimum_cents": null,
+          "minimum_balance_required_cents": null,
+          "balance_hold_days": null,
+          "monthly_fee_cents": null,
+          "monthly_fee_waiver_terms": null,
+          "early_closure_fee_cents": null,
+          "hard_pull_risk": null,
+          "soft_pull_only": null,
+          "state_restrictions": null,
+          "new_customer_only": null,
+          "household_limit": null,
+          "terms_json": {
+            "missing_fields": [
+              "bonus_amount",
+              "minimum_deposit",
+              "expiration"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "source_record": {
+        "source_name": "Mock Brokerage Fixture Feed",
+        "source_url": "https://example.test/mock-brokerage-bonus",
+        "source_type": "affiliate_feed",
+        "collection_method": "fixture",
+        "enabled": false,
+        "max_frequency": "disabled",
+        "compliance_notes": "Fictional fixture; live feed collection is out of scope for issue 2."
+      },
+      "raw_snapshot": {
+        "source_url": "https://example.test/mock-brokerage-bonus",
+        "source_name": "Mock Brokerage Fixture Feed",
+        "retrieved_at": "2026-06-17T12:10:00+00:00",
+        "raw_text": "Harbor Demo Brokerage offers a $500 transfer bonus for eligible new brokerage assets held for 180 days.",
+        "collector_name": "fixture"
+      },
+      "banking_deal": {
+        "canonical_key": "harbor-demo-brokerage-transfer-500-2026",
+        "title": "Harbor Demo Brokerage $500 Transfer Bonus",
+        "institution_name": "Harbor Demo Brokerage",
+        "category": "banking",
+        "subcategory": "brokerage_bonus",
+        "bonus_amount_cents": 50000,
+        "estimated_net_value_cents": null,
+        "currency": "USD",
+        "source_url": "https://example.test/mock-brokerage-bonus",
+        "source_name": "Mock Brokerage Fixture Feed",
+        "discovered_at": "2026-06-17T12:10:00+00:00",
+        "last_seen_at": "2026-06-17T12:10:00+00:00",
+        "expires_at": "2026-11-30",
+        "application_deadline": "2026-11-30",
+        "status": "watching",
+        "confidence_score": 0.75,
+        "terms": {
+          "minimum_deposit_amount_cents": 5000000,
+          "direct_deposit_required": false,
+          "direct_deposit_minimum_cents": null,
+          "minimum_balance_required_cents": 5000000,
+          "balance_hold_days": 180,
+          "monthly_fee_cents": null,
+          "monthly_fee_waiver_terms": null,
+          "early_closure_fee_cents": null,
+          "hard_pull_risk": null,
+          "soft_pull_only": null,
+          "state_restrictions": null,
+          "new_customer_only": true,
+          "household_limit": "One bonus per household.",
+          "terms_json": {
+            "fixture_note": "Fictional brokerage promotion."
+          }
+        }
+      }
+    }
+  ]
+}

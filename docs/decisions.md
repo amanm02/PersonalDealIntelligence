@@ -142,3 +142,23 @@ Consequences:
 
 - Dashboard work is deferred.
 - CLI command docs should be updated as implementation stabilizes.
+
+## DEC-009: Use stdlib sqlite3 and versioned SQL migrations for storage
+
+Date: 2026-06-17
+
+Decision: Implement the initial Banking MVP storage layer with Python stdlib
+`sqlite3`, SQLite, and package-owned versioned SQL migration files.
+
+Rationale:
+
+- The repo did not have an existing runtime stack or ORM convention.
+- Issue #2 needs the smallest safe local-first storage foundation.
+- SQL migration files keep schema changes explicit and reviewable.
+
+Consequences:
+
+- The first storage helpers stay lightweight and dictionary-based.
+- Unknown extracted banking terms are stored as `NULL` rather than guessed.
+- A larger ORM can be reconsidered only if later issues create enough model
+  complexity to justify it.

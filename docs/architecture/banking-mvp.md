@@ -235,20 +235,20 @@ Run records should include:
 
 ## Storage model
 
-Expected SQLite-backed concepts:
+The first storage implementation uses SQLite with stdlib `sqlite3`, versioned
+SQL migrations, and package helpers under `src/pdi/storage/`.
+
+Implemented SQLite-backed concepts:
 
 - source records
 - raw deal snapshots
-- banking deal candidates
 - canonical banking deals
 - banking deal terms
-- deal source links
 - deal status events
 - deal change events
-- score records
-- run history
 
-The exact schema should be finalized in issue #2.
+Future issues may add deal candidates, explicit deal source links, score records,
+and run history when those layers are implemented.
 
 ## Configuration
 

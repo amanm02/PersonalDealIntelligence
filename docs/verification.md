@@ -4,7 +4,8 @@ This document defines validation expectations for the Banking MVP.
 
 ## Current state
 
-Runtime implementation has not started yet. Until a package/test stack exists, validation is documentation-focused.
+The initial Python package and SQLite storage layer exist. Storage validation is
+available through pytest and the database initialization command.
 
 ## Docs-only validation
 
@@ -32,38 +33,51 @@ docs/prompt-library.md reviewed
 docs/release-checklists/banking-mvp.md reviewed
 ```
 
-## Expected future setup validation
+## Setup validation
 
-Once Python packaging exists, expected setup validation is:
+The development setup is:
 
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .[dev]
+python3 -m pip install -e '.[dev]'
 ```
 
 If the implementation chooses another package manager, update this file and README together.
 
-## Expected future test validation
+## Test validation
 
-Expected test command:
+Current test command:
 
 ```bash
-pytest
+python3 -m pytest
 ```
 
-Expected narrower commands after modules exist:
+Current narrower storage command:
 
 ```bash
-pytest tests/storage
-pytest tests/sources
-pytest tests/collectors
-pytest tests/extractors
-pytest tests/dedupe
-pytest tests/scoring
-pytest tests/cli
-pytest tests/alerts
-pytest tests/integration
+python3 -m pytest tests/storage
+```
+
+Expected narrower commands as future modules are added:
+
+```bash
+python3 -m pytest tests/sources
+python3 -m pytest tests/collectors
+python3 -m pytest tests/extractors
+python3 -m pytest tests/dedupe
+python3 -m pytest tests/scoring
+python3 -m pytest tests/cli
+python3 -m pytest tests/alerts
+python3 -m pytest tests/integration
+```
+
+## Storage initialization validation
+
+Validate database initialization and fictional fixture loading with:
+
+```bash
+python3 -m pdi.storage init --db /tmp/pdi-issue2.sqlite --seed-fixture examples/banking_deals.json
 ```
 
 ## Expected future quality checks
@@ -114,6 +128,7 @@ Must validate:
 - mock banking deals can be inserted and queried
 - raw snapshots link to extracted/canonical records
 - status/change events can be recorded
+- partially extracted unknown fields remain null
 
 ### Collectors
 
