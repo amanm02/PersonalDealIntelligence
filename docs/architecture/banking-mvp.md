@@ -107,15 +107,22 @@ Banking MVP.
 
 Purpose: convert allowed sources into raw snapshots.
 
-Initial collectors should prioritize:
+Implemented collectors are exposed under `pdi.collectors` and normalize raw
+content into `CollectedSnapshot` objects that can be persisted to
+`raw_deal_snapshots`.
+
+Initial collectors include:
 
 - manual text collector
-- fixture collector
-- RSS fixture collector
+- manual URL record collector
+- RSS/Atom fixture collector
 - newsletter/export text collector
-- API placeholder or fixture-backed collector
+- API fixture-backed collector
 
-Network collection should be policy-controlled and tested separately. Tests must use fixtures by default.
+HTML fetching has no built-in live network client. Any future fetch path must use
+an enabled, approved source policy that explicitly allows non-login scraping, and
+must pass frequency checks before an injected fetcher can run. Tests use fixtures
+or injected fetchers only and must not require internet access by default.
 
 ### 3. Raw snapshots
 
