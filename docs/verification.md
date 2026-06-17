@@ -19,7 +19,7 @@ For documentation-only changes, manually verify:
 - No docs instruct agents to circumvent source rules or collect from private sessions.
 - No docs ask agents to store private auth material or highly sensitive personal identifiers.
 - Any command examples are labeled as expected/future if not yet implemented.
-- GitHub Issue bodies are directly usable as implementation prompts and do not include a separate `Codex prompt` section.
+- GitHub Issue bodies are directly usable as implementation prompts and do not include a separate implementation-prompt section.
 
 Suggested manual checklist:
 
