@@ -24,7 +24,7 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 - [ ] Unsafe source configurations are rejected.
 - [ ] Collection methods are explicit.
 - [ ] Frequency limits are configured.
-- [ ] Login-required sources are not collected by unsafe collectors.
+- [ ] Private-access sources fail closed unless a compliant user-authorized flow is explicitly added later.
 
 ## 4. Storage validation
 
@@ -114,15 +114,12 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 
 ## 12. Safety and privacy review
 
-- [ ] No credentials are collected.
-- [ ] No banking account numbers are stored.
-- [ ] No SSNs or government IDs are stored.
-- [ ] No account-opening automation exists.
-- [ ] No money movement automation exists.
-- [ ] No logged-in banking portal scraping exists.
-- [ ] No CAPTCHA bypassing exists.
-- [ ] No bot-protection evasion exists.
-- [ ] No proxy rotation for bypassing restrictions exists.
+- [ ] No private auth material is collected.
+- [ ] Highly sensitive personal identifiers stay out of project storage.
+- [ ] Financial actions, applications, enrollment, and money movement stay under direct user control.
+- [ ] Source collection follows explicit source policies.
+- [ ] Private-session data is not collected by automated source flows.
+- [ ] Source access workarounds are not part of the implementation.
 - [ ] Docs state that final terms must be verified on official institution pages.
 
 ## 13. Validation commands

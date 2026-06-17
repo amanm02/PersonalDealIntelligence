@@ -57,15 +57,15 @@ Consequences:
 - Tests should verify unsafe source configs are blocked.
 - Collection should be disabled by default unless explicitly allowed.
 
-## DEC-004: No bot-protection evasion or credentialed portal scraping
+## DEC-004: Conservative source access and privacy boundaries
 
 Date: 2026-06-17
 
-Decision: The project must not implement bot-protection evasion, CAPTCHA bypassing, credential collection, logged-in portal scraping, or IP proxy rotation to bypass access controls.
+Decision: The project must keep source collection policy-driven, avoid private-session collection, keep financial actions under user control, and keep private auth material and highly sensitive personal identifiers out of project storage.
 
 Rationale:
 
-- These approaches increase legal, security, maintenance, and account-risk exposure.
+- Aggressive or implicit source access increases legal, security, maintenance, and account-risk exposure.
 - Banking sources are sensitive and should be handled conservatively.
 - The project can still be useful through fixtures, manual URLs, RSS, email exports, APIs, and compliant public pages.
 

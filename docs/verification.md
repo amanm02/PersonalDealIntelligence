@@ -15,8 +15,8 @@ For documentation-only changes, manually verify:
 - Banking MVP scope is clear.
 - Deferred categories are not accidentally included.
 - Safety boundaries are preserved.
-- No docs instruct agents to bypass bot protection, CAPTCHA, login restrictions, or source access controls.
-- No docs ask agents to store sensitive financial identifiers.
+- No docs instruct agents to circumvent source rules or collect from private sessions.
+- No docs ask agents to store private auth material or highly sensitive personal identifiers.
 - Any command examples are labeled as expected/future if not yet implemented.
 
 Suggested manual checklist:
@@ -104,7 +104,7 @@ Must validate:
 - required fields exist
 - unsafe combinations are rejected
 - collection frequency limits are parseable
-- login-required sources are not collected by unsafe collectors
+- private-access sources fail closed unless a future issue explicitly defines a compliant user-authorized flow
 
 ### Storage
 
