@@ -11,8 +11,8 @@ Deferred until the Banking MVP demo and release checklist pass.
 - Hybrid SQL + semantic search.
 - Semantic similarity over raw snapshots, evidence spans, source notes, and extracted terms.
 - Saved searches.
-- Watchlists by institution, subcategory, score band, and expiration window.
-- Similar-deal lookup from a selected canonical deal.
+- Watchlists by institution, subcategory, status, and expiration window.
+- Similar-item lookup from a selected canonical record.
 
 ## Source coverage
 
@@ -23,14 +23,13 @@ Deferred until the Banking MVP demo and release checklist pass.
 - Source freshness and failure monitoring.
 - Source authority weighting.
 
-## Scoring improvements
+## Ranking improvements
 
-- User-adjustable opportunity cost profiles.
-- More precise fee exposure estimates.
-- Better direct-deposit friction modeling.
-- Eligibility and restriction penalties.
-- Tiered brokerage scoring improvements.
-- Historical value comparisons.
+- User-adjustable assumptions.
+- More precise cost estimates.
+- Better friction modeling.
+- Eligibility and restriction handling.
+- Historical comparisons.
 
 ## Review workflow improvements
 
@@ -39,14 +38,14 @@ Deferred until the Banking MVP demo and release checklist pass.
 - Status notes.
 - Watchlist notifications.
 - Completion tracking.
-- Reason codes for skipped/rejected deals.
+- Reason codes for skipped/rejected items.
 
 ## Data quality improvements
 
 - Better conflict resolution workflow.
 - Evidence-span review tools.
 - Unknown-field prioritization.
-- Deal freshness checks.
+- Freshness checks.
 - Duplicate-review reports.
 
 ## Promotion rules
@@ -58,4 +57,4 @@ Move an item from this file into an active GitHub Issue only when:
 - the validation approach is known;
 - the issue can be implemented without expanding into deferred non-banking categories.
 
-The issue body should be directly usable as the implementation prompt. Do not include a separate `Codex prompt` section.
+The issue body should be directly usable as the implementation prompt. Do not include a separate implementation-prompt section.
