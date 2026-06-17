@@ -60,6 +60,11 @@ If Mermaid rendering is not supported in a viewer, treat the diagram as a text r
 
 Purpose: define which banking sources exist and what collection behavior is allowed.
 
+Implemented source policy is config-first. `config/banking_sources.yaml` is the
+machine-readable source registry, and `python3 -m pdi.sources validate --config
+config/banking_sources.yaml` validates it. The existing SQLite `source_records`
+table is provenance for stored snapshots; it is not the policy authority.
+
 Expected source types:
 
 - `manual_url`
@@ -73,16 +78,30 @@ Expected source types:
 
 Each source should define:
 
-- name
-- URL or source identifier
-- category/subcategory scope
-- enabled flag
-- allowed collection methods
-- frequency limit
-- compliance notes
-- last reviewed date
+- `name`
+- `url`
+- `source_type`
+- `category_scope`
+- `subcategory_scope`
+- `enabled`
+- `collection_method`
+- `max_frequency_hours`
+- `requires_login`
+- `allow_scrape`
+- `allow_api`
+- `allow_rss`
+- `allow_email_parse`
+- `robots_policy_notes`
+- `terms_policy_notes`
+- `rate_limit_notes`
+- `compliance_status`
+- `last_reviewed_at`
+- `notes`
 
-Unsafe behavior should be disabled by default.
+Unsafe behavior is disabled by default. Validation rejects unknown fields,
+unsafe source-access flags, logged-in scraping, unapproved enabled sources,
+method/allow-flag mismatches, high-frequency scraping, and scopes outside the
+Banking MVP.
 
 ### 2. Collector framework
 
@@ -254,7 +273,7 @@ and run history when those layers are implemented.
 
 Expected config files:
 
-- `config/banking_sources.yaml`
+- `config/banking_sources.yaml` (implemented)
 - `config/banking_scoring.yaml`
 - `config/banking_alerts.yaml`
 

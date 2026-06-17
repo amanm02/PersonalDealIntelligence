@@ -89,8 +89,9 @@ See `docs/issue-map.md` for dependencies and implementation order.
 ## Local setup
 
 The current runtime foundation is a minimal Python package with SQLite storage
-for Banking MVP deal data. It uses stdlib `sqlite3` and versioned SQL
-migrations under `src/pdi/storage/migrations/`.
+for Banking MVP deal data and a YAML-backed source policy registry. Storage
+uses stdlib `sqlite3` and versioned SQL migrations under
+`src/pdi/storage/migrations/`.
 
 Install for local development:
 
@@ -105,6 +106,19 @@ Initialize a local database with fictional mock banking deals:
 ```bash
 python3 -m pdi.storage init --db data/pdi.sqlite --seed-fixture examples/banking_deals.json
 ```
+
+Validate banking source policies:
+
+```bash
+python3 -m pdi.sources validate --config config/banking_sources.yaml
+```
+
+`config/banking_sources.yaml` is the source-policy authority for future
+collectors. Add new sources there only after documenting the collection method,
+banking category/subcategory scope, rate limits, terms/robots notes, compliance
+status, and review date. Leave sources disabled unless they are explicitly
+approved, and never add credentials, private tokens, personal mailbox labels, or
+private-session collection details.
 
 Run tests:
 
@@ -138,6 +152,14 @@ python3 -m pytest
 python3 -m pdi.storage init --db /tmp/pdi-issue2.sqlite --seed-fixture examples/banking_deals.json
 ```
 
+For source policy changes, run:
+
+```bash
+python3 -m pdi.sources validate --config config/banking_sources.yaml
+python3 -m pytest tests/sources
+python3 -m pytest
+```
+
 Documentation-only changes should be manually checked for:
 
 - clear Banking MVP scope
@@ -160,4 +182,5 @@ Documentation-only changes should be manually checked for:
 
 Initial documentation and issue planning are in progress. The Banking MVP now has
 a local SQLite storage foundation for raw snapshots, canonical deals, structured
-terms, and status/change history.
+terms, status/change history, and explicit source policy validation. Live
+collection is not implemented.
