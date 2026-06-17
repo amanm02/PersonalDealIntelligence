@@ -4,10 +4,11 @@ This document defines validation expectations for the Banking MVP.
 
 ## Current state
 
-The initial Python package, SQLite storage layer, and source policy validator
-exist. Storage validation is available through pytest and the database
-initialization command. Source policy validation is available through the
-`pdi.sources` module and offline pytest coverage.
+The initial Python package, SQLite storage layer, source policy validator, and
+collector framework exist. Storage validation is available through pytest and the
+database initialization command. Source policy validation is available through
+the `pdi.sources` module and offline pytest coverage. Collector validation is
+available through local-only pytest coverage under `tests/collectors`.
 
 ## Docs-only validation
 
@@ -67,11 +68,16 @@ Current narrower source policy command:
 python3 -m pytest tests/sources
 ```
 
+Current narrower collector command:
+
+```bash
+python3 -m pytest tests/collectors
+```
+
 Expected narrower commands as future modules are added:
 
 ```bash
 python3 -m pytest tests/sources
-python3 -m pytest tests/collectors
 python3 -m pytest tests/extractors
 python3 -m pytest tests/dedupe
 python3 -m pytest tests/scoring
@@ -159,6 +165,9 @@ Must validate:
 - disallowed sources are blocked
 - content hashes are stable
 - no tests require internet access
+- login-required HTML collection is blocked
+- high-frequency collection is blocked when last collection metadata is too recent
+- collected snapshots can persist to `raw_deal_snapshots`
 
 ### Extraction
 

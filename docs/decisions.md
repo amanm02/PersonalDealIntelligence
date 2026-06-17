@@ -184,3 +184,26 @@ Consequences:
   source access.
 - SQLite `source_records` remain snapshot provenance until a later issue
   requires full source-policy persistence.
+
+## DEC-011: Keep initial collectors offline-first
+
+Date: 2026-06-17
+
+Decision: Implement the first collector framework with local/manual fixture
+collectors and policy-gated interfaces, but no built-in live network client.
+
+Rationale:
+
+- Issue #4 needs raw snapshot flow without introducing unsafe scraping behavior.
+- Local fixtures keep collector tests deterministic and offline.
+- Explicit injected fetchers give future issues an integration point while
+  preserving source-policy enforcement before any fetch-like behavior.
+
+Consequences:
+
+- Manual text, manual URL records, RSS/Atom fixtures, email export text, and API
+  fixture payloads can produce `CollectedSnapshot` records.
+- HTML fetching remains opt-in for future work and is blocked unless source
+  policy allows approved, non-login, low-frequency scraping.
+- No proxy, CAPTCHA bypass, browser automation, credentials, or private-session
+  collection behavior is introduced.

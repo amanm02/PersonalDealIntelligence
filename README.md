@@ -89,9 +89,9 @@ See `docs/issue-map.md` for dependencies and implementation order.
 ## Local setup
 
 The current runtime foundation is a minimal Python package with SQLite storage
-for Banking MVP deal data and a YAML-backed source policy registry. Storage
-uses stdlib `sqlite3` and versioned SQL migrations under
-`src/pdi/storage/migrations/`.
+for Banking MVP deal data, a YAML-backed source policy registry, and an
+offline-first collector framework. Storage uses stdlib `sqlite3` and versioned
+SQL migrations under `src/pdi/storage/migrations/`.
 
 Install for local development:
 
@@ -119,6 +119,14 @@ banking category/subcategory scope, rate limits, terms/robots notes, compliance
 status, and review date. Leave sources disabled unless they are explicitly
 approved, and never add credentials, private tokens, personal mailbox labels, or
 private-session collection details.
+
+Collector support exists under `pdi.collectors` for manual text, manual URL
+records, RSS/Atom fixture content, newsletter/email export text, and
+fixture-backed API payloads. Collectors normalize raw content into snapshot
+records that can be persisted to `raw_deal_snapshots`. HTML fetching has no
+built-in live network client and is blocked unless an enabled, approved source
+policy explicitly allows non-login scraping and frequency metadata permits the
+attempt.
 
 Run tests:
 
@@ -160,6 +168,15 @@ python3 -m pytest tests/sources
 python3 -m pytest
 ```
 
+For collector changes, run:
+
+```bash
+python3 -m pytest tests/collectors
+python3 -m pytest tests/sources
+python3 -m pytest tests/storage
+python3 -m pytest
+```
+
 Documentation-only changes should be manually checked for:
 
 - clear Banking MVP scope
@@ -182,5 +199,5 @@ Documentation-only changes should be manually checked for:
 
 Initial documentation and issue planning are in progress. The Banking MVP now has
 a local SQLite storage foundation for raw snapshots, canonical deals, structured
-terms, status/change history, and explicit source policy validation. Live
-collection is not implemented.
+terms, status/change history, explicit source policy validation, and local
+fixture/manual collector support. Built-in live collection is not implemented.
