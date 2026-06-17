@@ -1,6 +1,6 @@
 # Prompt Library
 
-This file stores reusable prompts for Codex and other implementation agents.
+This file stores reusable prompts for implementation agents.
 
 Keep prompts compact. Point to source-of-truth files instead of embedding long context.
 
@@ -8,6 +8,8 @@ Keep prompts compact. Point to source-of-truth files instead of embedding long c
 
 - Use the smallest prompt that can complete the task.
 - Include the GitHub issue number.
+- Treat the GitHub Issue body as the implementation prompt.
+- Do not add a separate `Codex prompt` section inside Issue bodies.
 - Read source-of-truth files first.
 - Do not paste large docs unless the agent cannot access them.
 - Ask for evidence, validation, and risks in the output.
