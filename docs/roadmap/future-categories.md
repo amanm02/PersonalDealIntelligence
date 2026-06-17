@@ -8,15 +8,15 @@ Deferred. Do not implement these categories as part of the Banking MVP.
 
 ## Deferred categories
 
-### Credit card offers
+### Banking-adjacent card offers
 
 Possible future scope:
 
-- sign-up bonus tracking
+- welcome offer tracking
 - annual fee handling
-- simple points/cash value assumptions
+- simple value assumptions
 - issuer eligibility rules
-- application timing reminders
+- timing reminders
 
 Keep this separate from Banking MVP unless explicitly promoted into a post-MVP issue.
 
@@ -78,4 +78,4 @@ A future category can move into active implementation only when:
 - Test fixtures exist before live source work.
 - A GitHub Issue has clear acceptance criteria and validation.
 
-The issue body should be directly usable as the implementation prompt. Do not include a separate `Codex prompt` section.
+The issue body should be directly usable as the implementation prompt. Do not include a separate implementation-prompt section.
