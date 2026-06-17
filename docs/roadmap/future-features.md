@@ -16,16 +16,16 @@ Use this backlog to keep `docs/issue-map.md` focused on current execution work.
 - Hybrid SQL + semantic search for banking deals.
 - Semantic similarity against raw evidence and source text.
 - Saved searches and watchlists.
-- Personalized opportunity-cost assumptions by capital source.
+- Personalized scoring assumptions.
 - Deal freshness monitoring.
-- Eligibility tracking without sensitive personal identifiers.
+- Eligibility tracking without private identifiers.
 - Requirement reminder workflow for deposits, holds, and expiration dates.
 - Better source authority ranking.
 - Historical deal value trends.
 
 ## Future categories
 
-- Credit card sign-up offers.
+- Banking-adjacent card offers.
 - Cashback stack optimization.
 - Retail and clothing deals.
 - Travel deals.
@@ -59,4 +59,4 @@ When a future item is ready, create a GitHub Issue with:
 ## Final response requirements
 ```
 
-The issue body should be directly usable as the implementation prompt. Do not include a separate `Codex prompt` section.
+The issue body should be directly usable as the implementation prompt. Do not include a separate implementation-prompt section.
