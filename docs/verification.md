@@ -19,6 +19,7 @@ For documentation-only changes, manually verify:
 - No docs instruct agents to circumvent source rules or collect from private sessions.
 - No docs ask agents to store private auth material or highly sensitive personal identifiers.
 - Any command examples are labeled as expected/future if not yet implemented.
+- GitHub Issue bodies are directly usable as implementation prompts and do not include a separate `Codex prompt` section.
 
 Suggested manual checklist:
 
@@ -31,6 +32,7 @@ docs/architecture/banking-mvp.md reviewed
 docs/decisions.md reviewed
 docs/prompt-library.md reviewed
 docs/release-checklists/banking-mvp.md reviewed
+docs/roadmap/ reviewed
 ```
 
 ## Setup validation
@@ -202,7 +204,7 @@ Must validate:
 
 ## Final response validation reporting
 
-Codex final responses must include exact commands and results, for example:
+Agent final responses must include exact commands and results, for example:
 
 ```text
 Validation
