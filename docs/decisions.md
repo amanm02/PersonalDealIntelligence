@@ -162,3 +162,25 @@ Consequences:
 - Unknown extracted banking terms are stored as `NULL` rather than guessed.
 - A larger ORM can be reconsidered only if later issues create enough model
   complexity to justify it.
+
+## DEC-010: Keep source policy config-first with YAML
+
+Date: 2026-06-17
+
+Decision: Use `config/banking_sources.yaml` and a small `pdi.sources` validator
+as the source policy authority before collectors are implemented.
+
+Rationale:
+
+- Issue #3 needs explicit, machine-readable source rules before live collection.
+- YAML keeps placeholder source records readable for manual review.
+- Keeping policy separate from SQLite avoids a migration before collectors need
+  persisted source policy state.
+
+Consequences:
+
+- `PyYAML` is a runtime dependency.
+- Future collectors must load and enforce `pdi.sources` policies before any
+  source access.
+- SQLite `source_records` remain snapshot provenance until a later issue
+  requires full source-policy persistence.

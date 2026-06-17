@@ -4,8 +4,10 @@ This document defines validation expectations for the Banking MVP.
 
 ## Current state
 
-The initial Python package and SQLite storage layer exist. Storage validation is
-available through pytest and the database initialization command.
+The initial Python package, SQLite storage layer, and source policy validator
+exist. Storage validation is available through pytest and the database
+initialization command. Source policy validation is available through the
+`pdi.sources` module and offline pytest coverage.
 
 ## Docs-only validation
 
@@ -59,6 +61,12 @@ Current narrower storage command:
 python3 -m pytest tests/storage
 ```
 
+Current narrower source policy command:
+
+```bash
+python3 -m pytest tests/sources
+```
+
 Expected narrower commands as future modules are added:
 
 ```bash
@@ -78,6 +86,14 @@ Validate database initialization and fictional fixture loading with:
 
 ```bash
 python3 -m pdi.storage init --db /tmp/pdi-issue2.sqlite --seed-fixture examples/banking_deals.json
+```
+
+## Source policy validation
+
+Validate the source registry with:
+
+```bash
+python3 -m pdi.sources validate --config config/banking_sources.yaml
 ```
 
 ## Expected future quality checks
@@ -116,8 +132,12 @@ Any live integration test must be opt-in, clearly named, and disabled by default
 Must validate:
 
 - required fields exist
+- unknown or unsafe fields are rejected
 - unsafe combinations are rejected
 - collection frequency limits are parseable
+- enabled sources are explicitly approved
+- method-specific allow flags match the collection method
+- source scopes stay inside Banking MVP categories and subcategories
 - private-access sources fail closed unless a future issue explicitly defines a compliant user-authorized flow
 
 ### Storage
