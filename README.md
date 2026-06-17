@@ -86,29 +86,33 @@ The initial Banking MVP is tracked through these GitHub issues:
 
 See `docs/issue-map.md` for dependencies and implementation order.
 
-## Expected local setup
+## Local setup
 
-The implementation stack is not finalized yet. The expected direction is:
+The current runtime foundation is a minimal Python package with SQLite storage
+for Banking MVP deal data. It uses stdlib `sqlite3` and versioned SQL
+migrations under `src/pdi/storage/migrations/`.
 
-- Python
-- SQLite
-- local configuration files under `config/`
-- local data under `data/`
-- generated artifacts under `artifacts/`
-- tests that run without live network access
-
-Once the package structure exists, this section should be updated with exact commands.
-
-Expected future commands:
+Install for local development:
 
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .[dev]
-pytest
+python3 -m pip install -e '.[dev]'
 ```
 
-Expected future Banking MVP commands:
+Initialize a local database with fictional mock banking deals:
+
+```bash
+python3 -m pdi.storage init --db data/pdi.sqlite --seed-fixture examples/banking_deals.json
+```
+
+Run tests:
+
+```bash
+python3 -m pytest
+```
+
+Future Banking MVP commands:
 
 ```bash
 pdi banking list
@@ -126,7 +130,15 @@ These are target commands. Codex should adjust them only if the implementation c
 
 Use `docs/verification.md` as the source of truth for validation.
 
-Until implementation exists, documentation-only changes should be manually checked for:
+For storage changes, run:
+
+```bash
+python3 -m pytest tests/storage
+python3 -m pytest
+python3 -m pdi.storage init --db /tmp/pdi-issue2.sqlite --seed-fixture examples/banking_deals.json
+```
+
+Documentation-only changes should be manually checked for:
 
 - clear Banking MVP scope
 - accurate internal links
@@ -146,4 +158,6 @@ Until implementation exists, documentation-only changes should be manually check
 
 ## Current status
 
-Initial documentation and issue planning are in progress. Runtime implementation has not started yet.
+Initial documentation and issue planning are in progress. The Banking MVP now has
+a local SQLite storage foundation for raw snapshots, canonical deals, structured
+terms, and status/change history.
