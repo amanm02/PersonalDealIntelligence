@@ -33,12 +33,10 @@ The initial build must not include:
 - hotel search
 - cashback stack optimization
 - browser extension work
-- automatic bank applications
-- credential collection
-- scraping logged-in banking portals
-- CAPTCHA bypassing
-- bot-protection evasion
-- IP proxy rotation to bypass access controls
+- automated financial actions, applications, enrollment, or money movement
+- collection of private auth material
+- collection or storage of highly sensitive personal identifiers
+- source access workarounds or private-session collection
 
 ## Safety and compliance boundaries
 
@@ -48,8 +46,8 @@ Implementation rules:
 
 - Use APIs, RSS feeds, email exports, manual text, and explicit source policies before any web collection.
 - Respect each source's terms, robots policy, rate limits, and collection method.
-- Do not collect or store bank credentials, SSNs, account numbers, government IDs, or other sensitive financial identifiers.
-- Do not automate account opening, money movement, or promotion enrollment.
+- Keep private auth material and highly sensitive personal identifiers out of project storage.
+- Keep all financial actions, applications, enrollment, and money movement under direct user control.
 - Preserve evidence for extracted terms so the user can verify the final offer on the official institution page.
 - Unknown or ambiguous terms should remain unknown rather than being guessed.
 
@@ -133,7 +131,7 @@ Until implementation exists, documentation-only changes should be manually check
 - clear Banking MVP scope
 - accurate internal links
 - no claims that unbuilt commands already work
-- no unsafe scraping/proxy/bypass instructions
+- no instructions to circumvent source rules or collect private-session data
 - concise Codex-readable structure
 
 ## Repository docs

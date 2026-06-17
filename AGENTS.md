@@ -42,16 +42,12 @@ Out of scope for the initial build:
 
 ## Safety and compliance rules
 
-Do not implement:
+Keep source collection conservative and user-controlled:
 
-- bot-protection evasion
-- CAPTCHA bypassing
-- IP proxy rotation to bypass access controls
-- logged-in banking portal scraping
-- credential collection
-- account opening automation
-- money movement automation
-- storage of SSNs, account numbers, government IDs, banking passwords, or session cookies
+- Use only source methods allowed by explicit source policy.
+- Do not add source access workarounds or private-session collection.
+- Do not automate financial actions, applications, enrollment, or money movement.
+- Do not collect private auth material or highly sensitive personal identifiers.
 
 Collection must be policy-driven. Source behavior should be configured in machine-readable source policy files before collector code uses the source.
 

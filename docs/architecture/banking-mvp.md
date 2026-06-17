@@ -262,15 +262,13 @@ Do not store secrets in config files. Use environment variables only if external
 
 ## Safety boundaries
 
-The architecture must not include:
+The architecture must keep:
 
-- credential collection
-- login scraping
-- account opening automation
-- money movement automation
-- CAPTCHA bypassing
-- bot-protection evasion
-- proxy rotation to bypass restrictions
+- source collection limited to configured allowed methods
+- private-session data outside automated collection
+- private auth material and highly sensitive personal identifiers outside project storage
+- financial actions, applications, enrollment, and money movement under direct user control
+- external notifications and live collection disabled unless a future issue adds explicit policy, tests, and review steps
 
 ## First usable MVP
 
