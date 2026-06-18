@@ -235,19 +235,32 @@ and must not be presented as financial advice.
 
 Purpose: let the user inspect and update deals locally.
 
-Expected commands:
+Implemented commands:
 
 ```bash
-pdi banking list
-pdi banking show <deal_id>
-pdi banking update-status <deal_id> <status>
-pdi banking review-needed
-pdi banking expiring --days 14
-pdi banking search --institution <name>
-pdi banking score <deal_id>
+pdi --db data/pdi.sqlite banking list
+pdi --db data/pdi.sqlite banking show <deal_id>
+pdi --db data/pdi.sqlite banking update-status <deal_id> <status>
+pdi --db data/pdi.sqlite banking review-needed
+pdi --db data/pdi.sqlite banking expiring --days 14
+pdi --db data/pdi.sqlite banking search --institution <name>
+pdi --db data/pdi.sqlite banking score <deal_id>
 ```
 
-These are target commands and should be updated once implementation exists.
+The list-style commands support terminal table output by default and JSON with
+`--format json`. `list` supports filters for status, institution, subcategory,
+score band, recommended action, expiration window, and needs-review state.
+`show` includes terms, score explanation, source URLs, missing-data warnings,
+evidence links when available, and status history.
+
+Status updates create `deal_status_events` records and update the local
+canonical deal status. Status values include `new`, `needs_review`, `watching`,
+`interested`, `in_progress`, `completed`, `skipped`, `expired`, and `rejected`;
+legacy `applied` rows remain accepted for compatibility.
+
+The CLI is a personal review aid only. It does not request credentials, perform
+applications, enroll in offers, or move money. Final offer terms should be
+verified on the official institution page before acting.
 
 ### 8. Digest
 

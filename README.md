@@ -91,7 +91,8 @@ See `docs/issue-map.md` for dependencies and implementation order.
 The current runtime foundation is a minimal Python package with SQLite storage
 for Banking MVP deal data, a YAML-backed source policy registry, an
 offline-first collector framework, a deterministic banking extractor,
-conservative dedupe, and transparent expected-value scoring.
+conservative dedupe, transparent expected-value scoring, and a local review
+CLI.
 Storage uses stdlib `sqlite3` and versioned SQL migrations under
 `src/pdi/storage/migrations/`.
 
@@ -153,6 +154,23 @@ Validate banking scoring assumptions:
 python3 -m pdi.scoring validate --config config/banking_scoring.yaml
 ```
 
+Review stored banking deals locally:
+
+```bash
+pdi --db data/pdi.sqlite banking list
+pdi --db data/pdi.sqlite banking show <deal_id>
+pdi --db data/pdi.sqlite banking update-status <deal_id> in_progress --note "Reviewing official page."
+pdi --db data/pdi.sqlite banking review-needed
+pdi --db data/pdi.sqlite banking expiring --days 14
+pdi --db data/pdi.sqlite banking search --institution "Example Bank"
+pdi --db data/pdi.sqlite banking score <deal_id>
+```
+
+Use `--format json` on review commands when structured output is needed.
+Status changes are local review notes only. The system does not perform account
+applications, enrollment, money movement, or other financial actions. Verify
+final offer terms on the official institution page before acting.
+
 Run tests:
 
 ```bash
@@ -162,16 +180,11 @@ python3 -m pytest
 Future Banking MVP commands:
 
 ```bash
-pdi banking list
-pdi banking show <deal_id>
-pdi banking update-status <deal_id> <status>
-pdi banking review-needed
-pdi banking expiring --days 14
 pdi banking run --dry-run
 pdi banking runs
 ```
 
-These are target commands. Codex should adjust them only if the implementation chooses a different CLI convention and updates the docs consistently.
+Run-history commands are still planned for a later issue.
 
 ## Validation
 
@@ -229,6 +242,15 @@ python3 -m pytest tests/storage
 python3 -m pytest
 ```
 
+For review CLI changes, run:
+
+```bash
+python3 -m pytest tests/cli
+python3 -m pytest tests/storage
+python3 -m pytest tests/scoring
+python3 -m pytest
+```
+
 Documentation-only changes should be manually checked for:
 
 - clear Banking MVP scope
@@ -251,7 +273,7 @@ Documentation-only changes should be manually checked for:
 
 Initial documentation and issue planning are in progress. The Banking MVP now has
 a local SQLite storage foundation for raw snapshots, canonical deals, structured
-terms, status/change history, explicit source policy validation, and local
-fixture/manual collector support. Offline extraction and conservative dedupe
-into canonical deals are implemented, as is transparent scoring for canonical
-deals. Built-in live collection is not implemented.
+terms, status/change history, explicit source policy validation, local
+fixture/manual collector support, and review CLI commands. Offline extraction
+and conservative dedupe into canonical deals are implemented, as is transparent
+scoring for canonical deals. Built-in live collection is not implemented.
