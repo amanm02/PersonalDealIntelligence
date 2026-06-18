@@ -1,0 +1,42 @@
+annual_opportunity_cost_rate: 0.045
+default_hold_period_days: 90
+default_fee_exposure_months: 3
+minimum_net_value_review_cents: 10000
+unclear_terms_penalty_cents: 1500
+
+score_thresholds:
+  high: 75
+  medium: 50
+  low: 25
+
+expiration_urgency:
+  soon_days: 30
+  urgent_days: 14
+  soon_score_boost: 3
+  urgent_score_boost: 6
+
+hassle_penalties_cents:
+  direct_deposit_required: 2500
+  direct_deposit_unknown: 1500
+  brokerage_bonus: 3000
+  checking_savings_bundle: 3000
+  checking_bonus: 1500
+  savings_bonus: 750
+  money_market_bonus: 750
+  cd_bonus: 1000
+  credit_card_signup_bonus: 3000
+
+risk_penalties_cents:
+  hard_pull_risk: 5000
+  state_restrictions: 1000
+  new_customer_only: 500
+  early_closure_terms: 1000
+  low_confidence: 2000
+
+missing_data_penalties_cents:
+  bonus_amount_cents: 5000
+  direct_deposit_required: 2500
+  minimum_balance_required_cents: 1500
+  balance_hold_days: 1500
+  monthly_fee_cents: 2000
+  expires_at: 1000

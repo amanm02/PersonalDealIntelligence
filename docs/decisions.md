@@ -251,3 +251,27 @@ Consequences:
 - Official-source evidence is preferred when source authority is known.
 - Important conflicts create change events and mark canonical deals
   `needs_review`.
+
+## DEC-014: Keep scoring transparent and config-driven
+
+Date: 2026-06-18
+
+Decision: Implement Banking MVP scoring as a deterministic, component-level
+engine backed by `config/banking_scoring.yaml`.
+
+Rationale:
+
+- Banking bonus value depends on configurable personal assumptions such as
+  opportunity cost, fee exposure, direct-deposit friction, restrictions, and
+  tolerance for missing terms.
+- Review decisions are easier to trust when the gross bonus, costs, penalties,
+  net value, score, action, explanation, and missing-data warnings are visible.
+- Scoring should rank deals for personal review without presenting outputs as
+  financial advice.
+
+Consequences:
+
+- Callers can use `pdi.scoring` to score canonical deals and optionally persist
+  the existing `estimated_net_value_cents` field.
+- Config changes must be validated and covered by offline tests.
+- Alert delivery and review CLI behavior remain separate later issues.
