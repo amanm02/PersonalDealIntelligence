@@ -5,10 +5,17 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+from pdi.alerts import (
+    dispatch_notifications,
+    generate_banking_digest,
+    load_alert_config,
+    write_digest_artifact,
+)
 from pdi.scoring import BankingScore, score_banking_deal
 from pdi.storage import (
     get_banking_deal,
@@ -132,6 +139,35 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_output_format(score_parser)
     score_parser.set_defaults(handler=_handle_score)
 
+    digest_parser = banking_subparsers.add_parser(
+        "digest",
+        help="Generate a local banking deal alert digest.",
+    )
+    digest_parser.add_argument(
+        "--config",
+        default="config/banking_alerts.yaml",
+        help="Path to banking alert config.",
+    )
+    digest_parser.add_argument(
+        "--format",
+        choices=("markdown", "json"),
+        default="markdown",
+        help="Digest output format.",
+    )
+    digest_parser.add_argument("--output", help="Digest output artifact path.")
+    digest_parser.add_argument("--as-of", help="Digest date in YYYY-MM-DD format.")
+    digest_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Regenerate even inside the configured frequency window.",
+    )
+    digest_parser.add_argument(
+        "--dry-run-notifications",
+        action="store_true",
+        help="Exercise notification hooks without external sends.",
+    )
+    digest_parser.set_defaults(handler=_handle_digest)
+
     return parser
 
 
@@ -221,6 +257,32 @@ def _handle_score(args: argparse.Namespace) -> int:
         _print_json(payload)
     else:
         _print_score(payload)
+    return 0
+
+
+def _handle_digest(args: argparse.Namespace) -> int:
+    config = load_alert_config(args.config)
+    as_of = _parse_cli_date(args.as_of) if args.as_of else None
+    digest = generate_banking_digest(args.db, config=config, as_of=as_of)
+    notification_results = dispatch_notifications(
+        digest,
+        config,
+        dry_run=args.dry_run_notifications,
+    )
+    digest = replace(digest, notification_results=notification_results)
+    output_path = args.output or (
+        config.default_json_output_path
+        if args.format == "json"
+        else config.default_markdown_output_path
+    )
+    written_path = write_digest_artifact(
+        digest,
+        output_path,
+        output_format=args.format,
+        minimum_hours_between_digests=config.minimum_hours_between_digests,
+        force=args.force,
+    )
+    print(f"Generated banking digest at {written_path} ({args.format}).")
     return 0
 
 
@@ -582,6 +644,13 @@ def _parse_date(value: Any) -> date | None:
         return date.fromisoformat(str(value)[:10])
     except ValueError:
         return None
+
+
+def _parse_cli_date(value: str) -> date:
+    try:
+        return date.fromisoformat(value)
+    except ValueError as error:
+        raise ValueError(f"Invalid --as-of date: {value}") from error
 
 
 def _json_value(value: Any) -> Any:
