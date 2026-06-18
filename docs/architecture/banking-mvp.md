@@ -177,7 +177,13 @@ stored with candidates for review and later dedupe/canonicalization.
 
 Purpose: merge repeated references to the same deal.
 
-Matching should use conservative signals:
+Implemented dedupe and canonicalization is exposed under `pdi.dedupe`. It
+consumes non-rejected `banking_deal_candidates`, creates or updates canonical
+`banking_deals`, links every candidate/source snapshot to
+`banking_deal_source_links`, and records material differences in
+`deal_change_events`.
+
+Matching uses conservative signals:
 
 - normalized institution name
 - subcategory
@@ -186,7 +192,12 @@ Matching should use conservative signals:
 - expiration date if known
 - source URL path/domain clues
 
-The system should preserve all source references and record conflicts instead of silently overwriting important fields.
+The layer supports exact canonical-key matches, same-source/product matches, and
+strong fuzzy matches by institution, subcategory, bonus amount, compatible
+expiration, and compatible product evidence. Low-confidence candidates do not
+fuzzy-merge. Important conflicts are preserved in change events and mark the
+canonical deal `needs_review` instead of silently overwriting high-confidence or
+official-source data.
 
 ### 6. Scoring engine
 
@@ -277,11 +288,13 @@ Implemented SQLite-backed concepts:
 - raw deal snapshots
 - canonical banking deals
 - banking deal terms
+- extracted banking deal candidates
+- canonical deal source links
 - deal status events
 - deal change events
 
-Future issues may add deal candidates, explicit deal source links, score records,
-and run history when those layers are implemented.
+Future issues may add score records and run history when those layers are
+implemented.
 
 ## Configuration
 
