@@ -4,65 +4,15 @@ This document defines validation expectations for the Banking MVP and the RepoOS
 
 ## Current state
 
-The current `main` branch has a minimal Python package and SQLite storage layer. Storage validation is available through pytest and the database initialization command.
-
-AgentOps validation is available through the Makefile targets added for deterministic docs, structure, hook, MCP, and registry checks.
-
-## Current required checks
-
-Run these before reporting completion for this branch:
-
-```bash
-make agentops-pr
-make hooks-smoke
-make mcp-smoke
-make test
-python3 -m pytest
-```
-
-`make test` is intentionally repo-native and runs only:
-
-```bash
-python3 -m pytest
-```
-
-Use this aggregate when you want AgentOps checks and pytest together:
-
-```bash
-make agentops-test
-```
-
-## Storage checks
-
-Run these when storage files or storage-facing docs change. They are currently available on this branch:
-
-```bash
-python3 -m pytest tests/storage
-python3 -m pdi.storage init --db /tmp/pdi-repoos.sqlite --seed-fixture examples/banking_deals.json
-```
-
-## Future or conditional checks
-
-Run these only if the referenced modules and config files are implemented in the target branch. Do not fail a PR because these future modules are absent.
-
-```bash
-python3 -m pdi.sources validate --config config/banking_sources.yaml
-python3 -m pdi.scoring validate --config config/banking_scoring.yaml
-python3 -m pdi.alerts validate --config config/banking_alerts.yaml
-```
-
-Expected narrower commands as future modules are added:
-
-```bash
-python3 -m pytest tests/sources
-python3 -m pytest tests/collectors
-python3 -m pytest tests/extractors
-python3 -m pytest tests/dedupe
-python3 -m pytest tests/scoring
-python3 -m pytest tests/cli
-python3 -m pytest tests/alerts
-python3 -m pytest tests/integration
-```
+The initial Python package, SQLite storage layer, source policy validator,
+collector framework, deterministic banking extractor, and conservative dedupe
+layer exist. Storage validation is available through pytest and the database
+initialization command. Source policy validation is available through the
+`pdi.sources` module and offline pytest coverage. Collector validation is
+available through local-only pytest coverage under `tests/collectors`.
+Extractor validation is available through offline fixture coverage under
+`tests/extractors`. Dedupe validation is available through offline fixture
+coverage under `tests/dedupe`.
 
 ## Docs-only validation
 
@@ -111,11 +61,48 @@ If the implementation chooses another package manager, update this file and READ
 
 AgentOps GitHub Actions use an organization-level self-hosted runner from the `amanm02` organization:
 
-```yaml
-runs-on: [self-hosted, macOS, ARM64]
+Current narrower source policy command:
+
+```bash
+python3 -m pytest tests/sources
+```
+
+Current narrower collector command:
+
+```bash
+python3 -m pytest tests/collectors
+```
+
+Current narrower extractor command:
+
+```bash
+python3 -m pytest tests/extractors
+```
+
+Current narrower dedupe command:
+
+```bash
+python3 -m pytest tests/dedupe
+```
+
+Expected narrower commands as future modules are added:
+
+```bash
+python3 -m pytest tests/scoring
+python3 -m pytest tests/cli
+python3 -m pytest tests/alerts
+python3 -m pytest tests/integration
 ```
 
 The organization runner must be made available to `amanm02/PersonalDealIntelligence` through organization runner access settings and must have all three labels. See `docs/agentops/github-actions-runners.md`.
+
+## Source policy validation
+
+Validate the source registry with:
+
+```bash
+python3 -m pdi.sources validate --config config/banking_sources.yaml
+```
 
 ## Expected future quality checks
 
@@ -153,8 +140,12 @@ Any live integration test must be opt-in, clearly named, and disabled by default
 Must validate when implemented:
 
 - required fields exist
+- unknown or unsafe fields are rejected
 - unsafe combinations are rejected
 - collection frequency limits are parseable
+- enabled sources are explicitly approved
+- method-specific allow flags match the collection method
+- source scopes stay inside Banking MVP categories and subcategories
 - private-access sources fail closed unless a future issue explicitly defines a compliant user-authorized flow
 
 ### Storage
@@ -176,6 +167,9 @@ Must validate when implemented:
 - disallowed sources are blocked
 - content hashes are stable
 - no tests require internet access
+- login-required HTML collection is blocked
+- high-frequency collection is blocked when last collection metadata is too recent
+- collected snapshots can persist to `raw_deal_snapshots`
 
 ### Extraction
 

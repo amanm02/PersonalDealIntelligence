@@ -1,3 +1,3 @@
 """Personal Deal Intelligence package."""
 
-__all__ = ["storage"]
+__all__ = ["collectors", "sources", "storage"]
