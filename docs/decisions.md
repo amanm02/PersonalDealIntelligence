@@ -274,4 +274,27 @@ Consequences:
 - Callers can use `pdi.scoring` to score canonical deals and optionally persist
   the existing `estimated_net_value_cents` field.
 - Config changes must be validated and covered by offline tests.
-- Alert delivery and review CLI behavior remain separate later issues.
+- Alert delivery remains a separate later issue.
+
+## DEC-015: Use argparse CLI for local banking review
+
+Date: 2026-06-18
+
+Decision: Implement the first review workflow as an `argparse` CLI exposed
+through `pdi banking` and `python -m pdi`.
+
+Rationale:
+
+- The repo already uses small stdlib command modules and has no web framework.
+- A CLI is enough for local inspection, filtering, scoring, and status updates.
+- Table output is readable for manual review, while JSON output keeps tests and
+  later automation deterministic.
+
+Consequences:
+
+- The default local database path is `data/pdi.sqlite`, with `--db` available
+  for fixture and alternate databases.
+- Status changes are recorded as local review events and do not trigger any
+  financial action.
+- `in_progress` is the preferred active-review status; existing `applied` rows
+  remain accepted for compatibility.
