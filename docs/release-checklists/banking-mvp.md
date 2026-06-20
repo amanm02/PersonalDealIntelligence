@@ -12,9 +12,9 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 ## 2. Local setup
 
 - [ ] Fresh clone works.
-- [ ] Virtual environment setup works if Python packaging exists.
+- [ ] Virtual environment setup works.
 - [ ] Dependencies install successfully.
-- [ ] `.env.example` exists if environment variables are required.
+- [ ] No `.env.example` is required unless future external integrations add environment variables.
 - [ ] No real secrets are committed.
 
 ## 3. Source policy validation
@@ -105,12 +105,13 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 
 ## 11. Run history and dry-run
 
-- [ ] Dry-run command works.
-- [ ] One-shot run command works.
-- [ ] Run records include start/end/status/counts/errors/digest path.
-- [ ] Overlapping runs are blocked.
-- [ ] Recent runs can be listed.
-- [ ] One run can be inspected.
+- [ ] Deferred to Issue #12; do not treat as Banking MVP release-blocking until implemented.
+- [ ] When implemented, dry-run command works.
+- [ ] When implemented, one-shot run command works.
+- [ ] When implemented, run records include start/end/status/counts/errors/digest path.
+- [ ] When implemented, overlapping runs are blocked.
+- [ ] When implemented, recent runs can be listed.
+- [ ] When implemented, one run can be inspected.
 
 ## 12. Safety and privacy review
 
@@ -126,16 +127,33 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 
 Before release, run the full validation suite listed in `docs/verification.md`.
 
-Expected future commands:
+Current Banking MVP readiness commands:
 
 ```bash
-pytest
+python3 -m pdi.sources validate --config config/banking_sources.yaml
+python3 -m pdi.scoring validate --config config/banking_scoring.yaml
+python3 -m pdi.alerts validate --config config/banking_alerts.yaml
+python3 -m pytest tests/sources
+python3 -m pytest tests/extractors
+python3 -m pytest tests/dedupe
+python3 -m pytest tests/scoring
+python3 -m pytest tests/cli
+python3 -m pytest tests/alerts
+python3 -m pytest tests/integration
+python3 -m pytest
+python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking smoke-test \
+  --digest-output /tmp/pdi-banking-smoke-digest.md \
+  --as-of 2026-06-18 \
+  --reset-db
+```
+
+Expected future quality commands, only after they are configured in the repo:
+
+```bash
 ruff check .
 ruff format --check .
 mypy .
 ```
-
-Only run commands that are configured in the repo.
 
 ## 14. Known limitations to document
 
@@ -144,6 +162,7 @@ Only run commands that are configured in the repo.
 - [ ] Source coverage is limited by configured sources.
 - [ ] User must verify final offers manually.
 - [ ] Live source collection, if added later, must remain source-policy controlled.
+- [ ] Run history and dry-run orchestration are deferred to Issue #12.
 
 ## Release decision
 

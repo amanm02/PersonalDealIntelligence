@@ -15,7 +15,6 @@ Included:
 - money market and CD bonuses
 - review/status workflow
 - local digest
-- run history
 
 Deferred:
 
@@ -26,22 +25,23 @@ Deferred:
 - cashback stack optimization
 - browser extension
 - full web dashboard
+- run history and dry-run orchestration
 
 ## Implementation sequence
 
 | Order | Issue | Title | Depends on | Status |
 |---:|---|---|---|---|
-| 00 | #1 | Bootstrap project operating layer and banking roadmap | none | open |
-| 01 | #2 | Define banking deal data model, storage, and migrations | #1 | open |
-| 02 | #3 | Build source registry and compliant source policy configuration | #1, optionally #2 | open |
-| 03 | #4 | Implement compliant collector framework for banking sources | #2, #3 | open |
-| 04 | #5 | Implement banking deal extraction from raw snapshots | #2, #4 | open |
-| 05 | #6 | Implement banking deal dedupe, canonicalization, and change tracking | #2, #5 | open |
-| 06 | #7 | Implement banking expected-value scoring engine | #2, #5, #6 | open |
-| 07 | #8 | Build review workflow CLI for banking deals | #2, #6, #7 | open |
-| 08 | #9 | Build banking deal alert digest and notification rules | #6, #7, #8 | open |
-| 09 | #10 | Add offline fixture smoke test for the full banking flow | #2-#9 | open |
-| 10 | #11 | Harden documentation, tests, and release checklist | #1-#10 | open |
+| 00 | #1 | Bootstrap project operating layer and banking roadmap | none | closed |
+| 01 | #2 | Define banking deal data model, storage, and migrations | #1 | closed |
+| 02 | #3 | Build source registry and compliant source policy configuration | #1, optionally #2 | closed |
+| 03 | #4 | Implement compliant collector framework for banking sources | #2, #3 | closed |
+| 04 | #5 | Implement banking deal extraction from raw snapshots | #2, #4 | closed |
+| 05 | #6 | Implement banking deal dedupe, canonicalization, and change tracking | #2, #5 | closed |
+| 06 | #7 | Implement banking expected-value scoring engine | #2, #5, #6 | closed |
+| 07 | #8 | Build review workflow CLI for banking deals | #2, #6, #7 | closed |
+| 08 | #9 | Build banking deal alert digest and notification rules | #6, #7, #8 | closed |
+| 09 | #10 | Add offline fixture smoke test for the full banking flow | #2-#9 | closed |
+| 10 | #11 | Harden documentation, tests, and release checklist | #1-#10 | in review |
 | 11 | #12 | Add local run history and dry-run command | #3, #4, #7, #9, #10, #11 | open |
 
 ## Dependency notes

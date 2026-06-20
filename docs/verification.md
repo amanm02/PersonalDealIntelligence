@@ -142,6 +142,30 @@ Validate banking alert rules with:
 python3 -m pdi.alerts validate --config config/banking_alerts.yaml
 ```
 
+## Banking MVP readiness validation
+
+For Banking MVP release-readiness hardening, run the exact current validation
+suite below. Use `python3 -m pdi` for CLI validation so the command exercises
+the package entrypoint without depending on an installed console script.
+
+```bash
+python3 -m pdi.sources validate --config config/banking_sources.yaml
+python3 -m pdi.scoring validate --config config/banking_scoring.yaml
+python3 -m pdi.alerts validate --config config/banking_alerts.yaml
+python3 -m pytest tests/sources
+python3 -m pytest tests/extractors
+python3 -m pytest tests/dedupe
+python3 -m pytest tests/scoring
+python3 -m pytest tests/cli
+python3 -m pytest tests/alerts
+python3 -m pytest tests/integration
+python3 -m pytest
+python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking smoke-test \
+  --digest-output /tmp/pdi-banking-smoke-digest.md \
+  --as-of 2026-06-18 \
+  --reset-db
+```
+
 ## Expected future quality checks
 
 If configured, run:
@@ -285,6 +309,10 @@ Must validate when implemented:
 - run records are persisted
 - overlapping runs are blocked
 - recent run listing works
+
+Run history and dry-run run orchestration are deferred to Issue #12. Do not
+report `banking run --dry-run`, run listing, run inspection, or persisted
+run-history behavior as available until that issue implements and validates it.
 
 ## Final response validation reporting
 
