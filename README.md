@@ -63,13 +63,23 @@ The Banking MVP is organized around these layers:
 6. **Scoring** — estimate net value and explain score components.
 7. **Review workflow** — CLI-based status tracking and inspection.
 8. **Digest** — local markdown/JSON summaries for high-value, expiring, changed, or review-needed deals.
-9. **Run history** — deferred local repeated-run tracking with dry-run support.
+9. **Run history** — local repeated-run tracking with dry-run support.
 
 See `docs/architecture/banking-mvp.md` for details.
 
 ## Planned issue sequence
 
 The active Banking MVP issue sequence is tracked in `docs/issue-map.md`.
+The current roadmap continues past the core flow into offline demo readiness:
+
+- #14 realistic demo fixture corpus and source seed pack
+- #15 product-facing banking deal find/search command
+- #16 fresh-clone demo readiness gate
+- #17 opt-in compliant public source pilot, kept separate from the offline demo
+- #18 roadmap synchronization after the demo expansion
+
+Commands for #14-#17 behavior should stay documented as planned or expected
+until the corresponding issue implements and validates them.
 
 Post-MVP and deferred ideas live under `docs/roadmap/` so they do not pollute the active MVP scope:
 
@@ -84,7 +94,8 @@ The current runtime foundation is a minimal Python package with SQLite storage
 for Banking MVP deal data, a YAML-backed source policy registry, an
 offline-first collector framework, a deterministic banking extractor,
 conservative dedupe, transparent expected-value scoring, and a local review
-CLI with local alert digest generation and an offline fixture smoke flow.
+CLI with local alert digest generation, an offline fixture smoke flow, and
+local run history/dry-run orchestration.
 Storage uses stdlib `sqlite3` and versioned SQL migrations under
 `src/pdi/storage/migrations/`.
 
@@ -221,14 +232,11 @@ credentialed source access, browser automation, or automatic banking actions as
 part of local scheduling. Stale run-lock cleanup is not automatic yet; if a
 process is interrupted while running, inspect `banking_run_locks` manually and
 remove a stale local lock only after confirming no run is active.
-python3 -m pdi banking run --dry-run
-python3 -m pdi banking runs
-```
 
-These are target commands for Issue #12 or later. They are not implemented in
-the current mainline CLI. Implementation agents should adjust them only if the
-implementation chooses a different CLI convention and updates the docs
-consistently.
+Planned demo-readiness work will add or document fixture-backed commands for
+seeding realistic demo sources, finding ranked local banking deals, and running
+a fresh-clone demo gate. Until #14, #15, and #16 are implemented, those commands
+are roadmap items, not current CLI guarantees.
 
 ## Validation
 
@@ -379,5 +387,7 @@ terms, status/change history, explicit source policy validation, local
 fixture/manual collector support, and review CLI commands. Offline extraction
 and conservative dedupe into canonical deals are implemented, as is transparent
 scoring, local alert digest generation, and an offline fixture smoke flow for
-canonical deals. Built-in live collection, external alert sending, run history,
-and dry-run run orchestration are not implemented.
+canonical deals. Local run history and dry-run run orchestration are
+implemented. Realistic demo source fixtures, product-facing find/search,
+fresh-clone demo readiness, built-in live collection, and external alert sending
+are not implemented.
