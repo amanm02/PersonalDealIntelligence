@@ -8,17 +8,18 @@ Deferred. Do not implement these categories as part of the Banking MVP.
 
 ## Deferred categories
 
-### Banking-adjacent card offers
+### Credit-card rewards optimization beyond acquisition offers
 
 Possible future scope:
 
-- welcome offer tracking
-- annual fee handling
-- simple value assumptions
-- issuer eligibility rules
+- transfer partner valuation
+- ongoing category multiplier optimization
+- card-linked offer stacking
+- redemption strategy comparisons
 - timing reminders
 
-Keep this separate from Banking MVP unless explicitly promoted into a post-MVP issue.
+Credit-card acquisition offer tracking itself is Banking MVP scope. Keep deeper
+rewards optimization separate unless explicitly promoted into a later issue.
 
 ### Cashback stack optimization
 

@@ -346,3 +346,34 @@ Consequences:
   digest path as metadata.
 - Local scheduling examples should use `--execute` only when persistent workflow
   writes are intended.
+
+## DEC-018: Include credit-card acquisition offers in the Banking MVP
+
+Date: 2026-06-20
+
+Decision: Credit-card acquisition offers are part of the Banking MVP scope, but
+runtime support must be implemented through dedicated Track A/B issues rather
+than this documentation-only scope alignment.
+
+Rationale:
+
+- The MVP should cover new-customer financial promotions across major account
+  types, including deposit accounts, brokerage offers, and credit-card
+  acquisition offers.
+- Credit-card offers have distinct source, schema, extraction, scoring, and
+  review concepts such as issuer, card name, offer currency, minimum spend,
+  spend window, annual fee, statement credits, public/targeted classification,
+  and business vs personal classification.
+- Documenting the scope now prevents future agents from building deposit-only
+  source policy, data, extraction, scoring, and review layers.
+
+Consequences:
+
+- Docs and issue maps should no longer describe credit-card acquisition offers
+  as deferred.
+- Runtime support should be added by the dedicated credit-card and shared
+  Track A/B issues, especially source coverage, taxonomy, rules, evidence, and
+  the credit-card offer model/scoring work.
+- The system must not apply for cards, submit forms, store full card numbers or
+  sensitive personal financial information, scrape private sessions, bypass
+  access controls, or present results as personalized financial advice.

@@ -13,7 +13,8 @@ The Banking MVP tracks and evaluates banking-related promotions, including:
 - checking + savings bundle bonuses
 - brokerage deposit or transfer bonuses
 - money market and CD bonuses
-- credit card sign-up bonuses as a deferred banking-adjacent extension
+- publicly available business banking bonuses when clearly separated from personal offers
+- personal and business credit card acquisition offers, including cash, points, miles, statement-credit, mixed, elevated limited-time, public issuer, and clearly marked targeted offers from allowed non-private sources
 
 The system should help answer:
 
@@ -34,9 +35,11 @@ The initial build must not include:
 - cashback stack optimization
 - browser extension work
 - automated financial actions, applications, enrollment, or money movement
+- credit card applications or form submission
 - collection of private auth material
-- collection or storage of highly sensitive personal identifiers
+- collection or storage of full card numbers, highly sensitive personal identifiers, or sensitive personal financial information
 - source access workarounds or private-session collection
+- bypassing anti-bot protections, paywalls, CAPTCHAs, or access controls
 
 ## Safety and compliance boundaries
 
@@ -48,7 +51,8 @@ Implementation rules:
 - Respect each source's terms, robots policy, rate limits, and collection method.
 - Keep private auth material and highly sensitive personal identifiers out of project storage.
 - Keep all financial actions, applications, enrollment, and money movement under direct user control.
-- Preserve evidence for extracted terms so the user can verify the final offer on the official institution page.
+- Preserve evidence for extracted terms so the user can verify the final offer on the official institution or issuer page.
+- Treat issuer application restrictions as review notes, not personalized financial advice.
 - Unknown or ambiguous terms should remain unknown rather than being guessed.
 
 ## Initial architecture
@@ -70,13 +74,16 @@ See `docs/architecture/banking-mvp.md` for details.
 ## Planned issue sequence
 
 The active Banking MVP issue sequence is tracked in `docs/issue-map.md`.
-The current roadmap continues past the core flow into offline demo readiness:
+The current roadmap continues past the core flow into offline demo readiness and credit-card acquisition support:
 
 - #14 realistic demo fixture corpus and source seed pack
 - #15 product-facing banking deal find/search command
 - #16 fresh-clone demo readiness gate
 - #17 opt-in compliant public source pilot, kept separate from the offline demo
 - #18 roadmap synchronization after the demo expansion
+- #27 credit-card acquisition scope alignment
+- #28-#34 Track A research, collection, evidence, verification, freshness, and QA work
+- #35-#43 Track B deal intelligence, taxonomy, rules, credit-card model, conflict, service, and export work
 
 Commands for #14-#17 behavior should stay documented as planned or expected
 until the corresponding issue implements and validates them.
@@ -198,8 +205,9 @@ python3 -m pdi --db data/pdi.sqlite banking digest --format json --output data/d
 
 Use `--format json` on review commands when structured output is needed.
 Status changes are local review notes only. The system does not perform account
-applications, enrollment, money movement, or other financial actions. Verify
-final offer terms on the official institution page before acting.
+or card applications, enrollment, money movement, form submission, or other
+financial actions. Verify final offer terms on the official institution or
+issuer page before acting.
 Use digest output as a local review aid only; generated digest artifacts should
 not contain credentials or highly sensitive personal identifiers.
 
@@ -402,6 +410,8 @@ fixture/manual collector support, and review CLI commands. Offline extraction
 and conservative dedupe into canonical deals are implemented, as is transparent
 scoring, local alert digest generation, and an offline fixture smoke flow for
 canonical deals. Local run history and dry-run run orchestration are
-implemented. Realistic demo source fixtures, product-facing find/search,
-fresh-clone demo readiness, built-in live collection, and external alert sending
-are not implemented.
+implemented. Credit-card acquisition offers are now MVP scope, with runtime
+support tracked in the dedicated Track A/B issues rather than implemented in
+this docs-only scope update. Realistic demo source fixtures, product-facing
+find/search, fresh-clone demo readiness, built-in live collection, and external
+alert sending are not implemented.
