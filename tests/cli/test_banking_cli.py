@@ -1,13 +1,16 @@
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 from datetime import date, timedelta
 from pathlib import Path
 
 from pdi.storage import (
+    acquire_banking_run_lock,
     initialize_database,
     insert_banking_deal,
+    insert_banking_run,
     insert_deal_change_event,
     list_deal_status_events,
 )
@@ -269,5 +272,141 @@ def test_digest_command_defaults_to_markdown_output(tmp_path):
     assert "Notification Dry Run" in rendered
 
 
+def test_run_defaults_to_dry_run_without_durable_deal_or_digest_changes(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    digest_path = tmp_path / "dry-run-digest.md"
+    initialize_database(db_path)
+    before_counts = workflow_table_counts(db_path)
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "run",
+        "--digest-output",
+        str(digest_path),
+        "--as-of",
+        "2026-06-18",
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "succeeded"
+    assert payload["dry_run"] is True
+    assert payload["digest_path"] is None
+    assert payload["metadata"]["would_be_digest_path"] == str(digest_path)
+    assert payload["metadata"]["digest_written"] is False
+    assert payload["source_count"] == 8
+    assert workflow_table_counts(db_path) == before_counts
+    assert not digest_path.exists()
+
+
+def test_run_execute_persists_workflow_and_digest(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    digest_path = tmp_path / "run-digest.md"
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "run",
+        "--execute",
+        "--digest-output",
+        str(digest_path),
+        "--as-of",
+        "2026-06-18",
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "succeeded"
+    assert payload["dry_run"] is False
+    assert payload["digest_path"] == str(digest_path)
+    assert payload["canonical_deal_count"] == 5
+    assert digest_path.exists()
+    assert workflow_table_counts(db_path)["banking_deals"] == 5
+
+
+def test_runs_and_run_status_return_recorded_run(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+
+    run_result = run_cli(
+        db_path,
+        "banking",
+        "run",
+        "--dry-run",
+        "--as-of",
+        "2026-06-18",
+        "--format",
+        "json",
+    )
+    assert run_result.returncode == 0, run_result.stderr
+
+    runs_result = run_cli(db_path, "banking", "runs", "--format", "json")
+    assert runs_result.returncode == 0, runs_result.stderr
+    runs = json.loads(runs_result.stdout)
+    run_id = runs[0]["id"]
+
+    status_result = run_cli(
+        db_path,
+        "banking",
+        "run-status",
+        str(run_id),
+        "--format",
+        "json",
+    )
+
+    assert status_result.returncode == 0, status_result.stderr
+    status = json.loads(status_result.stdout)
+    assert status["id"] == run_id
+    assert status["status"] == "succeeded"
+    assert status["dry_run"] is True
+
+
+def test_run_records_blocked_status_without_taking_over_existing_lock(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    locked_run_id = insert_banking_run(db_path, dry_run=True)
+    assert acquire_banking_run_lock(db_path, locked_run_id) is True
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "run",
+        "--dry-run",
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 1
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "blocked"
+    assert payload["errors"] == ["another banking run is already active"]
+    with sqlite3.connect(db_path) as connection:
+        lock = connection.execute(
+            "SELECT run_id FROM banking_run_locks WHERE lock_name = 'banking_run'"
+        ).fetchone()
+    assert lock[0] == locked_run_id
+
+
 def _days_from_now(days):
     return (date.today() + timedelta(days=days)).isoformat()
+
+
+def workflow_table_counts(db_path):
+    tables = (
+        "source_records",
+        "raw_deal_snapshots",
+        "banking_deal_candidates",
+        "banking_deals",
+        "banking_deal_source_links",
+        "deal_change_events",
+        "deal_status_events",
+    )
+    with sqlite3.connect(db_path) as connection:
+        return {
+            table: connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            for table in tables
+        }

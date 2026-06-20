@@ -322,3 +322,27 @@ Consequences:
 - `pdi banking digest` writes local artifacts only.
 - Any future live email, webhook, or messaging provider must add explicit
   configuration, dry-run tests, environment-variable handling, and safety review.
+
+## DEC-017: Make Banking MVP runs dry-run by default
+
+Date: 2026-06-20
+
+Decision: `pdi banking run` defaults to dry-run mode, and durable workflow
+execution requires explicit `--execute`.
+
+Rationale:
+
+- Repeated deal runs can create many local source, snapshot, candidate, and
+  canonical rows.
+- A safe default lets the user inspect counts and command behavior before
+  committing durable local changes.
+- Explicit execution is clearer for cron, launchd, and other local scheduling.
+
+Consequences:
+
+- Dry-run records run history in the real database, but workflow writes happen
+  only in a temporary database copy.
+- Dry-run does not create the durable digest artifact; it records the requested
+  digest path as metadata.
+- Local scheduling examples should use `--execute` only when persistent workflow
+  writes are intended.

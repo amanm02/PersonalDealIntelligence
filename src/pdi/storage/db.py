@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sqlite3
+import socket
 from datetime import datetime, timezone
 from importlib import resources
 from pathlib import Path
@@ -441,6 +443,193 @@ def insert_status_event(
         return int(cursor.lastrowid)
 
 
+def insert_banking_run(
+    db_path: DbPath,
+    *,
+    dry_run: bool,
+    status: str = "running",
+    started_at: str | None = None,
+    metadata: Mapping[str, Any] | None = None,
+) -> int:
+    """Insert a Banking MVP workflow run record."""
+
+    with _connect(db_path) as connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO banking_runs (
+              started_at,
+              status,
+              dry_run,
+              metadata_json
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                started_at or _utc_now(),
+                status,
+                _bool_to_int(dry_run),
+                _json_text(metadata),
+            ),
+        )
+        connection.commit()
+        return int(cursor.lastrowid)
+
+
+def update_banking_run(
+    db_path: DbPath,
+    run_id: int,
+    *,
+    status: str,
+    ended_at: str | None = None,
+    counts: Mapping[str, Any] | None = None,
+    errors: list[str] | None = None,
+    digest_path: str | None = None,
+    metadata: Mapping[str, Any] | None = None,
+) -> None:
+    """Update a run record with final status, counts, and metadata."""
+
+    count_values = _banking_run_count_values(counts or {})
+    error_values = errors or []
+    with _connect(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE banking_runs
+            SET ended_at = ?,
+                status = ?,
+                source_count = ?,
+                raw_snapshot_count = ?,
+                candidate_count = ?,
+                rejected_candidate_count = ?,
+                canonical_deal_count = ?,
+                duplicate_merge_count = ?,
+                conflict_count = ?,
+                review_needed_deal_count = ?,
+                scored_deal_count = ?,
+                expired_scored_deal_count = ?,
+                error_count = ?,
+                errors_json = ?,
+                digest_path = ?,
+                metadata_json = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                ended_at or _utc_now(),
+                status,
+                count_values["source_count"],
+                count_values["raw_snapshot_count"],
+                count_values["candidate_count"],
+                count_values["rejected_candidate_count"],
+                count_values["canonical_deal_count"],
+                count_values["duplicate_merge_count"],
+                count_values["conflict_count"],
+                count_values["review_needed_deal_count"],
+                count_values["scored_deal_count"],
+                count_values["expired_scored_deal_count"],
+                len(error_values),
+                _json_text(error_values),
+                digest_path,
+                _json_text(metadata),
+                run_id,
+            ),
+        )
+        connection.commit()
+
+
+def get_banking_run(db_path: DbPath, run_id: int) -> dict[str, Any] | None:
+    """Return one Banking MVP run record, or None."""
+
+    with _connect(db_path) as connection:
+        row = connection.execute(
+            "SELECT * FROM banking_runs WHERE id = ?",
+            (run_id,),
+        ).fetchone()
+        return _row_to_dict(row) if row is not None else None
+
+
+def list_banking_runs(db_path: DbPath, *, limit: int = 10) -> list[dict[str, Any]]:
+    """List recent Banking MVP run records."""
+
+    if limit < 1:
+        raise ValueError("--limit must be at least 1")
+    with _connect(db_path) as connection:
+        return [
+            _row_to_dict(row)
+            for row in connection.execute(
+                """
+                SELECT *
+                FROM banking_runs
+                ORDER BY started_at DESC, id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        ]
+
+
+def acquire_banking_run_lock(
+    db_path: DbPath,
+    run_id: int,
+    *,
+    lock_name: str = "banking_run",
+    stale_after: str | None = None,
+) -> bool:
+    """Acquire the single local banking run lock if it is available."""
+
+    hostname = socket.gethostname()
+    pid = os.getpid()
+    lock_owner = f"{hostname}:{pid}:{run_id}"
+    try:
+        with _connect(db_path) as connection:
+            connection.execute(
+                """
+                INSERT INTO banking_run_locks (
+                  lock_name,
+                  run_id,
+                  hostname,
+                  pid,
+                  lock_owner,
+                  acquired_at,
+                  stale_after
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    lock_name,
+                    run_id,
+                    hostname,
+                    pid,
+                    lock_owner,
+                    _utc_now(),
+                    stale_after,
+                ),
+            )
+            connection.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+
+
+def release_banking_run_lock(
+    db_path: DbPath,
+    *,
+    run_id: int,
+    lock_name: str = "banking_run",
+) -> None:
+    """Release the local banking run lock for the owning run."""
+
+    with _connect(db_path) as connection:
+        connection.execute(
+            """
+            DELETE FROM banking_run_locks
+            WHERE lock_name = ?
+              AND run_id = ?
+            """,
+            (lock_name, run_id),
+        )
+        connection.commit()
+
+
 def update_banking_deal(
     db_path: DbPath,
     deal_id: int,
@@ -793,6 +982,46 @@ def _merge_record(
     data = dict(record or {})
     data.update(fields)
     return data
+
+
+def _banking_run_count_values(counts: Mapping[str, Any]) -> dict[str, int]:
+    return {
+        "source_count": int(counts.get("source_count", counts.get("sources", 0))),
+        "raw_snapshot_count": int(
+            counts.get("raw_snapshot_count", counts.get("raw_snapshots", 0))
+        ),
+        "candidate_count": int(
+            counts.get("candidate_count", counts.get("candidates", 0))
+        ),
+        "rejected_candidate_count": int(
+            counts.get(
+                "rejected_candidate_count",
+                counts.get("rejected_candidates", 0),
+            )
+        ),
+        "canonical_deal_count": int(
+            counts.get("canonical_deal_count", counts.get("canonical_deals", 0))
+        ),
+        "duplicate_merge_count": int(
+            counts.get("duplicate_merge_count", counts.get("duplicate_merges", 0))
+        ),
+        "conflict_count": int(counts.get("conflict_count", counts.get("conflicts", 0))),
+        "review_needed_deal_count": int(
+            counts.get(
+                "review_needed_deal_count",
+                counts.get("review_needed_deals", 0),
+            )
+        ),
+        "scored_deal_count": int(
+            counts.get("scored_deal_count", counts.get("scored_deals", 0))
+        ),
+        "expired_scored_deal_count": int(
+            counts.get(
+                "expired_scored_deal_count",
+                counts.get("expired_scored_deals", 0),
+            )
+        ),
+    }
 
 
 def _insert_terms(

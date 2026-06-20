@@ -199,14 +199,28 @@ Run tests:
 python3 -m pytest
 ```
 
-Future Banking MVP commands:
+Run the local Banking MVP workflow once with run history:
 
 ```bash
-pdi banking run --dry-run
-pdi banking runs
+python3 -m pdi --db data/pdi.sqlite banking run
+python3 -m pdi --db data/pdi.sqlite banking run --dry-run
+python3 -m pdi --db data/pdi.sqlite banking run --execute
+python3 -m pdi --db data/pdi.sqlite banking runs --limit 10
+python3 -m pdi --db data/pdi.sqlite banking run-status <run_id>
 ```
 
-These are target commands. Implementation agents should adjust them only if the implementation chooses a different CLI convention and updates the docs consistently.
+The run command defaults to dry-run mode. Dry-run records run history in the
+real database but runs the workflow against a temporary database copy, does not
+write the durable digest artifact, and records the requested digest path only
+as metadata. Use `--execute` only when you want to persist workflow changes and
+write the digest artifact.
+
+For optional local scheduling, call the explicit execute command from cron or
+launchd and redirect output to a local log file. Do not add cloud schedulers,
+credentialed source access, browser automation, or automatic banking actions as
+part of local scheduling. Stale run-lock cleanup is not automatic yet; if a
+process is interrupted while running, inspect `banking_run_locks` manually and
+remove a stale local lock only after confirming no run is active.
 
 ## Validation
 

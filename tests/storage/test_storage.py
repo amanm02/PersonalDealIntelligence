@@ -8,14 +8,20 @@ from pathlib import Path
 import pytest
 
 from pdi.storage import (
+    acquire_banking_run_lock,
     get_banking_deal,
+    get_banking_run,
     initialize_database,
     insert_banking_deal,
+    insert_banking_run,
     insert_raw_snapshot,
     insert_source_record,
     insert_status_event,
     list_banking_deals,
+    list_banking_runs,
     load_seed_fixture,
+    release_banking_run_lock,
+    update_banking_run,
 )
 
 
@@ -43,12 +49,14 @@ def test_initializes_database_from_scratch(tmp_path):
             "banking_deal_terms",
             "banking_deal_candidates",
             "banking_deal_source_links",
+            "banking_runs",
+            "banking_run_locks",
             "deal_status_events",
             "deal_change_events",
         }.issubset(table_names)
         assert connection.execute(
             "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0] == 4
+        ).fetchone()[0] == 5
 
 
 def test_migrations_are_idempotent(tmp_path):
@@ -60,7 +68,7 @@ def test_migrations_are_idempotent(tmp_path):
     with sqlite3.connect(db_path) as connection:
         assert connection.execute(
             "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0] == 4
+        ).fetchone()[0] == 5
 
 
 def test_insert_and_query_partial_deal_with_raw_snapshot_link(tmp_path):
@@ -248,6 +256,59 @@ def test_seed_fixture_loads_three_mock_deals(tmp_path):
         "savings_bonus",
         "brokerage_bonus",
     }
+
+
+def test_banking_run_history_records_counts_and_metadata(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+
+    run_id = insert_banking_run(
+        db_path,
+        dry_run=True,
+        metadata={"workflow": "fixture"},
+    )
+    update_banking_run(
+        db_path,
+        run_id,
+        status="succeeded",
+        counts={
+            "sources": 2,
+            "raw_snapshots": 2,
+            "candidates": 2,
+            "canonical_deals": 1,
+            "conflicts": 1,
+        },
+        metadata={"workflow": "fixture", "digest_written": False},
+    )
+
+    run = get_banking_run(db_path, run_id)
+    recent = list_banking_runs(db_path)
+
+    assert run["status"] == "succeeded"
+    assert run["dry_run"] == 1
+    assert run["source_count"] == 2
+    assert run["raw_snapshot_count"] == 2
+    assert run["candidate_count"] == 2
+    assert run["canonical_deal_count"] == 1
+    assert run["conflict_count"] == 1
+    assert run["metadata_json"] == '{"digest_written": false, "workflow": "fixture"}'
+    assert recent[0]["id"] == run_id
+
+
+def test_banking_run_lock_blocks_overlap_and_releases_owner(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    first_run = insert_banking_run(db_path, dry_run=True)
+    second_run = insert_banking_run(db_path, dry_run=True)
+
+    assert acquire_banking_run_lock(db_path, first_run) is True
+    assert acquire_banking_run_lock(db_path, second_run) is False
+
+    release_banking_run_lock(db_path, run_id=second_run)
+    assert acquire_banking_run_lock(db_path, second_run) is False
+
+    release_banking_run_lock(db_path, run_id=first_run)
+    assert acquire_banking_run_lock(db_path, second_run) is True
 
 
 def test_cli_initializes_and_loads_fixture_without_network(tmp_path):

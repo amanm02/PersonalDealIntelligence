@@ -141,18 +141,20 @@ def run_offline_banking_smoke(
     alert_config_path: str | Path = DEFAULT_ALERT_CONFIG,
     as_of: date = DEFAULT_AS_OF,
     reset_db: bool = False,
+    allow_existing: bool = False,
 ) -> OfflineSmokeSummary:
     """Run the full Banking MVP flow against local text fixtures only."""
 
     db_file = Path(db_path)
     if db_file.exists():
-        if not reset_db:
+        if not db_file.is_file():
+            raise SmokeRunError(f"database path exists but is not a file: {db_file}")
+        if not reset_db and not allow_existing:
             raise SmokeRunError(
                 f"database already exists: {db_file}; pass --reset-db to replace it"
             )
-        if not db_file.is_file():
-            raise SmokeRunError(f"database path exists but is not a file: {db_file}")
-        db_file.unlink()
+        if reset_db:
+            db_file.unlink()
 
     fixtures = load_smoke_fixtures(fixture_dir)
     initialize_database(db_file)
