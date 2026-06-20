@@ -45,11 +45,11 @@ Deferred:
 | 09 | #10 | Add offline fixture smoke test for the full banking flow | #2-#9 | closed |
 | 10 | #11 | Harden documentation, tests, and release checklist | #1-#10 | closed |
 | 11 | #12 | Add local run history and dry-run command | #3, #4, #7, #9, #10, #11 | closed |
-| 12 | #14 | Add realistic demo fixture corpus and source seed pack | #2, #3, #4, #5 | open |
+| 12 | #14 | Add realistic demo fixture corpus and source seed pack | #2, #3, #4, #5 | in review |
 | 13 | #15 | Add product-facing banking deal find command | #2, #6, #7, #8, #14 | open |
 | 14 | #16 | Add fresh-clone demo readiness gate | #2-#12, #14, #15 | open |
 | 15 | #17 | Add opt-in compliant public source pilot | #3, #4, #10, #12, #16 | open |
-| 16 | #18 | Sync issue map and roadmap after demo expansion | #1, after #14-#17 exist | open |
+| 16 | #18 | Sync issue map and roadmap after demo expansion | #1, after #14-#17 exist | closed |
 
 ## Dependency notes
 

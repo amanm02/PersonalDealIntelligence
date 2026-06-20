@@ -299,6 +299,21 @@ The smoke flow is fixture-only. It does not fetch websites, use browser
 automation, connect email accounts, send external messages, or automate banking
 actions.
 
+### 8b. Reusable demo corpus
+
+Purpose: provide realistic local demo source inputs without live collection.
+
+Issue #14 adds `config/banking_sources.demo.yaml` and `examples/demo_banking/`
+as a synthetic source seed pack. The corpus covers official-page style fixtures,
+deal-blog RSS content, newsletter export text, manual pasted notes, disabled
+source policy coverage, duplicates, conflicts, expired and low-value offers,
+ambiguous terms, non-deal content, and the main Banking MVP subcategories.
+
+The demo corpus is loaded through existing offline collectors and source policy
+validation. It does not add product-facing search, a fresh-clone demo gate, live
+fetching, browser automation, email account access, credentials, notifications,
+or banking actions.
+
 ### 9. Run history
 
 Purpose: track repeated runs and failures.

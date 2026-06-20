@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<rss version="2.0">
+  <channel>
+    <title>Fictional Banking Deal Notes</title>
+    <item>
+      <title>Northstar Demo Bank $300 checking bonus spotted again</title>
+      <link>https://demo-deals.example.test/posts/northstar-everyday-checking</link>
+      <description>Northstar Demo Bank offers a $300 checking bonus for new customers. Open by December 31, 2026. Receive qualifying direct deposits totaling $1,000 within 90 days. Monthly service fee is $12, waived with qualifying direct deposit. Available only to residents of CA, OR.</description>
+      <pubDate>Thu, 18 Jun 2026 12:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Sunset Demo Bank checking bonus has ended</title>
+      <link>https://demo-deals.example.test/posts/sunset-ended-checking</link>
+      <description>Sunset Demo Bank offers a $200 checking bonus for new customers. Receive qualifying direct deposits totaling $500 within 60 days. Monthly service fee is $10, waived with qualifying direct deposit. Offer ends May 31, 2026.</description>
+      <pubDate>Thu, 18 Jun 2026 13:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

@@ -11,6 +11,7 @@ from pdi.sources import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = REPO_ROOT / "config" / "banking_sources.yaml"
+DEMO_CONFIG_PATH = REPO_ROOT / "config" / "banking_sources.demo.yaml"
 
 
 def base_source(**overrides):
@@ -53,6 +54,41 @@ def test_repository_source_config_validates():
         "newsletter_email",
         "disabled",
     }
+
+
+def test_demo_source_config_validates():
+    policies = load_source_policies(DEMO_CONFIG_PATH)
+
+    assert len(policies) == 9
+    assert {policy.source_type for policy in policies} == {
+        "official_promo_page",
+        "deal_blog",
+        "newsletter_email",
+        "manual_url",
+        "disabled",
+    }
+    assert all(policy.requires_login is False for policy in policies)
+    assert all(policy.allow_scrape is False for policy in policies)
+
+
+def test_unsafe_demo_source_variant_fails_validation():
+    source = base_source(
+        name="Unsafe Demo Scrape",
+        url="https://unsafe-demo.example.test/private",
+        source_type="official_promo_page",
+        collection_method="scrape",
+        max_frequency_hours=12,
+        requires_login=True,
+        allow_scrape=True,
+        allow_rss=False,
+    )
+
+    with pytest.raises(SourcePolicyError) as error:
+        validate_source_config(config_for(source))
+
+    message = str(error.value)
+    assert "logged-in source scraping is not allowed" in message
+    assert "scrape method requires max_frequency_hours >= 24" in message
 
 
 def test_valid_source_config_returns_typed_policy():
