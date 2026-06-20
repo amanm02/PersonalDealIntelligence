@@ -166,6 +166,27 @@ intended:
 ```bash
 rm -f /tmp/pdi-banking-run-execute.sqlite /tmp/pdi-banking-run-execute-digest.md
 python3 -m pdi --db /tmp/pdi-banking-run-execute.sqlite banking run --execute --digest-output /tmp/pdi-banking-run-execute-digest.md --as-of 2026-06-18 --format json
+```
+
+## Planned demo readiness validation
+
+Issues #14, #15, and #16 are expected to add a realistic offline demo corpus,
+product-facing banking deal find/search behavior, and a fresh-clone demo gate.
+Until those issues implement and validate the commands, treat the examples below
+as planned validation shape, not current CLI guarantees:
+
+```bash
+python3 -m pdi.sources validate --config config/banking_sources.demo.yaml
+python3 -m pdi --db /tmp/pdi-banking-demo.sqlite banking demo --reset
+python3 -m pdi --db /tmp/pdi-banking-demo.sqlite banking find --query "checking bonus"
+python3 -m pdi --db /tmp/pdi-banking-demo.sqlite banking find --subcategory brokerage_bonus --min-bonus 500
+python3 -m pdi --db /tmp/pdi-banking-demo.sqlite banking digest --output /tmp/pdi-banking-demo-digest.md
+python3 scripts/check_banking_demo.py
+```
+
+Any final implementation may choose equivalent command names, but the README,
+release checklist, and this file must be updated together when that happens.
+
 ## Banking MVP readiness validation
 
 For Banking MVP release-readiness hardening, run the exact current validation
@@ -338,10 +359,6 @@ Must validate:
 - failed runs release the lock after failure state is persisted
 - recent run listing works
 - one run can be inspected
-
-Run history and dry-run run orchestration are deferred to Issue #12. Do not
-report `banking run --dry-run`, run listing, run inspection, or persisted
-run-history behavior as available until that issue implements and validates it.
 
 ## Final response validation reporting
 

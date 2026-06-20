@@ -40,9 +40,13 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 ## 5. Offline fixture pipeline
 
 - [ ] Fixture command runs without internet access.
+- [ ] Realistic demo source seed pack exists when Issue #14 is complete.
+- [ ] Demo source config validates when Issue #14 is complete.
 - [ ] Checking bonus fixture is processed.
 - [ ] Savings bonus fixture is processed.
 - [ ] Brokerage bonus fixture is processed.
+- [ ] Checking + savings bundle fixture is processed when demo corpus exists.
+- [ ] Money market or CD fixture is processed when demo corpus exists.
 - [ ] Duplicate fixture is deduped.
 - [ ] Conflicting fixture is marked for review.
 - [ ] Low-value fixture is suppressed from high-priority digest sections.
@@ -85,6 +89,8 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 
 - [ ] User can list deals.
 - [ ] User can inspect one deal.
+- [ ] User can find/search ranked local deals when Issue #15 is complete.
+- [ ] Search/find covers checking, savings or money market/CD, and brokerage demo examples when Issue #15 is complete.
 - [ ] User can filter by status.
 - [ ] User can filter by institution or subcategory.
 - [ ] User can update deal status.
@@ -102,18 +108,36 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 - [ ] Changed watched/interested deals appear.
 - [ ] Review-needed deals appear.
 - [ ] Digest includes deal IDs for CLI follow-up.
+- [ ] Fresh-clone demo gate generates a local digest artifact when Issue #16 is complete.
 
 ## 11. Run history and dry-run
 
-- [ ] Deferred to Issue #12; do not treat as Banking MVP release-blocking until implemented.
-- [ ] When implemented, dry-run command works.
-- [ ] When implemented, one-shot run command works.
-- [ ] When implemented, run records include start/end/status/counts/errors/digest path.
-- [ ] When implemented, overlapping runs are blocked.
-- [ ] When implemented, recent runs can be listed.
-- [ ] When implemented, one run can be inspected.
+- [ ] Dry-run command works.
+- [ ] One-shot run command works.
+- [ ] Run records include start/end/status/counts/errors/digest path.
+- [ ] Overlapping runs are blocked.
+- [ ] Recent runs can be listed.
+- [ ] One run can be inspected.
 
-## 12. Safety and privacy review
+## 12. Demo readiness
+
+- [ ] Fresh clone setup instructions work.
+- [ ] Demo database/source data can be initialized from scratch when Issue #16 is complete.
+- [ ] At least three banking subcategories produce searchable local demo deals when Issue #16 is complete.
+- [ ] Search/find results include ranking or scoring context when Issue #15 is complete.
+- [ ] `show` displays terms, evidence/source references, missing data warnings, and status.
+- [ ] Demo digest generation creates a local artifact.
+- [ ] Demo path requires no internet access, credentials, external notifications, or banking actions.
+- [ ] Live public source pilot is not required for offline demo readiness.
+
+## 13. Opt-in public source pilot
+
+- [ ] Public source pilot remains separate from the offline demo.
+- [ ] Pilot sources are source-policy controlled and disabled by default when Issue #17 is complete.
+- [ ] Live checks, if any, are opt-in and skipped by default in tests.
+- [ ] Public pilot docs state final offer terms must be manually verified on the official institution page.
+
+## 14. Safety and privacy review
 
 - [ ] No private auth material is collected.
 - [ ] Highly sensitive personal identifiers stay out of project storage.
@@ -123,7 +147,7 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 - [ ] Source access workarounds are not part of the implementation.
 - [ ] Docs state that final terms must be verified on official institution pages.
 
-## 13. Validation commands
+## 15. Validation commands
 
 Before release, run the full validation suite listed in `docs/verification.md`.
 
@@ -155,14 +179,14 @@ ruff format --check .
 mypy .
 ```
 
-## 14. Known limitations to document
+## 16. Known limitations to document
 
 - [ ] Extraction is imperfect and may miss nuanced terms.
 - [ ] Scoring is based on configurable assumptions, not financial advice.
 - [ ] Source coverage is limited by configured sources.
 - [ ] User must verify final offers manually.
 - [ ] Live source collection, if added later, must remain source-policy controlled.
-- [ ] Run history and dry-run orchestration are deferred to Issue #12.
+- [ ] Product-facing demo find/search and fresh-clone demo readiness are planned until Issues #15 and #16 are complete.
 
 ## Release decision
 
