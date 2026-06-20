@@ -16,13 +16,17 @@ from pdi.alerts import (
     load_alert_config,
     write_digest_artifact,
 )
+from pdi.runs import run_banking_workflow_once
 from pdi.scoring import BankingScore, score_banking_deal
 from pdi.smoke import run_offline_banking_smoke
 from pdi.storage import (
     get_banking_deal,
+    get_banking_run,
+    initialize_database,
     insert_status_event,
     list_banking_deal_source_links,
     list_banking_deals,
+    list_banking_runs,
     list_deal_change_events,
     list_deal_status_events,
 )
@@ -168,6 +172,64 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Exercise notification hooks without external sends.",
     )
     digest_parser.set_defaults(handler=_handle_digest)
+
+    run_parser = banking_subparsers.add_parser(
+        "run",
+        help="Run the local Banking MVP workflow once.",
+    )
+    run_mode = run_parser.add_mutually_exclusive_group()
+    run_mode.add_argument(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        default=True,
+        help="Preview the workflow without durable deal or digest changes.",
+    )
+    run_mode.add_argument(
+        "--execute",
+        dest="dry_run",
+        action="store_false",
+        help="Persist workflow changes and write the digest artifact.",
+    )
+    run_parser.add_argument(
+        "--fixture-dir",
+        default="examples/offline_smoke",
+        help="Directory containing offline workflow fixtures.",
+    )
+    run_parser.add_argument(
+        "--digest-output",
+        default="data/digests/banking_run_digest.md",
+        help="Markdown digest artifact path for executed runs.",
+    )
+    run_parser.add_argument(
+        "--alert-config",
+        default="config/banking_alerts.yaml",
+        help="Path to banking alert config.",
+    )
+    run_parser.add_argument("--as-of", default="2026-06-18")
+    run_parser.add_argument(
+        "--format",
+        choices=("table", "json"),
+        default=DEFAULT_OUTPUT_FORMAT,
+        help="Output format.",
+    )
+    run_parser.set_defaults(handler=_handle_run)
+
+    runs_parser = banking_subparsers.add_parser(
+        "runs",
+        help="List recent Banking MVP workflow runs.",
+    )
+    runs_parser.add_argument("--limit", type=int, default=10)
+    _add_output_format(runs_parser)
+    runs_parser.set_defaults(handler=_handle_runs)
+
+    run_status_parser = banking_subparsers.add_parser(
+        "run-status",
+        help="Inspect one Banking MVP workflow run.",
+    )
+    run_status_parser.add_argument("run_id", type=int)
+    _add_output_format(run_status_parser)
+    run_status_parser.set_defaults(handler=_handle_run_status)
 
     smoke_parser = banking_subparsers.add_parser(
         "smoke-test",
@@ -317,6 +379,51 @@ def _handle_digest(args: argparse.Namespace) -> int:
         force=args.force,
     )
     print(f"Generated banking digest at {written_path} ({args.format}).")
+    return 0
+
+
+def _handle_run(args: argparse.Namespace) -> int:
+    run = run_banking_workflow_once(
+        args.db,
+        dry_run=args.dry_run,
+        fixture_dir=args.fixture_dir,
+        digest_output=args.digest_output,
+        alert_config_path=args.alert_config,
+        as_of=_parse_cli_date(args.as_of),
+    )
+    payload = _run_record_payload(run)
+    if args.format == "json":
+        _print_json(payload)
+    else:
+        print(
+            "Banking run "
+            f"{payload['id']} {payload['status']} "
+            f"({'dry-run' if payload['dry_run'] else 'execute'})."
+        )
+        _print_run_detail(payload)
+    return 0 if payload["status"] == "succeeded" else 1
+
+
+def _handle_runs(args: argparse.Namespace) -> int:
+    initialize_database(args.db)
+    runs = [_run_record_payload(run) for run in list_banking_runs(args.db, limit=args.limit)]
+    if args.format == "json":
+        _print_json(runs)
+    else:
+        _print_run_list(runs)
+    return 0
+
+
+def _handle_run_status(args: argparse.Namespace) -> int:
+    initialize_database(args.db)
+    run = get_banking_run(args.db, args.run_id)
+    if run is None:
+        raise ValueError(f"Run id {args.run_id} does not exist.")
+    payload = _run_record_payload(run)
+    if args.format == "json":
+        _print_json(payload)
+    else:
+        _print_run_detail(payload)
     return 0
 
 
@@ -635,6 +742,43 @@ def _print_score(payload: Mapping[str, Any]) -> None:
     _print_table(rows, empty_message="No score data.")
 
 
+def _print_run_list(runs: list[dict[str, Any]]) -> None:
+    rows = [
+        {
+            "id": run["id"],
+            "status": run["status"],
+            "mode": "dry-run" if run["dry_run"] else "execute",
+            "started": run["started_at"],
+            "ended": run.get("ended_at") or "running",
+            "candidates": run["candidate_count"],
+            "deals": run["canonical_deal_count"],
+            "conflicts": run["conflict_count"],
+            "errors": run["error_count"],
+        }
+        for run in runs
+    ]
+    _print_table(rows, empty_message="No banking runs recorded.")
+
+
+def _print_run_detail(run: Mapping[str, Any]) -> None:
+    rows = [
+        {"field": key, "value": _display_value(value)}
+        for key, value in run.items()
+        if key not in {"metadata", "errors"}
+    ]
+    _print_table(rows, empty_message="No run data.")
+    print("Errors:")
+    for error in run.get("errors") or ["none"]:
+        print(f"  - {error}")
+    print("Metadata:")
+    metadata = run.get("metadata") or {}
+    if isinstance(metadata, Mapping):
+        for key, value in metadata.items():
+            print(f"  - {key}: {_display_value(value)}")
+    else:
+        print(f"  - {_display_value(metadata)}")
+
+
 def _print_table(
     rows: list[Mapping[str, Any]],
     *,
@@ -721,3 +865,27 @@ def _json_value(value: Any) -> Any:
         except json.JSONDecodeError:
             return value
     return value
+
+
+def _run_record_payload(run: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "id": run["id"],
+        "started_at": run["started_at"],
+        "ended_at": run.get("ended_at"),
+        "status": run["status"],
+        "dry_run": _to_bool(run["dry_run"]),
+        "source_count": run["source_count"],
+        "raw_snapshot_count": run["raw_snapshot_count"],
+        "candidate_count": run["candidate_count"],
+        "rejected_candidate_count": run["rejected_candidate_count"],
+        "canonical_deal_count": run["canonical_deal_count"],
+        "duplicate_merge_count": run["duplicate_merge_count"],
+        "conflict_count": run["conflict_count"],
+        "review_needed_deal_count": run["review_needed_deal_count"],
+        "scored_deal_count": run["scored_deal_count"],
+        "expired_scored_deal_count": run["expired_scored_deal_count"],
+        "error_count": run["error_count"],
+        "errors": _json_value(run.get("errors_json")) or [],
+        "digest_path": run.get("digest_path"),
+        "metadata": _json_value(run.get("metadata_json")) or {},
+    }

@@ -303,6 +303,17 @@ actions.
 
 Purpose: track repeated runs and failures.
 
+Implemented run history support is exposed through `pdi.runs` and through:
+
+```bash
+python3 -m pdi --db data/pdi.sqlite banking run
+python3 -m pdi --db data/pdi.sqlite banking run --dry-run
+python3 -m pdi --db data/pdi.sqlite banking run --execute
+python3 -m pdi --db data/pdi.sqlite banking runs --limit 10
+python3 -m pdi --db data/pdi.sqlite banking run-status <run_id>
+```
+
+Run records include:
 Status: deferred to Issue #12. The current Banking MVP has an offline smoke
 command but does not persist run records, expose a `banking run --dry-run`
 command, list past runs, or block overlapping runs.
@@ -321,6 +332,16 @@ Run records should include:
 - errors
 - digest path
 
+The default run mode is dry-run. Dry-run records only run history in the real
+database, executes the workflow against a temporary database copy, avoids
+durable digest writes, and stores the requested digest path as metadata. Durable
+workflow changes require explicit `--execute`.
+
+Overlapping runs are blocked by a SQLite lock row with a unique `lock_name` and
+local owner metadata. The lock is released after successful or failed runs.
+Blocked runs are recorded without taking over the existing lock. Stale lock
+cleanup is intentionally manual for now.
+
 ## Storage model
 
 The first storage implementation uses SQLite with stdlib `sqlite3`, versioned
@@ -336,9 +357,10 @@ Implemented SQLite-backed concepts:
 - canonical deal source links
 - deal status events
 - deal change events
+- banking run history
+- banking run locks
 
-Future issues may add score records and run history when those layers are
-implemented.
+Future issues may add score records if durable score history becomes useful.
 
 ## Configuration
 

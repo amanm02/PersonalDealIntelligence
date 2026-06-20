@@ -6,9 +6,9 @@ This document defines validation expectations for the Banking MVP and the RepoOS
 
 The initial Python package, SQLite storage layer, source policy validator,
 collector framework, deterministic banking extractor, conservative dedupe layer,
-transparent banking scoring engine, local review CLI, local alert digest, and
-offline fixture smoke flow exist. Storage validation is available through pytest
-and the database initialization command.
+transparent banking scoring engine, local review CLI, local alert digest,
+offline fixture smoke flow, and local run history exist. Storage validation is
+available through pytest and the database initialization command.
 Source policy validation is available through the `pdi.sources` module and
 offline pytest coverage.
 Collector validation is available through local-only pytest coverage under
@@ -116,6 +116,12 @@ Current narrower offline integration command:
 python3 -m pytest tests/integration
 ```
 
+Current narrower run history command:
+
+```bash
+python3 -m pytest tests/storage tests/cli tests/integration
+```
+
 The organization runner must be made available to `amanm02/PersonalDealIntelligence` through organization runner access settings and must have all three labels. See `docs/agentops/github-actions-runners.md`.
 
 ## Source policy validation
@@ -142,6 +148,24 @@ Validate banking alert rules with:
 python3 -m pdi.alerts validate --config config/banking_alerts.yaml
 ```
 
+## Run history validation
+
+Validate dry-run behavior, recent run listing, and run inspection with a fresh
+temporary database:
+
+```bash
+rm -f /tmp/pdi-banking-run.sqlite /tmp/pdi-banking-run-digest.md
+python3 -m pdi --db /tmp/pdi-banking-run.sqlite banking run --dry-run --digest-output /tmp/pdi-banking-run-digest.md --as-of 2026-06-18 --format json
+python3 -m pdi --db /tmp/pdi-banking-run.sqlite banking runs --format json
+python3 -m pdi --db /tmp/pdi-banking-run.sqlite banking run-status "$(python3 -m pdi --db /tmp/pdi-banking-run.sqlite banking runs --format json | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["id"])')" --format json
+```
+
+Validate persistent execution only when durable local workflow writes are
+intended:
+
+```bash
+rm -f /tmp/pdi-banking-run-execute.sqlite /tmp/pdi-banking-run-execute-digest.md
+python3 -m pdi --db /tmp/pdi-banking-run-execute.sqlite banking run --execute --digest-output /tmp/pdi-banking-run-execute-digest.md --as-of 2026-06-18 --format json
 ## Banking MVP readiness validation
 
 For Banking MVP release-readiness hardening, run the exact current validation
@@ -303,12 +327,17 @@ Must validate:
 
 ### Run history
 
-Must validate when implemented:
+Must validate:
 
 - dry-run mode works
+- dry-run updates only run history in the real database
+- dry-run does not create the durable digest artifact
+- `--execute` is required for persistent workflow writes
 - run records are persisted
 - overlapping runs are blocked
+- failed runs release the lock after failure state is persisted
 - recent run listing works
+- one run can be inspected
 
 Run history and dry-run run orchestration are deferred to Issue #12. Do not
 report `banking run --dry-run`, run listing, run inspection, or persisted
