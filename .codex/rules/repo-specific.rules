@@ -1,0 +1,9 @@
+# PersonalDealIntelligence rules
+
+- Keep the initial build scoped to the Banking MVP.
+- Do not add clothing, travel, flights, hotels, cashback stack optimization, browser extensions, or automated financial actions unless a future issue explicitly changes scope.
+- Do not add live source collection without explicit machine-readable source policy and disabled-by-default validation.
+- Do not add source-access workarounds, private-session collection, credentials, private auth material, private customer data, or highly sensitive personal identifiers.
+- Keep tests offline by default.
+- Preserve evidence for extracted banking terms.
+- Mark ambiguous or missing banking terms as unknown rather than guessing.

@@ -1,6 +1,6 @@
 # Verification
 
-This document defines validation expectations for the Banking MVP.
+This document defines validation expectations for the Banking MVP and the RepoOS-style AgentOps operating layer.
 
 ## Current state
 
@@ -27,16 +27,19 @@ For documentation-only changes, manually verify:
 - No docs ask agents to store private auth material or highly sensitive personal identifiers.
 - Any command examples are labeled as expected/future if not yet implemented.
 - GitHub Issue bodies are directly usable as implementation prompts and do not include a separate implementation-prompt section.
+- Runner docs describe the organization-level `amanm02` self-hosted runner, not a repository-level runner, unless that changes.
 
 Suggested manual checklist:
 
 ```text
 README.md reviewed
 AGENTS.md reviewed
+MEMORY.md reviewed
 docs/issue-map.md reviewed
 docs/verification.md reviewed
 docs/architecture/banking-mvp.md reviewed
 docs/decisions.md reviewed
+docs/agentops/ reviewed
 docs/prompt-library.md reviewed
 docs/release-checklists/banking-mvp.md reviewed
 docs/roadmap/ reviewed
@@ -54,19 +57,9 @@ python3 -m pip install -e '.[dev]'
 
 If the implementation chooses another package manager, update this file and README together.
 
-## Test validation
+## GitHub Actions runner
 
-Current test command:
-
-```bash
-python3 -m pytest
-```
-
-Current narrower storage command:
-
-```bash
-python3 -m pytest tests/storage
-```
+AgentOps GitHub Actions use an organization-level self-hosted runner from the `amanm02` organization:
 
 Current narrower source policy command:
 
@@ -101,13 +94,7 @@ python3 -m pytest tests/alerts
 python3 -m pytest tests/integration
 ```
 
-## Storage initialization validation
-
-Validate database initialization and fictional fixture loading with:
-
-```bash
-python3 -m pdi.storage init --db /tmp/pdi-issue2.sqlite --seed-fixture examples/banking_deals.json
-```
+The organization runner must be made available to `amanm02/PersonalDealIntelligence` through organization runner access settings and must have all three labels. See `docs/agentops/github-actions-runners.md`.
 
 ## Source policy validation
 
@@ -150,7 +137,7 @@ Any live integration test must be opt-in, clearly named, and disabled by default
 
 ### Source policy
 
-Must validate:
+Must validate when implemented:
 
 - required fields exist
 - unknown or unsafe fields are rejected
@@ -173,7 +160,7 @@ Must validate:
 
 ### Collectors
 
-Must validate:
+Must validate when implemented:
 
 - manual text fixtures work
 - RSS fixtures work
@@ -186,7 +173,7 @@ Must validate:
 
 ### Extraction
 
-Must validate:
+Must validate when implemented:
 
 - checking bonus fixture parses correctly
 - savings bonus fixture parses correctly
@@ -197,7 +184,7 @@ Must validate:
 
 ### Dedupe and canonicalization
 
-Must validate:
+Must validate when implemented:
 
 - exact duplicates merge
 - strong matches merge conservatively
@@ -207,7 +194,7 @@ Must validate:
 
 ### Scoring
 
-Must validate:
+Must validate when implemented:
 
 - scoring is deterministic for fixed config
 - net value accounts for fees and cash lockup
@@ -217,7 +204,7 @@ Must validate:
 
 ### CLI/review workflow
 
-Must validate:
+Must validate when implemented:
 
 - list filters work
 - show output includes terms and score
@@ -227,7 +214,7 @@ Must validate:
 
 ### Digest
 
-Must validate:
+Must validate when implemented:
 
 - high-priority deals appear
 - low-priority deals are suppressed from high-priority sections
@@ -237,7 +224,7 @@ Must validate:
 
 ### Run history
 
-Must validate:
+Must validate when implemented:
 
 - dry-run mode works
 - run records are persisted
@@ -250,14 +237,14 @@ Agent final responses must include exact commands and results, for example:
 
 ```text
 Validation
-- pytest tests/scoring - passed
-- ruff check . - passed
+- python3 -m pytest tests/storage - passed
+- make agentops-pr - passed
 ```
 
 If validation could not be run:
 
 ```text
 Validation
-- Not run: no Python package/test stack exists yet.
-- Manual docs review completed for README.md and docs/verification.md.
+- Not run: <reason>.
+- Manual docs review completed for <files>.
 ```

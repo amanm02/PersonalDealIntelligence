@@ -206,6 +206,23 @@ Documentation-only changes should be manually checked for:
 - no instructions to circumvent source rules or collect private-session data
 - concise agent-readable structure
 
+## AgentOps / RepoOS operating layer
+
+This repository includes a RepoOS-style Continuous AgentOps layer for agent-legible, reviewable work. It adds Codex configuration, hooks, reusable agent skills, lightweight audits, registries, and an AgentOps GitHub Actions workflow without changing Banking MVP product behavior.
+
+Common local checks:
+
+```bash
+make agentops-pr
+make hooks-smoke
+make mcp-smoke
+make test
+```
+
+`make test` runs the current repo-native test suite with `python3 -m pytest`. Use `make agentops-test` when you want AgentOps checks and pytest together.
+
+AgentOps docs and registries live under `docs/agentops/`. The workflow uses the organization-level self-hosted runner selector documented in `docs/agentops/github-actions-runners.md`.
+
 ## Repository docs
 
 - `AGENTS.md` — instructions for implementation agents
