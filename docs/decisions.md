@@ -298,3 +298,27 @@ Consequences:
   financial action.
 - `in_progress` is the preferred active-review status; existing `applied` rows
   remain accepted for compatibility.
+
+## DEC-016: Generate local alert digests before external notifications
+
+Date: 2026-06-18
+
+Decision: Implement Banking MVP alerts as local markdown and JSON digest
+artifacts backed by `config/banking_alerts.yaml`, with external notification
+channels disabled by default and limited to no-op/dry-run behavior.
+
+Rationale:
+
+- The first alert surface should reduce manual checking without creating
+  delivery, privacy, or credential risk.
+- Markdown is easy to read locally, while JSON keeps tests deterministic and
+  leaves room for later automation.
+- Disabled notification hooks make future delivery channels explicit without
+  sending live messages during the Banking MVP.
+
+Consequences:
+
+- `pdi.alerts` owns alert config validation, digest sectioning, and rendering.
+- `pdi banking digest` writes local artifacts only.
+- Any future live email, webhook, or messaging provider must add explicit
+  configuration, dry-run tests, environment-variable handling, and safety review.

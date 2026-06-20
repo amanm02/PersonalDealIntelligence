@@ -266,6 +266,11 @@ verified on the official institution page before acting.
 
 Purpose: summarize high-signal deals.
 
+Implemented alert digest support is exposed under `pdi.alerts` and through
+`pdi banking digest`. It reads canonical deals, scoring outputs, source links,
+change events, and status events from the local SQLite database, then writes
+local markdown or JSON artifacts.
+
 Digest sections:
 
 - Review Now
@@ -274,9 +279,11 @@ Digest sections:
 - Needs More Information
 - Watchlist Updates
 
-Digest outputs should be local markdown first, with optional JSON.
+Digest outputs are local markdown first, with JSON available for deterministic
+tests and future automation.
 
-External notifications should be disabled by default.
+External notifications are disabled by default. The implemented notification
+hook is no-op/dry-run only and does not send live messages.
 
 ### 9. Run history
 
@@ -321,7 +328,7 @@ Expected config files:
 
 - `config/banking_sources.yaml` (implemented)
 - `config/banking_scoring.yaml`
-- `config/banking_alerts.yaml`
+- `config/banking_alerts.yaml` (implemented)
 
 Do not store secrets in config files. Use environment variables only if external integrations are later added.
 

@@ -218,5 +218,56 @@ def test_json_output_works(tmp_path):
     assert payload["requirements"]["direct_deposit_required"] is True
 
 
+def test_digest_command_writes_json_output(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    output_path = tmp_path / "digest.json"
+    initialize_database(db_path)
+    deal_id = seed_deal(db_path, expires_at="2026-12-31")
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "digest",
+        "--format",
+        "json",
+        "--output",
+        str(output_path),
+        "--as-of",
+        "2026-06-18",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Generated banking digest" in result.stdout
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["as_of"] == "2026-06-18"
+    assert [item["deal_id"] for item in payload["sections"]["Review Now"]] == [
+        deal_id
+    ]
+
+
+def test_digest_command_defaults_to_markdown_output(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    output_path = tmp_path / "digest.md"
+    initialize_database(db_path)
+    seed_deal(db_path, expires_at="2026-06-25")
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "digest",
+        "--output",
+        str(output_path),
+        "--as-of",
+        "2026-06-18",
+        "--dry-run-notifications",
+    )
+
+    assert result.returncode == 0, result.stderr
+    rendered = output_path.read_text(encoding="utf-8")
+    assert "# Banking Deal Digest" in rendered
+    assert "## Expiring Soon" in rendered
+    assert "Notification Dry Run" in rendered
+
+
 def _days_from_now(days):
     return (date.today() + timedelta(days=days)).isoformat()

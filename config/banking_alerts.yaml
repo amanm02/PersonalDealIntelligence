@@ -1,0 +1,28 @@
+minimum_score: 75
+minimum_estimated_net_value_cents: 25000
+expiration_warning_days:
+  - 3
+  - 7
+  - 14
+eligible_statuses:
+  - new
+  - needs_review
+  - watching
+  - interested
+  - in_progress
+enabled_subcategories:
+  - checking_bonus
+  - savings_bonus
+  - checking_savings_bundle
+  - brokerage_bonus
+  - money_market_bonus
+  - cd_bonus
+minimum_hours_between_digests: 12
+default_outputs:
+  markdown_path: data/digests/banking_digest.md
+  json_path: data/digests/banking_digest.json
+notification_channels:
+  email:
+    enabled: false
+  webhook:
+    enabled: false

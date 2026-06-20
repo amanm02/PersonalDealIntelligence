@@ -92,7 +92,7 @@ The current runtime foundation is a minimal Python package with SQLite storage
 for Banking MVP deal data, a YAML-backed source policy registry, an
 offline-first collector framework, a deterministic banking extractor,
 conservative dedupe, transparent expected-value scoring, and a local review
-CLI.
+CLI with local alert digest generation.
 Storage uses stdlib `sqlite3` and versioned SQL migrations under
 `src/pdi/storage/migrations/`.
 
@@ -154,6 +154,17 @@ Validate banking scoring assumptions:
 python3 -m pdi.scoring validate --config config/banking_scoring.yaml
 ```
 
+Alert digest support exists under `pdi.alerts` for local markdown and JSON
+summaries of high-value, expiring, changed, watched, or review-needed banking
+deals. It reads `config/banking_alerts.yaml`. External notification channels are
+disabled by default and currently use no-op/dry-run behavior only.
+
+Validate banking alert rules:
+
+```bash
+python3 -m pdi.alerts validate --config config/banking_alerts.yaml
+```
+
 Review stored banking deals locally:
 
 ```bash
@@ -164,12 +175,16 @@ pdi --db data/pdi.sqlite banking review-needed
 pdi --db data/pdi.sqlite banking expiring --days 14
 pdi --db data/pdi.sqlite banking search --institution "Example Bank"
 pdi --db data/pdi.sqlite banking score <deal_id>
+pdi --db data/pdi.sqlite banking digest
+pdi --db data/pdi.sqlite banking digest --format json --output data/digests/banking_digest.json
 ```
 
 Use `--format json` on review commands when structured output is needed.
 Status changes are local review notes only. The system does not perform account
 applications, enrollment, money movement, or other financial actions. Verify
 final offer terms on the official institution page before acting.
+Use digest output as a local review aid only; generated digest artifacts should
+not contain credentials or highly sensitive personal identifiers.
 
 Run tests:
 
@@ -251,6 +266,16 @@ python3 -m pytest tests/scoring
 python3 -m pytest
 ```
 
+For alert digest changes, run:
+
+```bash
+python3 -m pdi.alerts validate --config config/banking_alerts.yaml
+python3 -m pytest tests/alerts
+python3 -m pytest tests/cli
+python3 -m pytest tests/scoring
+python3 -m pytest
+```
+
 Documentation-only changes should be manually checked for:
 
 - clear Banking MVP scope
@@ -276,4 +301,5 @@ a local SQLite storage foundation for raw snapshots, canonical deals, structured
 terms, status/change history, explicit source policy validation, local
 fixture/manual collector support, and review CLI commands. Offline extraction
 and conservative dedupe into canonical deals are implemented, as is transparent
-scoring for canonical deals. Built-in live collection is not implemented.
+scoring and local alert digest generation for canonical deals. Built-in live
+collection and external alert sending are not implemented.
