@@ -6,9 +6,9 @@ This document defines validation expectations for the Banking MVP.
 
 The initial Python package, SQLite storage layer, source policy validator,
 collector framework, deterministic banking extractor, conservative dedupe layer,
-transparent banking scoring engine, local review CLI, and local alert digest
-exist. Storage validation is available through pytest and the database
-initialization command.
+transparent banking scoring engine, local review CLI, local alert digest, and
+offline fixture smoke flow exist. Storage validation is available through pytest
+and the database initialization command.
 Source policy validation is available through the `pdi.sources` module and
 offline pytest coverage.
 Collector validation is available through local-only pytest coverage under
@@ -18,7 +18,8 @@ offline fixture coverage under `tests/dedupe`. Scoring validation is available
 through config validation and offline fixture coverage under `tests/scoring`.
 Review CLI validation is available through offline fixture coverage under
 `tests/cli`. Alert digest validation is available through `pdi.alerts` config
-validation and offline fixture coverage under `tests/alerts`.
+validation and offline fixture coverage under `tests/alerts`. Offline full-flow
+smoke validation is available under `tests/integration`.
 
 ## Docs-only validation
 
@@ -114,11 +115,14 @@ Current narrower alert digest command:
 python3 -m pytest tests/alerts
 ```
 
-Expected narrower commands as future modules are added:
+Current narrower offline integration command:
 
 ```bash
 python3 -m pytest tests/integration
 ```
+
+Expected narrower commands as future modules are added will be listed here when
+those modules exist.
 
 ## Storage initialization validation
 
@@ -178,6 +182,7 @@ Use local fixtures for:
 - scoring
 - CLI output
 - digest rendering
+- full offline smoke flow
 
 Any live integration test must be opt-in, clearly named, and disabled by default.
 
@@ -271,6 +276,20 @@ Must validate:
 - output is deterministic for fixed fixture data
 - configured notification channels are disabled or dry-run by default and do not
   send external messages
+
+### Offline fixture smoke flow
+
+Must validate:
+
+- local fixtures produce raw snapshots
+- extracted candidates are persisted
+- non-deal fixtures are rejected
+- duplicate sample deals canonicalize conservatively
+- conflicting sample deals are marked for review
+- canonical deals are scored
+- markdown digest artifact is generated locally
+- no live network, browser automation, external messages, email account access,
+  or banking actions are required
 
 ### Run history
 

@@ -92,7 +92,7 @@ The current runtime foundation is a minimal Python package with SQLite storage
 for Banking MVP deal data, a YAML-backed source policy registry, an
 offline-first collector framework, a deterministic banking extractor,
 conservative dedupe, transparent expected-value scoring, and a local review
-CLI with local alert digest generation.
+CLI with local alert digest generation and an offline fixture smoke flow.
 Storage uses stdlib `sqlite3` and versioned SQL migrations under
 `src/pdi/storage/migrations/`.
 
@@ -186,6 +186,21 @@ final offer terms on the official institution page before acting.
 Use digest output as a local review aid only; generated digest artifacts should
 not contain credentials or highly sensitive personal identifiers.
 
+Run the full offline Banking MVP smoke flow with synthetic fixtures only:
+
+```bash
+pdi --db /tmp/pdi-banking-smoke.sqlite banking smoke-test \
+  --digest-output /tmp/pdi-banking-smoke-digest.md \
+  --as-of 2026-06-18 \
+  --reset-db
+```
+
+Use `--format json` when a structured smoke summary is needed. The smoke command
+loads local fixture text, creates raw snapshots, extracts candidates,
+canonicalizes duplicate/conflicting deals, scores canonical deals, writes a
+local markdown digest, and prints summary counts. It does not fetch websites,
+connect email accounts, send external messages, or automate banking actions.
+
 Run tests:
 
 ```bash
@@ -276,6 +291,15 @@ python3 -m pytest tests/scoring
 python3 -m pytest
 ```
 
+For offline smoke flow changes, run:
+
+```bash
+python3 -m pytest tests/integration
+python3 -m pytest tests/cli
+python3 -m pytest tests/alerts
+python3 -m pytest
+```
+
 Documentation-only changes should be manually checked for:
 
 - clear Banking MVP scope
@@ -301,5 +325,6 @@ a local SQLite storage foundation for raw snapshots, canonical deals, structured
 terms, status/change history, explicit source policy validation, local
 fixture/manual collector support, and review CLI commands. Offline extraction
 and conservative dedupe into canonical deals are implemented, as is transparent
-scoring and local alert digest generation for canonical deals. Built-in live
-collection and external alert sending are not implemented.
+scoring, local alert digest generation, and an offline fixture smoke flow for
+canonical deals. Built-in live collection and external alert sending are not
+implemented.

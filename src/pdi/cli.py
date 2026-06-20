@@ -17,6 +17,7 @@ from pdi.alerts import (
     write_digest_artifact,
 )
 from pdi.scoring import BankingScore, score_banking_deal
+from pdi.smoke import run_offline_banking_smoke
 from pdi.storage import (
     get_banking_deal,
     insert_status_event,
@@ -168,6 +169,39 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     digest_parser.set_defaults(handler=_handle_digest)
 
+    smoke_parser = banking_subparsers.add_parser(
+        "smoke-test",
+        help="Run the offline Banking MVP fixture smoke flow.",
+    )
+    smoke_parser.add_argument(
+        "--fixture-dir",
+        default="examples/offline_smoke",
+        help="Directory containing offline smoke fixtures.",
+    )
+    smoke_parser.add_argument(
+        "--digest-output",
+        default="data/digests/offline_smoke_digest.md",
+        help="Markdown digest artifact path.",
+    )
+    smoke_parser.add_argument(
+        "--alert-config",
+        default="config/banking_alerts.yaml",
+        help="Path to banking alert config.",
+    )
+    smoke_parser.add_argument("--as-of", default="2026-06-18")
+    smoke_parser.add_argument(
+        "--reset-db",
+        action="store_true",
+        help="Replace the target smoke database if it already exists.",
+    )
+    smoke_parser.add_argument(
+        "--format",
+        choices=("table", "json"),
+        default=DEFAULT_OUTPUT_FORMAT,
+        help="Output format.",
+    )
+    smoke_parser.set_defaults(handler=_handle_smoke_test)
+
     return parser
 
 
@@ -283,6 +317,29 @@ def _handle_digest(args: argparse.Namespace) -> int:
         force=args.force,
     )
     print(f"Generated banking digest at {written_path} ({args.format}).")
+    return 0
+
+
+def _handle_smoke_test(args: argparse.Namespace) -> int:
+    summary = run_offline_banking_smoke(
+        args.db,
+        fixture_dir=args.fixture_dir,
+        digest_output=args.digest_output,
+        alert_config_path=args.alert_config,
+        as_of=_parse_cli_date(args.as_of),
+        reset_db=args.reset_db,
+    )
+    if args.format == "json":
+        _print_json(summary.to_dict())
+    else:
+        print("Offline banking smoke test complete.")
+        _print_table(
+            [
+                {"metric": key, "value": value}
+                for key, value in summary.to_dict().items()
+            ],
+            empty_message="No smoke summary generated.",
+        )
     return 0
 
 

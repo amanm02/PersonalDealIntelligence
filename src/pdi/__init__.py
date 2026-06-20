@@ -6,6 +6,7 @@ __all__ = [
     "dedupe",
     "extractors",
     "scoring",
+    "smoke",
     "sources",
     "storage",
 ]

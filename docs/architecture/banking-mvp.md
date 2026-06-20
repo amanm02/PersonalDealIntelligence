@@ -285,6 +285,19 @@ tests and future automation.
 External notifications are disabled by default. The implemented notification
 hook is no-op/dry-run only and does not send live messages.
 
+### 8a. Offline fixture smoke flow
+
+Purpose: prove the Banking MVP components work together without live sources.
+
+Implemented smoke support is exposed under `pdi.smoke` and through
+`pdi banking smoke-test`. It loads synthetic local text fixtures, creates raw
+snapshots, extracts candidates, canonicalizes duplicates and conflicts, scores
+canonical deals, writes a local markdown digest, and prints summary counts.
+
+The smoke flow is fixture-only. It does not fetch websites, use browser
+automation, connect email accounts, send external messages, or automate banking
+actions.
+
 ### 9. Run history
 
 Purpose: track repeated runs and failures.
