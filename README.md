@@ -63,7 +63,7 @@ The Banking MVP is organized around these layers:
 6. **Scoring** — estimate net value and explain score components.
 7. **Review workflow** — CLI-based status tracking and inspection.
 8. **Digest** — local markdown/JSON summaries for high-value, expiring, changed, or review-needed deals.
-9. **Run history** — local repeated-run tracking with dry-run support.
+9. **Run history** — deferred local repeated-run tracking with dry-run support.
 
 See `docs/architecture/banking-mvp.md` for details.
 
@@ -160,15 +160,15 @@ python3 -m pdi.alerts validate --config config/banking_alerts.yaml
 Review stored banking deals locally:
 
 ```bash
-pdi --db data/pdi.sqlite banking list
-pdi --db data/pdi.sqlite banking show <deal_id>
-pdi --db data/pdi.sqlite banking update-status <deal_id> in_progress --note "Reviewing official page."
-pdi --db data/pdi.sqlite banking review-needed
-pdi --db data/pdi.sqlite banking expiring --days 14
-pdi --db data/pdi.sqlite banking search --institution "Example Bank"
-pdi --db data/pdi.sqlite banking score <deal_id>
-pdi --db data/pdi.sqlite banking digest
-pdi --db data/pdi.sqlite banking digest --format json --output data/digests/banking_digest.json
+python3 -m pdi --db data/pdi.sqlite banking list
+python3 -m pdi --db data/pdi.sqlite banking show <deal_id>
+python3 -m pdi --db data/pdi.sqlite banking update-status <deal_id> in_progress --note "Reviewing official page."
+python3 -m pdi --db data/pdi.sqlite banking review-needed
+python3 -m pdi --db data/pdi.sqlite banking expiring --days 14
+python3 -m pdi --db data/pdi.sqlite banking search --institution "Example Bank"
+python3 -m pdi --db data/pdi.sqlite banking score <deal_id>
+python3 -m pdi --db data/pdi.sqlite banking digest
+python3 -m pdi --db data/pdi.sqlite banking digest --format json --output data/digests/banking_digest.json
 ```
 
 Use `--format json` on review commands when structured output is needed.
@@ -181,7 +181,7 @@ not contain credentials or highly sensitive personal identifiers.
 Run the full offline Banking MVP smoke flow with synthetic fixtures only:
 
 ```bash
-pdi --db /tmp/pdi-banking-smoke.sqlite banking smoke-test \
+python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking smoke-test \
   --digest-output /tmp/pdi-banking-smoke-digest.md \
   --as-of 2026-06-18 \
   --reset-db
@@ -221,6 +221,14 @@ credentialed source access, browser automation, or automatic banking actions as
 part of local scheduling. Stale run-lock cleanup is not automatic yet; if a
 process is interrupted while running, inspect `banking_run_locks` manually and
 remove a stale local lock only after confirming no run is active.
+python3 -m pdi banking run --dry-run
+python3 -m pdi banking runs
+```
+
+These are target commands for Issue #12 or later. They are not implemented in
+the current mainline CLI. Implementation agents should adjust them only if the
+implementation chooses a different CLI convention and updates the docs
+consistently.
 
 ## Validation
 
@@ -314,6 +322,27 @@ Documentation-only changes should be manually checked for:
 - no instructions to circumvent source rules or collect private-session data
 - concise agent-readable structure
 
+For Banking MVP readiness hardening, run the focused validation suite and full
+offline test suite:
+
+```bash
+python3 -m pdi.sources validate --config config/banking_sources.yaml
+python3 -m pdi.scoring validate --config config/banking_scoring.yaml
+python3 -m pdi.alerts validate --config config/banking_alerts.yaml
+python3 -m pytest tests/sources
+python3 -m pytest tests/extractors
+python3 -m pytest tests/dedupe
+python3 -m pytest tests/scoring
+python3 -m pytest tests/cli
+python3 -m pytest tests/alerts
+python3 -m pytest tests/integration
+python3 -m pytest
+python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking smoke-test \
+  --digest-output /tmp/pdi-banking-smoke-digest.md \
+  --as-of 2026-06-18 \
+  --reset-db
+```
+
 ## AgentOps / RepoOS operating layer
 
 This repository includes a RepoOS-style Continuous AgentOps layer for agent-legible, reviewable work. It adds Codex configuration, hooks, reusable agent skills, lightweight audits, registries, and an AgentOps GitHub Actions workflow without changing Banking MVP product behavior.
@@ -350,5 +379,5 @@ terms, status/change history, explicit source policy validation, local
 fixture/manual collector support, and review CLI commands. Offline extraction
 and conservative dedupe into canonical deals are implemented, as is transparent
 scoring, local alert digest generation, and an offline fixture smoke flow for
-canonical deals. Built-in live collection and external alert sending are not
-implemented.
+canonical deals. Built-in live collection, external alert sending, run history,
+and dry-run run orchestration are not implemented.
