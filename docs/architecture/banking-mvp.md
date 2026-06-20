@@ -203,6 +203,11 @@ official-source data.
 
 Purpose: rank deals based on expected personal value.
 
+Implemented scoring is exposed under `pdi.scoring` and reads configurable
+assumptions from `config/banking_scoring.yaml`. It scores canonical
+`banking_deals`, can persist `estimated_net_value_cents` to the existing
+canonical row, and returns the full component breakdown for callers.
+
 Scoring components:
 
 - gross bonus value
@@ -223,29 +228,48 @@ Outputs:
 - explanation
 - missing data warnings
 
-Scoring must be transparent and configurable.
+Scoring is transparent and configurable. It is for personal review support only
+and must not be presented as financial advice.
 
 ### 7. Review CLI
 
 Purpose: let the user inspect and update deals locally.
 
-Expected commands:
+Implemented commands:
 
 ```bash
-pdi banking list
-pdi banking show <deal_id>
-pdi banking update-status <deal_id> <status>
-pdi banking review-needed
-pdi banking expiring --days 14
-pdi banking search --institution <name>
-pdi banking score <deal_id>
+pdi --db data/pdi.sqlite banking list
+pdi --db data/pdi.sqlite banking show <deal_id>
+pdi --db data/pdi.sqlite banking update-status <deal_id> <status>
+pdi --db data/pdi.sqlite banking review-needed
+pdi --db data/pdi.sqlite banking expiring --days 14
+pdi --db data/pdi.sqlite banking search --institution <name>
+pdi --db data/pdi.sqlite banking score <deal_id>
 ```
 
-These are target commands and should be updated once implementation exists.
+The list-style commands support terminal table output by default and JSON with
+`--format json`. `list` supports filters for status, institution, subcategory,
+score band, recommended action, expiration window, and needs-review state.
+`show` includes terms, score explanation, source URLs, missing-data warnings,
+evidence links when available, and status history.
+
+Status updates create `deal_status_events` records and update the local
+canonical deal status. Status values include `new`, `needs_review`, `watching`,
+`interested`, `in_progress`, `completed`, `skipped`, `expired`, and `rejected`;
+legacy `applied` rows remain accepted for compatibility.
+
+The CLI is a personal review aid only. It does not request credentials, perform
+applications, enroll in offers, or move money. Final offer terms should be
+verified on the official institution page before acting.
 
 ### 8. Digest
 
 Purpose: summarize high-signal deals.
+
+Implemented alert digest support is exposed under `pdi.alerts` and through
+`pdi banking digest`. It reads canonical deals, scoring outputs, source links,
+change events, and status events from the local SQLite database, then writes
+local markdown or JSON artifacts.
 
 Digest sections:
 
@@ -255,9 +279,24 @@ Digest sections:
 - Needs More Information
 - Watchlist Updates
 
-Digest outputs should be local markdown first, with optional JSON.
+Digest outputs are local markdown first, with JSON available for deterministic
+tests and future automation.
 
-External notifications should be disabled by default.
+External notifications are disabled by default. The implemented notification
+hook is no-op/dry-run only and does not send live messages.
+
+### 8a. Offline fixture smoke flow
+
+Purpose: prove the Banking MVP components work together without live sources.
+
+Implemented smoke support is exposed under `pdi.smoke` and through
+`pdi banking smoke-test`. It loads synthetic local text fixtures, creates raw
+snapshots, extracts candidates, canonicalizes duplicates and conflicts, scores
+canonical deals, writes a local markdown digest, and prints summary counts.
+
+The smoke flow is fixture-only. It does not fetch websites, use browser
+automation, connect email accounts, send external messages, or automate banking
+actions.
 
 ### 9. Run history
 
@@ -302,7 +341,7 @@ Expected config files:
 
 - `config/banking_sources.yaml` (implemented)
 - `config/banking_scoring.yaml`
-- `config/banking_alerts.yaml`
+- `config/banking_alerts.yaml` (implemented)
 
 Do not store secrets in config files. Use environment variables only if external integrations are later added.
 

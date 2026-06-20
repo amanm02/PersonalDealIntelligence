@@ -1,0 +1,49 @@
+fixtures:
+  - id: checking_bonus
+    source_name: Offline Smoke Checking
+    source_url: manual://offline-smoke/checking-bonus
+    source_type: manual_url
+    subcategory: checking_bonus
+    fixture_path: checking_bonus.txt
+  - id: savings_bonus
+    source_name: Offline Smoke Savings
+    source_url: manual://offline-smoke/savings-bonus
+    source_type: manual_url
+    subcategory: savings_bonus
+    fixture_path: savings_bonus.txt
+  - id: brokerage_bonus
+    source_name: Offline Smoke Brokerage
+    source_url: manual://offline-smoke/brokerage-bonus
+    source_type: manual_url
+    subcategory: brokerage_bonus
+    fixture_path: brokerage_bonus.txt
+  - id: duplicate_checking
+    source_name: Offline Smoke Duplicate Checking
+    source_url: manual://offline-smoke/duplicate-checking
+    source_type: manual_url
+    subcategory: checking_bonus
+    fixture_path: duplicate_checking.txt
+  - id: conflicting_checking
+    source_name: Offline Smoke Conflicting Checking
+    source_url: manual://offline-smoke/conflicting-checking
+    source_type: manual_url
+    subcategory: checking_bonus
+    fixture_path: conflicting_checking.txt
+  - id: low_value_savings
+    source_name: Offline Smoke Low Value Savings
+    source_url: manual://offline-smoke/low-value-savings
+    source_type: manual_url
+    subcategory: savings_bonus
+    fixture_path: low_value_savings.txt
+  - id: expired_checking
+    source_name: Offline Smoke Expired Checking
+    source_url: manual://offline-smoke/expired-checking
+    source_type: manual_url
+    subcategory: checking_bonus
+    fixture_path: expired_checking.txt
+  - id: non_deal
+    source_name: Offline Smoke Non Deal
+    source_url: manual://offline-smoke/non-deal
+    source_type: manual_url
+    subcategory: checking_bonus
+    fixture_path: non_deal.txt

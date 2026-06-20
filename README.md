@@ -82,7 +82,9 @@ Post-MVP and deferred ideas live under `docs/roadmap/` so they do not pollute th
 
 The current runtime foundation is a minimal Python package with SQLite storage
 for Banking MVP deal data, a YAML-backed source policy registry, an
-offline-first collector framework, and a deterministic banking extractor.
+offline-first collector framework, a deterministic banking extractor,
+conservative dedupe, transparent expected-value scoring, and a local review
+CLI with local alert digest generation and an offline fixture smoke flow.
 Storage uses stdlib `sqlite3` and versioned SQL migrations under
 `src/pdi/storage/migrations/`.
 
@@ -132,6 +134,65 @@ candidate/source evidence in `banking_deal_source_links`, records material
 differences in `deal_change_events`, and marks important conflicts
 `needs_review`.
 
+Scoring support exists under `pdi.scoring` for canonical banking deals. It reads
+`config/banking_scoring.yaml`, returns component-level estimates for gross
+bonus, fees, cash lockup, hassle, risk/unclear terms, net value, score band,
+recommended action, explanation, and missing-data warnings. Scores are for
+personal review only and are not financial advice.
+
+Validate banking scoring assumptions:
+
+```bash
+python3 -m pdi.scoring validate --config config/banking_scoring.yaml
+```
+
+Alert digest support exists under `pdi.alerts` for local markdown and JSON
+summaries of high-value, expiring, changed, watched, or review-needed banking
+deals. It reads `config/banking_alerts.yaml`. External notification channels are
+disabled by default and currently use no-op/dry-run behavior only.
+
+Validate banking alert rules:
+
+```bash
+python3 -m pdi.alerts validate --config config/banking_alerts.yaml
+```
+
+Review stored banking deals locally:
+
+```bash
+pdi --db data/pdi.sqlite banking list
+pdi --db data/pdi.sqlite banking show <deal_id>
+pdi --db data/pdi.sqlite banking update-status <deal_id> in_progress --note "Reviewing official page."
+pdi --db data/pdi.sqlite banking review-needed
+pdi --db data/pdi.sqlite banking expiring --days 14
+pdi --db data/pdi.sqlite banking search --institution "Example Bank"
+pdi --db data/pdi.sqlite banking score <deal_id>
+pdi --db data/pdi.sqlite banking digest
+pdi --db data/pdi.sqlite banking digest --format json --output data/digests/banking_digest.json
+```
+
+Use `--format json` on review commands when structured output is needed.
+Status changes are local review notes only. The system does not perform account
+applications, enrollment, money movement, or other financial actions. Verify
+final offer terms on the official institution page before acting.
+Use digest output as a local review aid only; generated digest artifacts should
+not contain credentials or highly sensitive personal identifiers.
+
+Run the full offline Banking MVP smoke flow with synthetic fixtures only:
+
+```bash
+pdi --db /tmp/pdi-banking-smoke.sqlite banking smoke-test \
+  --digest-output /tmp/pdi-banking-smoke-digest.md \
+  --as-of 2026-06-18 \
+  --reset-db
+```
+
+Use `--format json` when a structured smoke summary is needed. The smoke command
+loads local fixture text, creates raw snapshots, extracts candidates,
+canonicalizes duplicate/conflicting deals, scores canonical deals, writes a
+local markdown digest, and prints summary counts. It does not fetch websites,
+connect email accounts, send external messages, or automate banking actions.
+
 Run tests:
 
 ```bash
@@ -141,11 +202,6 @@ python3 -m pytest
 Future Banking MVP commands:
 
 ```bash
-pdi banking list
-pdi banking show <deal_id>
-pdi banking update-status <deal_id> <status>
-pdi banking review-needed
-pdi banking expiring --days 14
 pdi banking run --dry-run
 pdi banking runs
 ```
@@ -198,6 +254,44 @@ python3 -m pytest tests/extractors
 python3 -m pytest
 ```
 
+For scoring changes, run:
+
+```bash
+python3 -m pdi.scoring validate --config config/banking_scoring.yaml
+python3 -m pytest tests/scoring
+python3 -m pytest tests/dedupe
+python3 -m pytest tests/storage
+python3 -m pytest
+```
+
+For review CLI changes, run:
+
+```bash
+python3 -m pytest tests/cli
+python3 -m pytest tests/storage
+python3 -m pytest tests/scoring
+python3 -m pytest
+```
+
+For alert digest changes, run:
+
+```bash
+python3 -m pdi.alerts validate --config config/banking_alerts.yaml
+python3 -m pytest tests/alerts
+python3 -m pytest tests/cli
+python3 -m pytest tests/scoring
+python3 -m pytest
+```
+
+For offline smoke flow changes, run:
+
+```bash
+python3 -m pytest tests/integration
+python3 -m pytest tests/cli
+python3 -m pytest tests/alerts
+python3 -m pytest
+```
+
 Documentation-only changes should be manually checked for:
 
 - clear Banking MVP scope
@@ -238,7 +332,9 @@ AgentOps docs and registries live under `docs/agentops/`. The workflow uses the 
 
 Initial documentation and issue planning are in progress. The Banking MVP now has
 a local SQLite storage foundation for raw snapshots, canonical deals, structured
-terms, status/change history, explicit source policy validation, and local
-fixture/manual collector support. Offline extraction and conservative dedupe
-into canonical deals are implemented. Built-in live collection is not
+terms, status/change history, explicit source policy validation, local
+fixture/manual collector support, and review CLI commands. Offline extraction
+and conservative dedupe into canonical deals are implemented, as is transparent
+scoring, local alert digest generation, and an offline fixture smoke flow for
+canonical deals. Built-in live collection and external alert sending are not
 implemented.

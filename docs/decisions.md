@@ -251,3 +251,74 @@ Consequences:
 - Official-source evidence is preferred when source authority is known.
 - Important conflicts create change events and mark canonical deals
   `needs_review`.
+
+## DEC-014: Keep scoring transparent and config-driven
+
+Date: 2026-06-18
+
+Decision: Implement Banking MVP scoring as a deterministic, component-level
+engine backed by `config/banking_scoring.yaml`.
+
+Rationale:
+
+- Banking bonus value depends on configurable personal assumptions such as
+  opportunity cost, fee exposure, direct-deposit friction, restrictions, and
+  tolerance for missing terms.
+- Review decisions are easier to trust when the gross bonus, costs, penalties,
+  net value, score, action, explanation, and missing-data warnings are visible.
+- Scoring should rank deals for personal review without presenting outputs as
+  financial advice.
+
+Consequences:
+
+- Callers can use `pdi.scoring` to score canonical deals and optionally persist
+  the existing `estimated_net_value_cents` field.
+- Config changes must be validated and covered by offline tests.
+- Alert delivery remains a separate later issue.
+
+## DEC-015: Use argparse CLI for local banking review
+
+Date: 2026-06-18
+
+Decision: Implement the first review workflow as an `argparse` CLI exposed
+through `pdi banking` and `python -m pdi`.
+
+Rationale:
+
+- The repo already uses small stdlib command modules and has no web framework.
+- A CLI is enough for local inspection, filtering, scoring, and status updates.
+- Table output is readable for manual review, while JSON output keeps tests and
+  later automation deterministic.
+
+Consequences:
+
+- The default local database path is `data/pdi.sqlite`, with `--db` available
+  for fixture and alternate databases.
+- Status changes are recorded as local review events and do not trigger any
+  financial action.
+- `in_progress` is the preferred active-review status; existing `applied` rows
+  remain accepted for compatibility.
+
+## DEC-016: Generate local alert digests before external notifications
+
+Date: 2026-06-18
+
+Decision: Implement Banking MVP alerts as local markdown and JSON digest
+artifacts backed by `config/banking_alerts.yaml`, with external notification
+channels disabled by default and limited to no-op/dry-run behavior.
+
+Rationale:
+
+- The first alert surface should reduce manual checking without creating
+  delivery, privacy, or credential risk.
+- Markdown is easy to read locally, while JSON keeps tests deterministic and
+  leaves room for later automation.
+- Disabled notification hooks make future delivery channels explicit without
+  sending live messages during the Banking MVP.
+
+Consequences:
+
+- `pdi.alerts` owns alert config validation, digest sectioning, and rendering.
+- `pdi banking digest` writes local artifacts only.
+- Any future live email, webhook, or messaging provider must add explicit
+  configuration, dry-run tests, environment-variable handling, and safety review.

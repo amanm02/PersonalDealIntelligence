@@ -2,6 +2,7 @@ import os
 import sqlite3
 import subprocess
 import sys
+from importlib import resources
 from pathlib import Path
 
 import pytest
@@ -47,7 +48,7 @@ def test_initializes_database_from_scratch(tmp_path):
         }.issubset(table_names)
         assert connection.execute(
             "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0] == 3
+        ).fetchone()[0] == 4
 
 
 def test_migrations_are_idempotent(tmp_path):
@@ -59,7 +60,7 @@ def test_migrations_are_idempotent(tmp_path):
     with sqlite3.connect(db_path) as connection:
         assert connection.execute(
             "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0] == 3
+        ).fetchone()[0] == 4
 
 
 def test_insert_and_query_partial_deal_with_raw_snapshot_link(tmp_path):
@@ -170,6 +171,69 @@ def test_status_event_updates_deal_status(tmp_path):
         ).fetchone()[0] == 2
 
 
+def test_in_progress_status_is_supported(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    deal_id = insert_banking_deal(
+        db_path,
+        {
+            "canonical_key": "in-progress-checking-bonus",
+            "title": "In Progress Checking Bonus",
+            "institution_name": "Mock Progress Bank",
+            "subcategory": "checking_bonus",
+            "discovered_at": "2026-06-17T13:10:00+00:00",
+            "last_seen_at": "2026-06-17T13:10:00+00:00",
+            "status": "new",
+        },
+    )
+
+    insert_status_event(
+        db_path,
+        deal_id,
+        "in_progress",
+        note="Reviewing official page.",
+    )
+
+    assert get_banking_deal(db_path, deal_id)["status"] == "in_progress"
+
+
+def test_review_status_migration_preserves_applied_rows(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    _initialize_through_migration(db_path, "003")
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO banking_deals (
+              canonical_key,
+              title,
+              institution_name,
+              subcategory,
+              discovered_at,
+              last_seen_at,
+              status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "applied-compatibility",
+                "Applied Compatibility Bonus",
+                "Mock Compatibility Bank",
+                "checking_bonus",
+                "2026-06-17T13:10:00+00:00",
+                "2026-06-17T13:10:00+00:00",
+                "applied",
+            ),
+        )
+        connection.commit()
+
+    initialize_database(db_path)
+    deal = list_banking_deals(db_path, status="applied")[0]
+    insert_status_event(db_path, deal["id"], "in_progress")
+
+    assert deal["status"] == "applied"
+    assert get_banking_deal(db_path, deal["id"])["status"] == "in_progress"
+
+
 def test_seed_fixture_loads_three_mock_deals(tmp_path):
     db_path = tmp_path / "pdi.sqlite"
     initialize_database(db_path)
@@ -230,3 +294,28 @@ def test_invalid_subcategory_fails_closed(tmp_path):
                 "last_seen_at": "2026-06-17T13:10:00+00:00",
             },
         )
+
+
+def _initialize_through_migration(db_path, last_version):
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE schema_migrations (
+              version TEXT PRIMARY KEY,
+              applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        migration_root = resources.files("pdi.storage.migrations")
+        for migration in sorted(migration_root.iterdir(), key=lambda item: item.name):
+            if not migration.name.endswith(".sql"):
+                continue
+            version = migration.name.split("_", 1)[0]
+            if version > last_version:
+                continue
+            connection.executescript(migration.read_text(encoding="utf-8"))
+            connection.execute(
+                "INSERT INTO schema_migrations (version) VALUES (?)",
+                (version,),
+            )
+        connection.commit()

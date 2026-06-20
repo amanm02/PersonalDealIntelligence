@@ -701,6 +701,31 @@ def list_deal_change_events(
         ]
 
 
+def list_deal_status_events(
+    db_path: DbPath,
+    *,
+    deal_id: int | None = None,
+) -> list[dict[str, Any]]:
+    """List status transitions for canonical banking deals."""
+
+    clauses: list[str] = []
+    values: list[Any] = []
+    if deal_id is not None:
+        clauses.append("deal_id = ?")
+        values.append(deal_id)
+
+    query = "SELECT * FROM deal_status_events"
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    query += " ORDER BY created_at ASC, id ASC"
+
+    with _connect(db_path) as connection:
+        return [
+            _row_to_dict(row)
+            for row in connection.execute(query, tuple(values)).fetchall()
+        ]
+
+
 def load_seed_fixture(db_path: DbPath, fixture_path: DbPath) -> int:
     """Load fictional banking deal examples from a JSON fixture."""
 
