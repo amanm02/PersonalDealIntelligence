@@ -1,0 +1,5 @@
+Prairie Example Bank promotes a savings account bonus for new customers.
+Deposit $10,000 in new money and hold it for 60 days.
+The note does not include the bonus amount, expiration date, direct deposit terms, or monthly fee.
+This fixture should keep high-impact terms unknown instead of guessing.
+Manual pasted note with incomplete terms.

@@ -1,0 +1,122 @@
+fixtures:
+  - id: official_checking_direct_deposit
+    policy_name: "Demo Official Northstar Checking Page"
+    collector: "manual_text"
+    fixture_path: "official_northstar_checking.txt"
+    source_shape: "official_bank_promo_page"
+    expected_subcategory: "checking_bonus"
+    deal_type: "checking_bonus"
+    edge_cases:
+      - "direct_deposit_required"
+      - "official_source"
+
+  - id: official_savings_balance_hold
+    policy_name: "Demo Official Riverbend Savings Page"
+    collector: "manual_text"
+    fixture_path: "official_riverbend_savings.txt"
+    source_shape: "official_bank_promo_page"
+    expected_subcategory: "savings_bonus"
+    deal_type: "savings_bonus"
+    edge_cases:
+      - "minimum_balance_hold"
+      - "official_source"
+
+  - id: official_checking_savings_bundle
+    policy_name: "Demo Official Cypress Bundle Page"
+    collector: "manual_text"
+    fixture_path: "official_cypress_bundle.txt"
+    source_shape: "official_bank_promo_page"
+    expected_subcategory: "checking_savings_bundle"
+    deal_type: "checking_savings_bundle"
+    edge_cases:
+      - "bundle_bonus"
+      - "official_source"
+
+  - id: official_brokerage_tiers
+    policy_name: "Demo Official Harbor Brokerage Page"
+    collector: "manual_text"
+    fixture_path: "official_harbor_brokerage.txt"
+    source_shape: "official_bank_promo_page"
+    expected_subcategory: "brokerage_bonus"
+    deal_type: "brokerage_bonus"
+    edge_cases:
+      - "tiered_bonus"
+      - "official_source"
+
+  - id: official_cd_new_money
+    policy_name: "Demo Official Pioneer CD Page"
+    collector: "manual_text"
+    fixture_path: "official_pioneer_cd.txt"
+    source_shape: "official_bank_promo_page"
+    expected_subcategory: "cd_bonus"
+    deal_type: "cd_bonus"
+    edge_cases:
+      - "money_market_or_cd_bonus"
+      - "official_source"
+
+  - id: deal_blog_rss
+    policy_name: "Demo Banking Deal Blog RSS"
+    collector: "rss"
+    fixture_path: "deal_blog_feed.xml"
+    source_shape: "deal_blog_rss_item"
+    expected_snapshot_count: 2
+    expected_subcategories:
+      - "checking_bonus"
+      - "checking_bonus"
+    deal_types:
+      - "checking_bonus"
+      - "expired_offer"
+    edge_cases:
+      - "duplicate_offer"
+      - "expired_offer"
+
+  - id: newsletter_conflict
+    policy_name: "Demo User Authorized Newsletter Export"
+    collector: "newsletter_email"
+    fixture_path: "newsletter_conflicting_checking.txt"
+    source_shape: "newsletter_email_export"
+    expected_subcategory: "checking_bonus"
+    deal_type: "checking_bonus"
+    edge_cases:
+      - "conflicting_terms"
+
+  - id: manual_low_value_savings
+    policy_name: "Demo Manual User Pasted Banking Notes"
+    collector: "manual_text"
+    fixture_path: "manual_low_value_savings.txt"
+    source_shape: "manual_user_text"
+    expected_subcategory: "savings_bonus"
+    deal_type: "low_value_offer"
+    edge_cases:
+      - "low_value_offer"
+
+  - id: manual_ambiguous_savings
+    policy_name: "Demo Manual User Pasted Banking Notes"
+    collector: "manual_text"
+    fixture_path: "manual_ambiguous_savings.txt"
+    source_shape: "manual_user_text"
+    expected_subcategory: "savings_bonus"
+    deal_type: "ambiguous_offer"
+    edge_cases:
+      - "missing_high_impact_terms"
+
+  - id: manual_non_deal
+    policy_name: "Demo Manual User Pasted Banking Notes"
+    collector: "manual_text"
+    fixture_path: "manual_non_deal.txt"
+    source_shape: "manual_user_text"
+    expected_subcategory: null
+    deal_type: "non_deal"
+    edge_cases:
+      - "non_deal_content"
+
+  - id: disabled_private_placeholder
+    policy_name: "Demo Disabled Scrape Placeholder"
+    collector: "disabled"
+    fixture_path: null
+    source_shape: "disabled_source_record"
+    collect: false
+    expected_subcategory: null
+    deal_type: "disabled_source"
+    edge_cases:
+      - "disabled_or_disallowed_source"

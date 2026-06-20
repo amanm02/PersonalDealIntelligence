@@ -40,8 +40,8 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 ## 5. Offline fixture pipeline
 
 - [ ] Fixture command runs without internet access.
-- [ ] Realistic demo source seed pack exists when Issue #14 is complete.
-- [ ] Demo source config validates when Issue #14 is complete.
+- [ ] Realistic demo source seed pack exists.
+- [ ] Demo source config validates.
 - [ ] Checking bonus fixture is processed.
 - [ ] Savings bonus fixture is processed.
 - [ ] Brokerage bonus fixture is processed.

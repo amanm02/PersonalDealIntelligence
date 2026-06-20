@@ -119,12 +119,26 @@ Validate banking source policies:
 python3 -m pdi.sources validate --config config/banking_sources.yaml
 ```
 
+Validate the reusable offline demo source pack:
+
+```bash
+python3 -m pdi.sources validate --config config/banking_sources.demo.yaml
+```
+
 `config/banking_sources.yaml` is the source-policy authority for future
 collectors. Add new sources there only after documenting the collection method,
 banking category/subcategory scope, rate limits, terms/robots notes, compliance
 status, and review date. Leave sources disabled unless they are explicitly
 approved, and never add credentials, private tokens, personal mailbox labels, or
 private-session collection details.
+
+`config/banking_sources.demo.yaml` and `examples/demo_banking/` provide a
+fictional, reusable, local-only demo source seed pack. It includes official-page
+style text, RSS/deal-blog fixture content, newsletter export text, manual pasted
+notes, duplicate/conflicting mentions, low-value and expired offers, ambiguous
+terms, and non-deal content. The demo pack does not fetch websites, use browser
+automation, connect email accounts, send notifications, or perform banking
+actions.
 
 Collector support exists under `pdi.collectors` for manual text, manual URL
 records, RSS/Atom fixture content, newsletter/email export text, and
@@ -234,9 +248,9 @@ process is interrupted while running, inspect `banking_run_locks` manually and
 remove a stale local lock only after confirming no run is active.
 
 Planned demo-readiness work will add or document fixture-backed commands for
-seeding realistic demo sources, finding ranked local banking deals, and running
-a fresh-clone demo gate. Until #14, #15, and #16 are implemented, those commands
-are roadmap items, not current CLI guarantees.
+finding ranked local banking deals and running a fresh-clone demo gate. Until
+#15 and #16 are implemented, those commands are roadmap items, not current CLI
+guarantees.
 
 ## Validation
 

@@ -132,6 +132,13 @@ Validate the source registry with:
 python3 -m pdi.sources validate --config config/banking_sources.yaml
 ```
 
+Validate the reusable offline demo source seed pack with:
+
+```bash
+python3 -m pdi.sources validate --config config/banking_sources.demo.yaml
+python3 -m pytest tests/collectors/test_demo_corpus.py tests/integration/test_demo_corpus_flow.py
+```
+
 ## Scoring config validation
 
 Validate banking scoring assumptions with:
@@ -172,12 +179,12 @@ python3 -m pdi --db /tmp/pdi-banking-run-execute.sqlite banking run --execute --
 
 Issues #14, #15, and #16 are expected to add a realistic offline demo corpus,
 product-facing banking deal find/search behavior, and a fresh-clone demo gate.
-Until those issues implement and validate the commands, treat the examples below
-as planned validation shape, not current CLI guarantees:
+Issue #14 adds the reusable local corpus and source seed pack only. Until #15
+and #16 implement and validate the remaining commands, treat those examples as
+planned validation shape, not current CLI guarantees:
 
 ```bash
 python3 -m pdi.sources validate --config config/banking_sources.demo.yaml
-python3 -m pdi --db /tmp/pdi-banking-demo.sqlite banking demo --reset
 python3 -m pdi --db /tmp/pdi-banking-demo.sqlite banking find --query "checking bonus"
 python3 -m pdi --db /tmp/pdi-banking-demo.sqlite banking find --subcategory brokerage_bonus --min-bonus 500
 python3 -m pdi --db /tmp/pdi-banking-demo.sqlite banking digest --output /tmp/pdi-banking-demo-digest.md
