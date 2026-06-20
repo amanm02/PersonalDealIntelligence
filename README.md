@@ -69,22 +69,14 @@ See `docs/architecture/banking-mvp.md` for details.
 
 ## Planned issue sequence
 
-The initial Banking MVP is tracked through these GitHub issues:
+The active Banking MVP issue sequence is tracked in `docs/issue-map.md`.
 
-1. Banking MVP 00: Bootstrap project operating layer and banking roadmap
-2. Banking MVP 01: Define banking deal data model, storage, and migrations
-3. Banking MVP 02: Build source registry and compliant source policy configuration
-4. Banking MVP 03: Implement compliant collector framework for banking sources
-5. Banking MVP 04: Implement banking deal extraction from raw snapshots
-6. Banking MVP 05: Implement banking deal dedupe, canonicalization, and change tracking
-7. Banking MVP 06: Implement banking expected-value scoring engine
-8. Banking MVP 07: Build review workflow CLI for banking deals
-9. Banking MVP 08: Build banking deal alert digest and notification rules
-10. Banking MVP 09: Add offline fixture smoke test for the full banking flow
-11. Banking MVP 10: Harden documentation, tests, and release checklist
-12. Banking MVP 11: Add local run history and dry-run command
+Post-MVP and deferred ideas live under `docs/roadmap/` so they do not pollute the active MVP scope:
 
-See `docs/issue-map.md` for dependencies and implementation order.
+- `docs/roadmap/future-features.md`
+- `docs/roadmap/future-categories.md`
+- `docs/roadmap/banking-v2.md`
+- `docs/roadmap/ideas-parking-lot.md`
 
 ## Local setup
 
@@ -214,7 +206,7 @@ pdi banking run --dry-run
 pdi banking runs
 ```
 
-Run-history commands are still planned for a later issue.
+These are target commands. Implementation agents should adjust them only if the implementation chooses a different CLI convention and updates the docs consistently.
 
 ## Validation
 
@@ -306,17 +298,35 @@ Documentation-only changes should be manually checked for:
 - accurate internal links
 - no claims that unbuilt commands already work
 - no instructions to circumvent source rules or collect private-session data
-- concise Codex-readable structure
+- concise agent-readable structure
+
+## AgentOps / RepoOS operating layer
+
+This repository includes a RepoOS-style Continuous AgentOps layer for agent-legible, reviewable work. It adds Codex configuration, hooks, reusable agent skills, lightweight audits, registries, and an AgentOps GitHub Actions workflow without changing Banking MVP product behavior.
+
+Common local checks:
+
+```bash
+make agentops-pr
+make hooks-smoke
+make mcp-smoke
+make test
+```
+
+`make test` runs the current repo-native test suite with `python3 -m pytest`. Use `make agentops-test` when you want AgentOps checks and pytest together.
+
+AgentOps docs and registries live under `docs/agentops/`. The workflow uses the organization-level self-hosted runner selector documented in `docs/agentops/github-actions-runners.md`.
 
 ## Repository docs
 
-- `AGENTS.md` — instructions for Codex and future coding agents
+- `AGENTS.md` — instructions for implementation agents
 - `docs/issue-map.md` — ordered Banking MVP implementation map
 - `docs/verification.md` — validation commands and expectations
 - `docs/architecture/banking-mvp.md` — system architecture
 - `docs/decisions.md` — decision log
-- `docs/prompt-library.md` — reusable Codex prompts
+- `docs/prompt-library.md` — reusable implementation prompts
 - `docs/release-checklists/banking-mvp.md` — first release checklist
+- `docs/roadmap/` — post-MVP and deferred feature planning
 
 ## Current status
 
