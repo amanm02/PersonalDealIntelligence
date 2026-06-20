@@ -81,8 +81,10 @@ Post-MVP and deferred ideas live under `docs/roadmap/` so they do not pollute th
 ## Local setup
 
 The current runtime foundation is a minimal Python package with SQLite storage
-for Banking MVP deal data. It uses stdlib `sqlite3` and versioned SQL
-migrations under `src/pdi/storage/migrations/`.
+for Banking MVP deal data, a YAML-backed source policy registry, an
+offline-first collector framework, and a deterministic banking extractor.
+Storage uses stdlib `sqlite3` and versioned SQL migrations under
+`src/pdi/storage/migrations/`.
 
 Install for local development:
 
@@ -97,6 +99,38 @@ Initialize a local database with fictional mock banking deals:
 ```bash
 python3 -m pdi.storage init --db data/pdi.sqlite --seed-fixture examples/banking_deals.json
 ```
+
+Validate banking source policies:
+
+```bash
+python3 -m pdi.sources validate --config config/banking_sources.yaml
+```
+
+`config/banking_sources.yaml` is the source-policy authority for future
+collectors. Add new sources there only after documenting the collection method,
+banking category/subcategory scope, rate limits, terms/robots notes, compliance
+status, and review date. Leave sources disabled unless they are explicitly
+approved, and never add credentials, private tokens, personal mailbox labels, or
+private-session collection details.
+
+Collector support exists under `pdi.collectors` for manual text, manual URL
+records, RSS/Atom fixture content, newsletter/email export text, and
+fixture-backed API payloads. Collectors normalize raw content into snapshot
+records that can be persisted to `raw_deal_snapshots`. HTML fetching has no
+built-in live network client and is blocked unless an enabled, approved source
+policy explicitly allows non-login scraping and frequency metadata permits the
+attempt.
+
+Extractor support exists under `pdi.extractors` for offline, rule-based parsing
+of raw banking snapshot text into `banking_deal_candidates`. Extracted
+candidates preserve evidence spans, missing fields, confidence, and notes, but
+do not directly create or update canonical `banking_deals`.
+
+Dedupe support exists under `pdi.dedupe` for conservative canonicalization of
+non-rejected candidates. It creates or updates canonical banking deals, preserves
+candidate/source evidence in `banking_deal_source_links`, records material
+differences in `deal_change_events`, and marks important conflicts
+`needs_review`.
 
 Run tests:
 
@@ -130,6 +164,40 @@ python3 -m pytest
 python3 -m pdi.storage init --db /tmp/pdi-issue2.sqlite --seed-fixture examples/banking_deals.json
 ```
 
+For source policy changes, run:
+
+```bash
+python3 -m pdi.sources validate --config config/banking_sources.yaml
+python3 -m pytest tests/sources
+python3 -m pytest
+```
+
+For collector changes, run:
+
+```bash
+python3 -m pytest tests/collectors
+python3 -m pytest tests/sources
+python3 -m pytest tests/storage
+python3 -m pytest
+```
+
+For extractor changes, run:
+
+```bash
+python3 -m pytest tests/extractors
+python3 -m pytest tests/storage
+python3 -m pytest
+```
+
+For dedupe changes, run:
+
+```bash
+python3 -m pytest tests/dedupe
+python3 -m pytest tests/storage
+python3 -m pytest tests/extractors
+python3 -m pytest
+```
+
 Documentation-only changes should be manually checked for:
 
 - clear Banking MVP scope
@@ -153,4 +221,7 @@ Documentation-only changes should be manually checked for:
 
 Initial documentation and issue planning are in progress. The Banking MVP now has
 a local SQLite storage foundation for raw snapshots, canonical deals, structured
-terms, and status/change history.
+terms, status/change history, explicit source policy validation, and local
+fixture/manual collector support. Offline extraction and conservative dedupe
+into canonical deals are implemented. Built-in live collection is not
+implemented.

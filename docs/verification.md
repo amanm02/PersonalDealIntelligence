@@ -4,8 +4,15 @@ This document defines validation expectations for the Banking MVP.
 
 ## Current state
 
-The initial Python package and SQLite storage layer exist. Storage validation is
-available through pytest and the database initialization command.
+The initial Python package, SQLite storage layer, source policy validator,
+collector framework, deterministic banking extractor, and conservative dedupe
+layer exist. Storage validation is available through pytest and the database
+initialization command. Source policy validation is available through the
+`pdi.sources` module and offline pytest coverage. Collector validation is
+available through local-only pytest coverage under `tests/collectors`.
+Extractor validation is available through offline fixture coverage under
+`tests/extractors`. Dedupe validation is available through offline fixture
+coverage under `tests/dedupe`.
 
 ## Docs-only validation
 
@@ -61,13 +68,33 @@ Current narrower storage command:
 python3 -m pytest tests/storage
 ```
 
-Expected narrower commands as future modules are added:
+Current narrower source policy command:
 
 ```bash
 python3 -m pytest tests/sources
+```
+
+Current narrower collector command:
+
+```bash
 python3 -m pytest tests/collectors
+```
+
+Current narrower extractor command:
+
+```bash
 python3 -m pytest tests/extractors
+```
+
+Current narrower dedupe command:
+
+```bash
 python3 -m pytest tests/dedupe
+```
+
+Expected narrower commands as future modules are added:
+
+```bash
 python3 -m pytest tests/scoring
 python3 -m pytest tests/cli
 python3 -m pytest tests/alerts
@@ -80,6 +107,14 @@ Validate database initialization and fictional fixture loading with:
 
 ```bash
 python3 -m pdi.storage init --db /tmp/pdi-issue2.sqlite --seed-fixture examples/banking_deals.json
+```
+
+## Source policy validation
+
+Validate the source registry with:
+
+```bash
+python3 -m pdi.sources validate --config config/banking_sources.yaml
 ```
 
 ## Expected future quality checks
@@ -118,8 +153,12 @@ Any live integration test must be opt-in, clearly named, and disabled by default
 Must validate:
 
 - required fields exist
+- unknown or unsafe fields are rejected
 - unsafe combinations are rejected
 - collection frequency limits are parseable
+- enabled sources are explicitly approved
+- method-specific allow flags match the collection method
+- source scopes stay inside Banking MVP categories and subcategories
 - private-access sources fail closed unless a future issue explicitly defines a compliant user-authorized flow
 
 ### Storage
@@ -141,6 +180,9 @@ Must validate:
 - disallowed sources are blocked
 - content hashes are stable
 - no tests require internet access
+- login-required HTML collection is blocked
+- high-frequency collection is blocked when last collection metadata is too recent
+- collected snapshots can persist to `raw_deal_snapshots`
 
 ### Extraction
 

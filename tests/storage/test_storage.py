@@ -40,12 +40,14 @@ def test_initializes_database_from_scratch(tmp_path):
             "raw_deal_snapshots",
             "banking_deals",
             "banking_deal_terms",
+            "banking_deal_candidates",
+            "banking_deal_source_links",
             "deal_status_events",
             "deal_change_events",
         }.issubset(table_names)
         assert connection.execute(
             "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0] == 1
+        ).fetchone()[0] == 3
 
 
 def test_migrations_are_idempotent(tmp_path):
@@ -57,7 +59,7 @@ def test_migrations_are_idempotent(tmp_path):
     with sqlite3.connect(db_path) as connection:
         assert connection.execute(
             "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0] == 1
+        ).fetchone()[0] == 3
 
 
 def test_insert_and_query_partial_deal_with_raw_snapshot_link(tmp_path):

@@ -128,6 +128,28 @@ def insert_raw_snapshot(
         return int(cursor.lastrowid)
 
 
+def get_raw_snapshot(db_path: DbPath, snapshot_id: int) -> dict[str, Any] | None:
+    """Return one raw source snapshot, or None."""
+
+    with _connect(db_path) as connection:
+        row = connection.execute(
+            "SELECT * FROM raw_deal_snapshots WHERE id = ?",
+            (snapshot_id,),
+        ).fetchone()
+        return _row_to_dict(row) if row is not None else None
+
+
+def get_source_record(db_path: DbPath, source_record_id: int) -> dict[str, Any] | None:
+    """Return one source record, or None."""
+
+    with _connect(db_path) as connection:
+        row = connection.execute(
+            "SELECT * FROM source_records WHERE id = ?",
+            (source_record_id,),
+        ).fetchone()
+        return _row_to_dict(row) if row is not None else None
+
+
 def insert_banking_deal(
     db_path: DbPath,
     banking_deal: Mapping[str, Any] | None = None,
@@ -202,6 +224,184 @@ def insert_banking_deal(
         return deal_id
 
 
+def insert_banking_deal_candidate(
+    db_path: DbPath,
+    candidate: Mapping[str, Any] | None = None,
+    **fields: Any,
+) -> int:
+    """Insert an extracted pre-dedupe banking deal candidate."""
+
+    data = _merge_record(candidate, fields)
+    with _connect(db_path) as connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO banking_deal_candidates (
+              raw_snapshot_id,
+              title,
+              institution_name,
+              category,
+              subcategory,
+              bonus_amount_cents,
+              currency,
+              source_url,
+              source_name,
+              retrieved_at,
+              expires_at,
+              application_deadline,
+              minimum_deposit_amount_cents,
+              direct_deposit_required,
+              direct_deposit_minimum_cents,
+              minimum_balance_required_cents,
+              balance_hold_days,
+              monthly_fee_cents,
+              monthly_fee_waiver_terms,
+              early_closure_fee_cents,
+              state_restrictions_json,
+              new_customer_only,
+              household_limit,
+              hard_pull_risk,
+              soft_pull_only,
+              evidence_spans_json,
+              missing_fields_json,
+              extraction_notes_json,
+              tiered_bonus_json,
+              raw_pattern_matches_json,
+              confidence_score,
+              rejected,
+              rejection_reason
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                data["raw_snapshot_id"],
+                data.get("title"),
+                data.get("institution_name"),
+                data.get("category", "banking"),
+                data.get("subcategory"),
+                data.get("bonus_amount_cents"),
+                data.get("currency", "USD"),
+                data.get("source_url"),
+                data.get("source_name"),
+                data.get("retrieved_at"),
+                data.get("expires_at"),
+                data.get("application_deadline"),
+                data.get("minimum_deposit_amount_cents"),
+                _bool_to_int(data.get("direct_deposit_required")),
+                data.get("direct_deposit_minimum_cents"),
+                data.get("minimum_balance_required_cents"),
+                data.get("balance_hold_days"),
+                data.get("monthly_fee_cents"),
+                data.get("monthly_fee_waiver_terms"),
+                data.get("early_closure_fee_cents"),
+                _json_text(data.get("state_restrictions")),
+                _bool_to_int(data.get("new_customer_only")),
+                data.get("household_limit"),
+                _bool_to_int(data.get("hard_pull_risk")),
+                _bool_to_int(data.get("soft_pull_only")),
+                _json_text(data.get("evidence_spans")),
+                _json_text(data.get("missing_fields")),
+                _json_text(data.get("extraction_notes")),
+                _json_text(data.get("tiered_bonus")),
+                _json_text(data.get("raw_pattern_matches")),
+                data.get("confidence_score"),
+                _bool_to_int(data.get("rejected", False)),
+                data.get("rejection_reason"),
+            ),
+        )
+        connection.commit()
+        return int(cursor.lastrowid)
+
+
+def mark_banking_deal_candidate_canonicalized(
+    db_path: DbPath,
+    candidate_id: int,
+    *,
+    deal_id: int | None,
+    status: str,
+) -> None:
+    """Record canonicalization status for one extracted candidate."""
+
+    with _connect(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE banking_deal_candidates
+            SET canonical_deal_id = ?,
+                canonicalized_at = ?,
+                canonicalization_status = ?
+            WHERE id = ?
+            """,
+            (deal_id, _utc_now(), status, candidate_id),
+        )
+        connection.commit()
+
+
+def insert_banking_deal_source_link(
+    db_path: DbPath,
+    source_link: Mapping[str, Any] | None = None,
+    **fields: Any,
+) -> int:
+    """Link a canonical deal to candidate/source evidence."""
+
+    data = _merge_record(source_link, fields)
+    with _connect(db_path) as connection:
+        cursor = connection.execute(
+            """
+            INSERT OR IGNORE INTO banking_deal_source_links (
+              deal_id,
+              candidate_id,
+              raw_snapshot_id,
+              source_name,
+              source_url,
+              source_authority,
+              retrieved_at,
+              confidence_score,
+              evidence_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                data["deal_id"],
+                data["candidate_id"],
+                data["raw_snapshot_id"],
+                data["source_name"],
+                data.get("source_url"),
+                data.get("source_authority", "unknown"),
+                data.get("retrieved_at"),
+                data.get("confidence_score"),
+                _json_text(data.get("evidence")),
+            ),
+        )
+        connection.commit()
+        return int(cursor.lastrowid)
+
+
+def insert_deal_change_event(
+    db_path: DbPath,
+    deal_id: int,
+    event_type: str,
+    changed_fields: Mapping[str, Any] | None = None,
+    *,
+    note: str | None = None,
+) -> int:
+    """Record a material canonical deal change or conflict."""
+
+    with _connect(db_path) as connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO deal_change_events (
+              deal_id,
+              event_type,
+              changed_fields_json,
+              note
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+            (deal_id, event_type, _json_text(changed_fields), note),
+        )
+        connection.commit()
+        return int(cursor.lastrowid)
+
+
 def insert_status_event(
     db_path: DbPath,
     deal_id: int,
@@ -241,6 +441,84 @@ def insert_status_event(
         return int(cursor.lastrowid)
 
 
+def update_banking_deal(
+    db_path: DbPath,
+    deal_id: int,
+    updates: Mapping[str, Any],
+) -> None:
+    """Update selected canonical deal columns."""
+
+    allowed_columns = {
+        "canonical_key",
+        "title",
+        "institution_name",
+        "subcategory",
+        "bonus_amount_cents",
+        "estimated_net_value_cents",
+        "currency",
+        "source_url",
+        "source_name",
+        "discovered_at",
+        "last_seen_at",
+        "expires_at",
+        "application_deadline",
+        "status",
+        "confidence_score",
+        "raw_snapshot_id",
+    }
+    columns = [column for column in updates if column in allowed_columns]
+    if not columns:
+        return
+
+    assignments = ", ".join(f"{column} = ?" for column in columns)
+    values = [updates[column] for column in columns]
+    values.append(deal_id)
+
+    with _connect(db_path) as connection:
+        connection.execute(
+            f"""
+            UPDATE banking_deals
+            SET {assignments}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            tuple(values),
+        )
+        connection.commit()
+
+
+def upsert_banking_deal_terms(
+    db_path: DbPath,
+    deal_id: int,
+    terms: Mapping[str, Any],
+) -> None:
+    """Insert or update term fields for a canonical banking deal."""
+
+    with _connect(db_path) as connection:
+        existing = connection.execute(
+            "SELECT id FROM banking_deal_terms WHERE deal_id = ?",
+            (deal_id,),
+        ).fetchone()
+        if existing is None:
+            _insert_terms(connection, deal_id, terms)
+        else:
+            _update_terms(connection, deal_id, terms)
+        connection.commit()
+
+
+def get_banking_deal_candidate(
+    db_path: DbPath,
+    candidate_id: int,
+) -> dict[str, Any] | None:
+    """Return one extracted banking deal candidate, or None."""
+
+    with _connect(db_path) as connection:
+        row = connection.execute(
+            "SELECT * FROM banking_deal_candidates WHERE id = ?",
+            (candidate_id,),
+        ).fetchone()
+        return _row_to_dict(row) if row is not None else None
+
+
 def get_banking_deal(db_path: DbPath, deal_id: int) -> dict[str, Any] | None:
     """Return one banking deal with nested terms, or None."""
 
@@ -259,6 +537,85 @@ def get_banking_deal(db_path: DbPath, deal_id: int) -> dict[str, Any] | None:
         ).fetchone()
         deal["terms"] = _row_to_dict(terms) if terms is not None else None
         return deal
+
+
+def get_banking_deal_by_canonical_key(
+    db_path: DbPath,
+    canonical_key: str,
+) -> dict[str, Any] | None:
+    """Return one canonical banking deal by canonical key, or None."""
+
+    with _connect(db_path) as connection:
+        row = connection.execute(
+            "SELECT id FROM banking_deals WHERE canonical_key = ?",
+            (canonical_key,),
+        ).fetchone()
+    if row is None:
+        return None
+    return get_banking_deal(db_path, int(row["id"]))
+
+
+def list_banking_deal_candidates(
+    db_path: DbPath,
+    *,
+    raw_snapshot_id: int | None = None,
+    rejected: bool | None = None,
+    subcategory: str | None = None,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    """List extracted pre-dedupe candidates with optional filters."""
+
+    clauses: list[str] = []
+    values: list[Any] = []
+    if raw_snapshot_id is not None:
+        clauses.append("raw_snapshot_id = ?")
+        values.append(raw_snapshot_id)
+    if rejected is not None:
+        clauses.append("rejected = ?")
+        values.append(_bool_to_int(rejected))
+    if subcategory is not None:
+        clauses.append("subcategory = ?")
+        values.append(subcategory)
+
+    query = "SELECT * FROM banking_deal_candidates"
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    query += " ORDER BY created_at DESC, id DESC"
+    if limit is not None:
+        query += " LIMIT ?"
+        values.append(limit)
+
+    with _connect(db_path) as connection:
+        return [
+            _row_to_dict(row)
+            for row in connection.execute(query, tuple(values)).fetchall()
+        ]
+
+
+def list_pending_banking_deal_candidates(
+    db_path: DbPath,
+    *,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    """List non-rejected candidates that have not been canonicalized."""
+
+    query = """
+        SELECT *
+        FROM banking_deal_candidates
+        WHERE rejected = 0
+          AND canonicalization_status IS NULL
+        ORDER BY created_at ASC, id ASC
+    """
+    values: list[Any] = []
+    if limit is not None:
+        query += " LIMIT ?"
+        values.append(limit)
+
+    with _connect(db_path) as connection:
+        return [
+            _row_to_dict(row)
+            for row in connection.execute(query, tuple(values)).fetchall()
+        ]
 
 
 def list_banking_deals(
@@ -286,6 +643,56 @@ def list_banking_deals(
     if limit is not None:
         query += " LIMIT ?"
         values.append(limit)
+
+    with _connect(db_path) as connection:
+        return [
+            _row_to_dict(row)
+            for row in connection.execute(query, tuple(values)).fetchall()
+        ]
+
+
+def list_banking_deal_source_links(
+    db_path: DbPath,
+    *,
+    deal_id: int | None = None,
+) -> list[dict[str, Any]]:
+    """List source evidence links for canonical banking deals."""
+
+    clauses: list[str] = []
+    values: list[Any] = []
+    if deal_id is not None:
+        clauses.append("deal_id = ?")
+        values.append(deal_id)
+
+    query = "SELECT * FROM banking_deal_source_links"
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    query += " ORDER BY created_at ASC, id ASC"
+
+    with _connect(db_path) as connection:
+        return [
+            _row_to_dict(row)
+            for row in connection.execute(query, tuple(values)).fetchall()
+        ]
+
+
+def list_deal_change_events(
+    db_path: DbPath,
+    *,
+    deal_id: int | None = None,
+) -> list[dict[str, Any]]:
+    """List material change events for canonical banking deals."""
+
+    clauses: list[str] = []
+    values: list[Any] = []
+    if deal_id is not None:
+        clauses.append("deal_id = ?")
+        values.append(deal_id)
+
+    query = "SELECT * FROM deal_change_events"
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    query += " ORDER BY created_at ASC, id ASC"
 
     with _connect(db_path) as connection:
         return [
@@ -406,6 +813,58 @@ def _insert_terms(
             terms.get("household_limit"),
             _json_text(terms.get("terms_json")),
         ),
+    )
+
+
+def _update_terms(
+    connection: sqlite3.Connection,
+    deal_id: int,
+    terms: Mapping[str, Any],
+) -> None:
+    allowed_columns = {
+        "minimum_deposit_amount_cents",
+        "direct_deposit_required",
+        "direct_deposit_minimum_cents",
+        "minimum_balance_required_cents",
+        "balance_hold_days",
+        "monthly_fee_cents",
+        "monthly_fee_waiver_terms",
+        "early_closure_fee_cents",
+        "hard_pull_risk",
+        "soft_pull_only",
+        "state_restrictions",
+        "new_customer_only",
+        "household_limit",
+        "terms_json",
+    }
+    columns = [column for column in terms if column in allowed_columns]
+    if not columns:
+        return
+
+    assignments = ", ".join(f"{column} = ?" for column in columns)
+    values = [
+        _bool_to_int(terms[column])
+        if column
+        in {
+            "direct_deposit_required",
+            "hard_pull_risk",
+            "soft_pull_only",
+            "new_customer_only",
+        }
+        else _json_text(terms[column])
+        if column in {"state_restrictions", "terms_json"}
+        else terms[column]
+        for column in columns
+    ]
+    values.append(deal_id)
+
+    connection.execute(
+        f"""
+        UPDATE banking_deal_terms
+        SET {assignments}, updated_at = CURRENT_TIMESTAMP
+        WHERE deal_id = ?
+        """,
+        tuple(values),
     )
 
 

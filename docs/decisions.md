@@ -162,3 +162,92 @@ Consequences:
 - Unknown extracted banking terms are stored as `NULL` rather than guessed.
 - A larger ORM can be reconsidered only if later issues create enough model
   complexity to justify it.
+
+## DEC-010: Keep source policy config-first with YAML
+
+Date: 2026-06-17
+
+Decision: Use `config/banking_sources.yaml` and a small `pdi.sources` validator
+as the source policy authority before collectors are implemented.
+
+Rationale:
+
+- Issue #3 needs explicit, machine-readable source rules before live collection.
+- YAML keeps placeholder source records readable for manual review.
+- Keeping policy separate from SQLite avoids a migration before collectors need
+  persisted source policy state.
+
+Consequences:
+
+- `PyYAML` is a runtime dependency.
+- Future collectors must load and enforce `pdi.sources` policies before any
+  source access.
+- SQLite `source_records` remain snapshot provenance until a later issue
+  requires full source-policy persistence.
+
+## DEC-011: Keep initial collectors offline-first
+
+Date: 2026-06-17
+
+Decision: Implement the first collector framework with local/manual fixture
+collectors and policy-gated interfaces, but no built-in live network client.
+
+Rationale:
+
+- Issue #4 needs raw snapshot flow without introducing unsafe scraping behavior.
+- Local fixtures keep collector tests deterministic and offline.
+- Explicit injected fetchers give future issues an integration point while
+  preserving source-policy enforcement before any fetch-like behavior.
+
+Consequences:
+
+- Manual text, manual URL records, RSS/Atom fixtures, email export text, and API
+  fixture payloads can produce `CollectedSnapshot` records.
+- HTML fetching remains opt-in for future work and is blocked unless source
+  policy allows approved, non-login, low-frequency scraping.
+- No proxy, CAPTCHA bypass, browser automation, credentials, or private-session
+  collection behavior is introduced.
+
+## DEC-012: Store extracted candidates separately from canonical deals
+
+Date: 2026-06-17
+
+Decision: Store Issue #5 extractor output in `banking_deal_candidates` rather
+than writing directly to canonical `banking_deals`.
+
+Rationale:
+
+- Extraction is intentionally imperfect and pre-dedupe.
+- Canonical deal creation, merge decisions, conflicts, and change tracking belong
+  to the later dedupe/canonicalization layer.
+- Candidate rows can preserve raw snapshot links, evidence spans, missing fields,
+  confidence, and rejection state without implying a reviewed canonical deal.
+
+Consequences:
+
+- Issue #5 can persist extraction results without overwriting canonical records.
+- Issue #6 should consume candidate rows and decide when to create or update
+  canonical `banking_deals`.
+
+## DEC-013: Use conservative canonicalization with source evidence links
+
+Date: 2026-06-17
+
+Decision: Dedupe should convert extracted candidates into canonical banking
+deals using conservative exact, same-source/product, and strong fuzzy matching,
+while preserving every candidate/source reference in explicit source-link rows.
+
+Rationale:
+
+- Banking promotion terms can differ across official pages, blogs, feeds, and
+  newsletters.
+- False merges would make scoring and review less trustworthy than duplicate
+  records.
+- Source links and change events keep conflicting evidence reviewable.
+
+Consequences:
+
+- Low-confidence candidates do not fuzzy-merge.
+- Official-source evidence is preferred when source authority is known.
+- Important conflicts create change events and mark canonical deals
+  `needs_review`.
