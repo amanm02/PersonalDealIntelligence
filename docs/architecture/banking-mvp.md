@@ -20,7 +20,6 @@ Included:
 - local review workflow
 - local digest
 - offline fixture pipeline
-- run history
 
 Deferred:
 
@@ -31,6 +30,7 @@ Deferred:
 - cashback stack optimizer
 - browser extension
 - full hosted app
+- run history and dry-run orchestration
 
 ## Data flow
 
@@ -48,8 +48,8 @@ flowchart TD
   F --> K[Change Events]
   I --> L[Status Events]
   J --> M[Local Artifacts]
-  N[Run History] --> J
-  B --> N
+  N[Future Run History] -. Issue #12 .-> J
+  B -. future run metadata .-> N
 ```
 
 If Mermaid rendering is not supported in a viewer, treat the diagram as a text representation of the pipeline.
@@ -238,13 +238,13 @@ Purpose: let the user inspect and update deals locally.
 Implemented commands:
 
 ```bash
-pdi --db data/pdi.sqlite banking list
-pdi --db data/pdi.sqlite banking show <deal_id>
-pdi --db data/pdi.sqlite banking update-status <deal_id> <status>
-pdi --db data/pdi.sqlite banking review-needed
-pdi --db data/pdi.sqlite banking expiring --days 14
-pdi --db data/pdi.sqlite banking search --institution <name>
-pdi --db data/pdi.sqlite banking score <deal_id>
+python3 -m pdi --db data/pdi.sqlite banking list
+python3 -m pdi --db data/pdi.sqlite banking show <deal_id>
+python3 -m pdi --db data/pdi.sqlite banking update-status <deal_id> <status>
+python3 -m pdi --db data/pdi.sqlite banking review-needed
+python3 -m pdi --db data/pdi.sqlite banking expiring --days 14
+python3 -m pdi --db data/pdi.sqlite banking search --institution <name>
+python3 -m pdi --db data/pdi.sqlite banking score <deal_id>
 ```
 
 The list-style commands support terminal table output by default and JSON with
@@ -267,9 +267,9 @@ verified on the official institution page before acting.
 Purpose: summarize high-signal deals.
 
 Implemented alert digest support is exposed under `pdi.alerts` and through
-`pdi banking digest`. It reads canonical deals, scoring outputs, source links,
-change events, and status events from the local SQLite database, then writes
-local markdown or JSON artifacts.
+`python3 -m pdi banking digest`. It reads canonical deals, scoring outputs,
+source links, change events, and status events from the local SQLite database,
+then writes local markdown or JSON artifacts.
 
 Digest sections:
 
@@ -290,9 +290,10 @@ hook is no-op/dry-run only and does not send live messages.
 Purpose: prove the Banking MVP components work together without live sources.
 
 Implemented smoke support is exposed under `pdi.smoke` and through
-`pdi banking smoke-test`. It loads synthetic local text fixtures, creates raw
-snapshots, extracts candidates, canonicalizes duplicates and conflicts, scores
-canonical deals, writes a local markdown digest, and prints summary counts.
+`python3 -m pdi banking smoke-test`. It loads synthetic local text fixtures,
+creates raw snapshots, extracts candidates, canonicalizes duplicates and
+conflicts, scores canonical deals, writes a local markdown digest, and prints
+summary counts.
 
 The smoke flow is fixture-only. It does not fetch websites, use browser
 automation, connect email accounts, send external messages, or automate banking
@@ -301,6 +302,10 @@ actions.
 ### 9. Run history
 
 Purpose: track repeated runs and failures.
+
+Status: deferred to Issue #12. The current Banking MVP has an offline smoke
+command but does not persist run records, expose a `banking run --dry-run`
+command, list past runs, or block overlapping runs.
 
 Run records should include:
 
@@ -340,7 +345,7 @@ implemented.
 Expected config files:
 
 - `config/banking_sources.yaml` (implemented)
-- `config/banking_scoring.yaml`
+- `config/banking_scoring.yaml` (implemented)
 - `config/banking_alerts.yaml` (implemented)
 
 Do not store secrets in config files. Use environment variables only if external integrations are later added.
