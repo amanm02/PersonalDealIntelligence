@@ -90,7 +90,8 @@ See `docs/issue-map.md` for dependencies and implementation order.
 
 The current runtime foundation is a minimal Python package with SQLite storage
 for Banking MVP deal data, a YAML-backed source policy registry, an
-offline-first collector framework, and a deterministic banking extractor.
+offline-first collector framework, a deterministic banking extractor,
+conservative dedupe, and transparent expected-value scoring.
 Storage uses stdlib `sqlite3` and versioned SQL migrations under
 `src/pdi/storage/migrations/`.
 
@@ -139,6 +140,18 @@ non-rejected candidates. It creates or updates canonical banking deals, preserve
 candidate/source evidence in `banking_deal_source_links`, records material
 differences in `deal_change_events`, and marks important conflicts
 `needs_review`.
+
+Scoring support exists under `pdi.scoring` for canonical banking deals. It reads
+`config/banking_scoring.yaml`, returns component-level estimates for gross
+bonus, fees, cash lockup, hassle, risk/unclear terms, net value, score band,
+recommended action, explanation, and missing-data warnings. Scores are for
+personal review only and are not financial advice.
+
+Validate banking scoring assumptions:
+
+```bash
+python3 -m pdi.scoring validate --config config/banking_scoring.yaml
+```
 
 Run tests:
 
@@ -206,6 +219,16 @@ python3 -m pytest tests/extractors
 python3 -m pytest
 ```
 
+For scoring changes, run:
+
+```bash
+python3 -m pdi.scoring validate --config config/banking_scoring.yaml
+python3 -m pytest tests/scoring
+python3 -m pytest tests/dedupe
+python3 -m pytest tests/storage
+python3 -m pytest
+```
+
 Documentation-only changes should be manually checked for:
 
 - clear Banking MVP scope
@@ -230,5 +253,5 @@ Initial documentation and issue planning are in progress. The Banking MVP now ha
 a local SQLite storage foundation for raw snapshots, canonical deals, structured
 terms, status/change history, explicit source policy validation, and local
 fixture/manual collector support. Offline extraction and conservative dedupe
-into canonical deals are implemented. Built-in live collection is not
-implemented.
+into canonical deals are implemented, as is transparent scoring for canonical
+deals. Built-in live collection is not implemented.

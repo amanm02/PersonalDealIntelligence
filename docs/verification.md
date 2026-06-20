@@ -5,14 +5,15 @@ This document defines validation expectations for the Banking MVP.
 ## Current state
 
 The initial Python package, SQLite storage layer, source policy validator,
-collector framework, deterministic banking extractor, and conservative dedupe
-layer exist. Storage validation is available through pytest and the database
-initialization command. Source policy validation is available through the
-`pdi.sources` module and offline pytest coverage. Collector validation is
-available through local-only pytest coverage under `tests/collectors`.
-Extractor validation is available through offline fixture coverage under
-`tests/extractors`. Dedupe validation is available through offline fixture
-coverage under `tests/dedupe`.
+collector framework, deterministic banking extractor, conservative dedupe layer,
+and transparent banking scoring engine exist. Storage validation is available
+through pytest and the database initialization command. Source policy validation
+is available through the `pdi.sources` module and offline pytest coverage.
+Collector validation is available through local-only pytest coverage under
+`tests/collectors`. Extractor validation is available through offline fixture
+coverage under `tests/extractors`. Dedupe validation is available through
+offline fixture coverage under `tests/dedupe`. Scoring validation is available
+through config validation and offline fixture coverage under `tests/scoring`.
 
 ## Docs-only validation
 
@@ -90,10 +91,15 @@ Current narrower dedupe command:
 python3 -m pytest tests/dedupe
 ```
 
-Expected narrower commands as future modules are added:
+Current narrower scoring command:
 
 ```bash
 python3 -m pytest tests/scoring
+```
+
+Expected narrower commands as future modules are added:
+
+```bash
 python3 -m pytest tests/cli
 python3 -m pytest tests/alerts
 python3 -m pytest tests/integration
@@ -113,6 +119,14 @@ Validate the source registry with:
 
 ```bash
 python3 -m pdi.sources validate --config config/banking_sources.yaml
+```
+
+## Scoring config validation
+
+Validate banking scoring assumptions with:
+
+```bash
+python3 -m pdi.scoring validate --config config/banking_scoring.yaml
 ```
 
 ## Expected future quality checks

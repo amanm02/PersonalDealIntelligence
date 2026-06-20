@@ -203,6 +203,11 @@ official-source data.
 
 Purpose: rank deals based on expected personal value.
 
+Implemented scoring is exposed under `pdi.scoring` and reads configurable
+assumptions from `config/banking_scoring.yaml`. It scores canonical
+`banking_deals`, can persist `estimated_net_value_cents` to the existing
+canonical row, and returns the full component breakdown for callers.
+
 Scoring components:
 
 - gross bonus value
@@ -223,7 +228,8 @@ Outputs:
 - explanation
 - missing data warnings
 
-Scoring must be transparent and configurable.
+Scoring is transparent and configurable. It is for personal review support only
+and must not be presented as financial advice.
 
 ### 7. Review CLI
 
