@@ -132,8 +132,13 @@ attempt.
 Extractor support exists under `pdi.extractors` for offline, rule-based parsing
 of raw banking snapshot text into `banking_deal_candidates`. Extracted
 candidates preserve evidence spans, missing fields, confidence, and notes, but
-do not create or update canonical `banking_deals`; dedupe and canonical merge
-logic is deferred to the next Banking MVP layer.
+do not directly create or update canonical `banking_deals`.
+
+Dedupe support exists under `pdi.dedupe` for conservative canonicalization of
+non-rejected candidates. It creates or updates canonical banking deals, preserves
+candidate/source evidence in `banking_deal_source_links`, records material
+differences in `deal_change_events`, and marks important conflicts
+`needs_review`.
 
 Run tests:
 
@@ -192,6 +197,15 @@ python3 -m pytest tests/storage
 python3 -m pytest
 ```
 
+For dedupe changes, run:
+
+```bash
+python3 -m pytest tests/dedupe
+python3 -m pytest tests/storage
+python3 -m pytest tests/extractors
+python3 -m pytest
+```
+
 Documentation-only changes should be manually checked for:
 
 - clear Banking MVP scope
@@ -215,4 +229,6 @@ Documentation-only changes should be manually checked for:
 Initial documentation and issue planning are in progress. The Banking MVP now has
 a local SQLite storage foundation for raw snapshots, canonical deals, structured
 terms, status/change history, explicit source policy validation, and local
-fixture/manual collector support. Built-in live collection is not implemented.
+fixture/manual collector support. Offline extraction and conservative dedupe
+into canonical deals are implemented. Built-in live collection is not
+implemented.

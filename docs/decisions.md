@@ -228,3 +228,26 @@ Consequences:
 - Issue #5 can persist extraction results without overwriting canonical records.
 - Issue #6 should consume candidate rows and decide when to create or update
   canonical `banking_deals`.
+
+## DEC-013: Use conservative canonicalization with source evidence links
+
+Date: 2026-06-17
+
+Decision: Dedupe should convert extracted candidates into canonical banking
+deals using conservative exact, same-source/product, and strong fuzzy matching,
+while preserving every candidate/source reference in explicit source-link rows.
+
+Rationale:
+
+- Banking promotion terms can differ across official pages, blogs, feeds, and
+  newsletters.
+- False merges would make scoring and review less trustworthy than duplicate
+  records.
+- Source links and change events keep conflicting evidence reviewable.
+
+Consequences:
+
+- Low-confidence candidates do not fuzzy-merge.
+- Official-source evidence is preferred when source authority is known.
+- Important conflicts create change events and mark canonical deals
+  `needs_review`.

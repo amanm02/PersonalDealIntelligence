@@ -5,12 +5,14 @@ This document defines validation expectations for the Banking MVP.
 ## Current state
 
 The initial Python package, SQLite storage layer, source policy validator,
-collector framework, and deterministic banking extractor exist. Storage
-validation is available through pytest and the database initialization command.
-Source policy validation is available through the `pdi.sources` module and
-offline pytest coverage. Collector validation is available through local-only
-pytest coverage under `tests/collectors`. Extractor validation is available
-through offline fixture coverage under `tests/extractors`.
+collector framework, deterministic banking extractor, and conservative dedupe
+layer exist. Storage validation is available through pytest and the database
+initialization command. Source policy validation is available through the
+`pdi.sources` module and offline pytest coverage. Collector validation is
+available through local-only pytest coverage under `tests/collectors`.
+Extractor validation is available through offline fixture coverage under
+`tests/extractors`. Dedupe validation is available through offline fixture
+coverage under `tests/dedupe`.
 
 ## Docs-only validation
 
@@ -82,12 +84,15 @@ Current narrower extractor command:
 python3 -m pytest tests/extractors
 ```
 
+Current narrower dedupe command:
+
+```bash
+python3 -m pytest tests/dedupe
+```
+
 Expected narrower commands as future modules are added:
 
 ```bash
-python3 -m pytest tests/sources
-python3 -m pytest tests/extractors
-python3 -m pytest tests/dedupe
 python3 -m pytest tests/scoring
 python3 -m pytest tests/cli
 python3 -m pytest tests/alerts
