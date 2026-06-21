@@ -1,5 +1,7 @@
 sources:
-  - name: "Demo Official Northstar Checking Page"
+  - source_id: "demo-official-northstar-checking-page"
+    source_group: "demo"
+    name: "Demo Official Northstar Checking Page"
     url: "https://northstar-demo.example.test/promos/everyday-checking"
     source_type: "official_promo_page"
     category_scope:
@@ -21,7 +23,9 @@ sources:
     last_reviewed_at: "2026-06-20"
     notes: "Fictional official checking promotion fixture for the reusable demo corpus."
 
-  - name: "Demo Official Riverbend Savings Page"
+  - source_id: "demo-official-riverbend-savings-page"
+    source_group: "demo"
+    name: "Demo Official Riverbend Savings Page"
     url: "https://riverbend-demo.example.test/promos/high-yield-savings"
     source_type: "official_promo_page"
     category_scope:
@@ -43,7 +47,9 @@ sources:
     last_reviewed_at: "2026-06-20"
     notes: "Fictional official savings promotion fixture for the reusable demo corpus."
 
-  - name: "Demo Official Cypress Bundle Page"
+  - source_id: "demo-official-cypress-bundle-page"
+    source_group: "demo"
+    name: "Demo Official Cypress Bundle Page"
     url: "https://cypress-demo.example.test/promos/checking-savings-bundle"
     source_type: "official_promo_page"
     category_scope:
@@ -65,7 +71,9 @@ sources:
     last_reviewed_at: "2026-06-20"
     notes: "Fictional official bundle promotion fixture for the reusable demo corpus."
 
-  - name: "Demo Official Harbor Brokerage Page"
+  - source_id: "demo-official-harbor-brokerage-page"
+    source_group: "demo"
+    name: "Demo Official Harbor Brokerage Page"
     url: "https://harbor-demo.example.test/promos/brokerage-transfer"
     source_type: "official_promo_page"
     category_scope:
@@ -87,7 +95,9 @@ sources:
     last_reviewed_at: "2026-06-20"
     notes: "Fictional official brokerage promotion fixture for the reusable demo corpus."
 
-  - name: "Demo Official Pioneer CD Page"
+  - source_id: "demo-official-pioneer-cd-page"
+    source_group: "demo"
+    name: "Demo Official Pioneer CD Page"
     url: "https://pioneer-demo.example.test/promos/cd-new-money"
     source_type: "official_promo_page"
     category_scope:
@@ -109,7 +119,9 @@ sources:
     last_reviewed_at: "2026-06-20"
     notes: "Fictional official CD promotion fixture for the reusable demo corpus."
 
-  - name: "Demo Banking Deal Blog RSS"
+  - source_id: "demo-banking-deal-blog-rss"
+    source_group: "demo"
+    name: "Demo Banking Deal Blog RSS"
     url: "https://demo-deals.example.test/rss/banking.xml"
     source_type: "deal_blog"
     category_scope:
@@ -132,7 +144,9 @@ sources:
     last_reviewed_at: "2026-06-20"
     notes: "Contains duplicate and expired synthetic banking promotion mentions."
 
-  - name: "Demo User Authorized Newsletter Export"
+  - source_id: "demo-user-authorized-newsletter-export"
+    source_group: "demo"
+    name: "Demo User Authorized Newsletter Export"
     url: "email-export://demo-banking-newsletter"
     source_type: "newsletter_email"
     category_scope:
@@ -154,7 +168,9 @@ sources:
     last_reviewed_at: "2026-06-20"
     notes: "Contains a conflicting synthetic mention of the Northstar checking promotion."
 
-  - name: "Demo Manual User Pasted Banking Notes"
+  - source_id: "demo-manual-user-pasted-banking-notes"
+    source_group: "demo"
+    name: "Demo Manual User Pasted Banking Notes"
     url: "manual://demo-banking-user-notes"
     source_type: "manual_url"
     category_scope:
@@ -177,7 +193,9 @@ sources:
     last_reviewed_at: "2026-06-20"
     notes: "Contains low-value, ambiguous, and non-deal demo records."
 
-  - name: "Demo Disabled Scrape Placeholder"
+  - source_id: "demo-disabled-scrape-placeholder"
+    source_group: "demo"
+    name: "Demo Disabled Scrape Placeholder"
     url: "https://blocked-demo.example.test/private-promos"
     source_type: "disabled"
     category_scope:

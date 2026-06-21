@@ -8,6 +8,10 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from pdi.public_pilot import (
+    DEFAULT_PUBLIC_PILOT_CONFIG,
+    run_public_pilot_workflow,
+)
 from pdi.smoke import (
     DEFAULT_ALERT_CONFIG,
     DEFAULT_AS_OF,
@@ -32,15 +36,20 @@ def run_banking_workflow_once(
     db_path: DbPath,
     *,
     dry_run: bool = True,
+    sources: str = "demo",
+    source_config_path: str | Path = DEFAULT_PUBLIC_PILOT_CONFIG,
+    confirm_live: bool = False,
     fixture_dir: str | Path = DEFAULT_FIXTURE_DIR,
     digest_output: str | Path = DEFAULT_RUN_DIGEST_OUTPUT,
     alert_config_path: str | Path = DEFAULT_ALERT_CONFIG,
     as_of: date = DEFAULT_AS_OF,
 ) -> dict[str, Any]:
-    """Run the current local Banking MVP workflow once and record history."""
+    """Run the selected local Banking MVP workflow once and record history."""
 
     initialize_database(db_path)
     metadata = _base_metadata(
+        sources=sources,
+        source_config_path=source_config_path,
         fixture_dir=fixture_dir,
         digest_output=digest_output,
         alert_config_path=alert_config_path,
@@ -67,7 +76,37 @@ def run_banking_workflow_once(
         return _run_payload(db_path, run_id)
 
     try:
-        if dry_run:
+        if sources == "public-pilot":
+            summary = run_public_pilot_workflow(
+                db_path,
+                source_config_path=source_config_path,
+                dry_run=dry_run,
+                confirm_live=confirm_live,
+                digest_output=digest_output,
+                alert_config_path=alert_config_path,
+                as_of=as_of,
+            )
+            update_banking_run(
+                db_path,
+                run_id,
+                status="succeeded",
+                counts=summary,
+                digest_path=summary.get("digest_path"),
+                metadata={
+                    **metadata,
+                    "digest_written": bool(summary.get("digest_path")) and not dry_run,
+                    "public_pilot": {
+                        "message": summary.get("message"),
+                        "planned_sources": summary.get("planned_sources", []),
+                        "enabled_source_count": summary.get("enabled_source_count", 0),
+                        "network_fetch_attempted": summary.get(
+                            "network_fetch_attempted",
+                            False,
+                        ),
+                    },
+                },
+            )
+        elif dry_run:
             summary = _run_dry_run_copy(
                 db_path,
                 fixture_dir=fixture_dir,
@@ -86,7 +125,7 @@ def run_banking_workflow_once(
                     "would_be_digest_path": str(digest_output),
                 },
             )
-        else:
+        elif sources == "demo":
             summary = run_offline_banking_smoke(
                 db_path,
                 fixture_dir=fixture_dir,
@@ -103,6 +142,8 @@ def run_banking_workflow_once(
                 digest_path=str(summary["digest_path"]),
                 metadata={**metadata, "digest_written": True},
             )
+        else:
+            raise ValueError(f"Unsupported banking run source group: {sources}")
     except Exception as error:  # pragma: no cover - exercised through callers.
         update_banking_run(
             db_path,
@@ -141,12 +182,16 @@ def _run_dry_run_copy(
 
 def _base_metadata(
     *,
+    sources: str,
+    source_config_path: str | Path,
     fixture_dir: str | Path,
     digest_output: str | Path,
     alert_config_path: str | Path,
 ) -> dict[str, Any]:
     return {
-        "workflow": "offline_fixture",
+        "workflow": "public_pilot" if sources == "public-pilot" else "offline_fixture",
+        "sources": sources,
+        "source_config_path": str(source_config_path),
         "fixture_dir": str(fixture_dir),
         "alert_config_path": str(alert_config_path),
         "requested_digest_path": str(digest_output),

@@ -1,5 +1,7 @@
 sources:
-  - name: "Example Manual Official Promo URL"
+  - source_id: "core-manual-official-promo-url"
+    source_group: "core"
+    name: "Example Manual Official Promo URL"
     url: "manual://user-pasted-official-bank-promo-url"
     source_type: "manual_url"
     category_scope:
@@ -23,7 +25,9 @@ sources:
     last_reviewed_at: "2026-06-17"
     notes: "Use for a user-pasted official banking promotion URL after manual review."
 
-  - name: "Example Banking Deal RSS Feed"
+  - source_id: "core-banking-deal-rss-feed"
+    source_group: "core"
+    name: "Example Banking Deal RSS Feed"
     url: "https://example.test/banking-deals/rss.xml"
     source_type: "rss_feed"
     category_scope:
@@ -49,7 +53,9 @@ sources:
     last_reviewed_at: "2026-06-17"
     notes: "Fictional RSS example for offline policy validation."
 
-  - name: "Example User Authorized Newsletter Export"
+  - source_id: "core-user-authorized-newsletter-export"
+    source_group: "core"
+    name: "Example User Authorized Newsletter Export"
     url: "email-export://user-authorized-banking-newsletter"
     source_type: "newsletter_email"
     category_scope:
@@ -73,7 +79,9 @@ sources:
     last_reviewed_at: "2026-06-17"
     notes: "Placeholder only; do not store credentials or private mailbox tokens."
 
-  - name: "Example Disabled Scrape Source"
+  - source_id: "core-disabled-scrape-source"
+    source_group: "core"
+    name: "Example Disabled Scrape Source"
     url: "https://example.test/disabled-bank-promos"
     source_type: "disabled"
     category_scope:
@@ -94,3 +102,31 @@ sources:
     compliance_status: "disabled"
     last_reviewed_at: "2026-06-17"
     notes: "Example fail-closed source policy."
+
+  - source_id: "public-pilot-placeholder-rss"
+    source_group: "public-pilot"
+    name: "Public Pilot Placeholder RSS Feed"
+    url: "https://example.test/public-pilot/banking-promos.xml"
+    source_type: "rss_feed"
+    category_scope:
+      - "banking"
+    subcategory_scope:
+      - "checking_bonus"
+      - "savings_bonus"
+      - "brokerage_bonus"
+      - "money_market_bonus"
+      - "cd_bonus"
+    enabled: false
+    collection_method: "rss_feed"
+    max_frequency_hours: 48
+    requires_login: false
+    allow_scrape: false
+    allow_api: false
+    allow_rss: true
+    allow_email_parse: false
+    robots_policy_notes: "RSS-only public pilot placeholder; no scraping or private-session access."
+    terms_policy_notes: "Disabled until a real public feed is reviewed; final offer terms must be verified on the official institution page."
+    rate_limit_notes: "If explicitly enabled after review, poll no more than once every 48 hours."
+    compliance_status: "pending_review"
+    last_reviewed_at: "2026-06-21"
+    notes: "Disabled-by-default public-pilot source shape for opt-in policy validation."
