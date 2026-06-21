@@ -25,6 +25,7 @@ from pdi.storage import (
     insert_status_event,
     list_banking_deals,
     list_banking_deal_candidates,
+    list_banking_deal_source_links,
     list_banking_runs,
     list_pending_banking_deal_candidates,
     list_field_evidence_links,
@@ -70,7 +71,7 @@ def test_initializes_database_from_scratch(tmp_path):
         }.issubset(table_names)
         assert connection.execute(
             "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0] == 6
+        ).fetchone()[0] == 7
 
 
 def test_migrations_are_idempotent(tmp_path):
@@ -82,7 +83,7 @@ def test_migrations_are_idempotent(tmp_path):
     with sqlite3.connect(db_path) as connection:
         assert connection.execute(
             "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0] == 6
+        ).fetchone()[0] == 7
 
 
 def test_raw_snapshot_content_hash_is_stable_and_content_derived(tmp_path):
@@ -496,6 +497,543 @@ def test_candidate_raw_snapshot_foreign_key_is_enforced(tmp_path):
                 "institution_name": "Missing Snapshot Bank",
                 "subcategory": "checking_bonus",
                 "source_name": "Missing Snapshot Source",
+            },
+        )
+
+
+def test_source_link_schema_is_hardened_on_fresh_database(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+
+    with sqlite3.connect(db_path) as connection:
+        columns = {
+            row[1]: row
+            for row in connection.execute(
+                "PRAGMA table_info(banking_deal_source_links)"
+            )
+        }
+        indexes = [
+            row
+            for row in connection.execute(
+                "PRAGMA index_list(banking_deal_source_links)"
+            )
+        ]
+        foreign_keys = [
+            row
+            for row in connection.execute(
+                "PRAGMA foreign_key_list(banking_deal_source_links)"
+            )
+        ]
+
+    assert columns["deal_id"][3] == 1
+    assert columns["candidate_id"][3] == 1
+    assert columns["raw_snapshot_id"][3] == 1
+    assert columns["source_name"][3] == 1
+    assert columns["source_authority"][4] == "'unknown'"
+    assert columns["link_type"][3] == 1
+    assert columns["link_type"][4] == "'candidate_source'"
+    assert "trust_tier" in columns
+    assert "official_source" in columns
+    assert "notes" in columns
+    assert "evidence_json" in columns
+    assert any(row[2] for row in indexes)
+    assert {
+        (row[2], row[3], row[4])
+        for row in foreign_keys
+        if row[2]
+    }.issuperset(
+        {
+            ("banking_deals", "deal_id", "id"),
+            ("banking_deal_candidates", "candidate_id", "id"),
+            ("raw_deal_snapshots", "raw_snapshot_id", "id"),
+        }
+    )
+
+
+def test_source_link_insert_list_and_duplicate_behavior_is_deterministic(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    snapshot_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_url": "manual://source-link",
+            "source_name": "Source Link Fixture",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "raw_text": "Mock Bank offers a $300 checking bonus.",
+            "collector_name": "fixture",
+        },
+    )
+    candidate_id = insert_banking_deal_candidate(
+        db_path,
+        {
+            "raw_snapshot_id": snapshot_id,
+            "title": "Mock Bank $300 Checking Bonus",
+            "institution_name": "Mock Bank",
+            "subcategory": "checking_bonus",
+            "bonus_amount_cents": 30000,
+            "source_name": "Source Link Fixture",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "confidence_score": 0.8,
+        },
+    )
+    deal_id = insert_banking_deal(
+        db_path,
+        {
+            "canonical_key": "source-link-fixture",
+            "title": "Mock Bank $300 Checking Bonus",
+            "institution_name": "Mock Bank",
+            "subcategory": "checking_bonus",
+            "bonus_amount_cents": 30000,
+            "source_name": "Source Link Fixture",
+            "raw_snapshot_id": snapshot_id,
+        },
+    )
+
+    first_link_id = insert_banking_deal_source_link(
+        db_path,
+        {
+            "deal_id": deal_id,
+            "candidate_id": candidate_id,
+            "raw_snapshot_id": snapshot_id,
+            "source_name": "Source Link Fixture",
+            "source_url": "manual://source-link",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "confidence_score": 0.8,
+            "evidence": [
+                {
+                    "text": "$300",
+                    "start": 19,
+                    "field": "bonus_amount_cents",
+                    "end": 23,
+                }
+            ],
+        },
+    )
+    duplicate_link_id = insert_banking_deal_source_link(
+        db_path,
+        {
+            "deal_id": deal_id,
+            "candidate_id": candidate_id,
+            "raw_snapshot_id": snapshot_id,
+            "source_name": "Duplicate Ignored Source",
+            "source_authority": "official",
+            "link_type": "candidate_source",
+            "trust_tier": "official",
+            "official_source": True,
+            "retrieved_at": "2026-06-17T13:00:00+00:00",
+            "notes": "Duplicate metadata must not overwrite the first link.",
+        },
+    )
+
+    by_deal = list_banking_deal_source_links(db_path, deal_id=deal_id)
+    by_candidate = list_banking_deal_source_links(
+        db_path,
+        candidate_id=candidate_id,
+    )
+
+    assert duplicate_link_id == first_link_id
+    assert [link["id"] for link in by_deal] == [first_link_id]
+    assert [link["id"] for link in by_candidate] == [first_link_id]
+    assert by_deal[0]["source_name"] == "Source Link Fixture"
+    assert by_deal[0]["source_authority"] == "unknown"
+    assert by_deal[0]["link_type"] == "candidate_source"
+    assert by_deal[0]["trust_tier"] is None
+    assert by_deal[0]["official_source"] is None
+    assert by_deal[0]["notes"] is None
+    assert by_deal[0]["evidence_json"] == (
+        '[{"end": 23, "field": "bonus_amount_cents", '
+        '"start": 19, "text": "$300"}]'
+    )
+
+
+def test_source_link_explicit_metadata_is_persisted(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    snapshot_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_url": "manual://source-link-metadata",
+            "source_name": "Source Link Metadata Fixture",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "raw_text": "Mock Bank offers a $300 checking bonus.",
+            "collector_name": "fixture",
+        },
+    )
+    candidate_id = insert_banking_deal_candidate(
+        db_path,
+        {
+            "raw_snapshot_id": snapshot_id,
+            "title": "Mock Bank $300 Checking Bonus",
+            "institution_name": "Mock Bank",
+            "subcategory": "checking_bonus",
+            "bonus_amount_cents": 30000,
+            "source_name": "Source Link Metadata Fixture",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "confidence_score": 0.8,
+        },
+    )
+    deal_id = insert_banking_deal(
+        db_path,
+        {
+            "canonical_key": "source-link-metadata-fixture",
+            "title": "Mock Bank $300 Checking Bonus",
+            "institution_name": "Mock Bank",
+            "subcategory": "checking_bonus",
+            "bonus_amount_cents": 30000,
+            "source_name": "Source Link Metadata Fixture",
+            "raw_snapshot_id": snapshot_id,
+        },
+    )
+
+    link_id = insert_banking_deal_source_link(
+        db_path,
+        {
+            "deal_id": deal_id,
+            "candidate_id": candidate_id,
+            "raw_snapshot_id": snapshot_id,
+            "source_name": "Source Link Metadata Fixture",
+            "source_authority": "official",
+            "link_type": "candidate_source",
+            "trust_tier": "official",
+            "official_source": True,
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "notes": "Reviewed official landing page.",
+        },
+    )
+
+    link = list_banking_deal_source_links(db_path, candidate_id=candidate_id)[0]
+
+    assert link["id"] == link_id
+    assert link["source_authority"] == "official"
+    assert link["link_type"] == "candidate_source"
+    assert link["trust_tier"] == "official"
+    assert link["official_source"] == 1
+    assert link["notes"] == "Reviewed official landing page."
+
+
+def test_existing_candidate_rows_can_link_after_source_link_migration(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    _initialize_through_migration(db_path, "002")
+    with sqlite3.connect(db_path) as connection:
+        snapshot_id = connection.execute(
+            """
+            INSERT INTO raw_deal_snapshots (
+              source_url,
+              source_name,
+              retrieved_at,
+              content_hash,
+              raw_text,
+              collector_name
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "manual://legacy-link",
+                "Legacy Link Source",
+                "2026-06-17T12:00:00+00:00",
+                hashlib.sha256(b"legacy source link text").hexdigest(),
+                "legacy source link text",
+                "fixture",
+            ),
+        ).lastrowid
+        candidate_id = connection.execute(
+            """
+            INSERT INTO banking_deal_candidates (
+              raw_snapshot_id,
+              title,
+              institution_name,
+              category,
+              subcategory,
+              bonus_amount_cents,
+              currency,
+              source_name,
+              retrieved_at,
+              evidence_spans_json,
+              missing_fields_json,
+              confidence_score,
+              rejected
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                snapshot_id,
+                "Legacy Link Bank Bonus",
+                "Legacy Link Bank",
+                "banking",
+                "checking_bonus",
+                30000,
+                "USD",
+                "Legacy Link Source",
+                "2026-06-17T12:00:00+00:00",
+                "[]",
+                "[]",
+                0.8,
+                0,
+            ),
+        ).lastrowid
+        deal_id = connection.execute(
+            """
+            INSERT INTO banking_deals (
+              canonical_key,
+              title,
+              institution_name,
+              subcategory,
+              bonus_amount_cents,
+              discovered_at,
+              last_seen_at,
+              raw_snapshot_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "legacy-link-checking",
+                "Legacy Link Bank Bonus",
+                "Legacy Link Bank",
+                "checking_bonus",
+                30000,
+                "2026-06-17T12:00:00+00:00",
+                "2026-06-17T12:00:00+00:00",
+                snapshot_id,
+            ),
+        ).lastrowid
+        connection.commit()
+
+    initialize_database(db_path)
+    link_id = insert_banking_deal_source_link(
+        db_path,
+        {
+            "deal_id": deal_id,
+            "candidate_id": candidate_id,
+            "raw_snapshot_id": snapshot_id,
+            "source_name": "Legacy Link Source",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+        },
+    )
+
+    links = list_banking_deal_source_links(db_path, candidate_id=candidate_id)
+
+    assert [link["id"] for link in links] == [link_id]
+    assert links[0]["source_authority"] == "unknown"
+    assert links[0]["link_type"] == "candidate_source"
+    assert links[0]["trust_tier"] is None
+    assert links[0]["official_source"] is None
+    assert links[0]["notes"] is None
+
+
+def test_existing_source_link_rows_migrate_with_default_metadata(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    _initialize_through_migration(db_path, "006")
+    with sqlite3.connect(db_path) as connection:
+        snapshot_id = connection.execute(
+            """
+            INSERT INTO raw_deal_snapshots (
+              source_url,
+              source_name,
+              retrieved_at,
+              content_hash,
+              raw_text,
+              collector_name
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "manual://legacy-source-link-row",
+                "Legacy Source Link Row",
+                "2026-06-17T12:00:00+00:00",
+                hashlib.sha256(b"legacy source link row text").hexdigest(),
+                "legacy source link row text",
+                "fixture",
+            ),
+        ).lastrowid
+        candidate_id = connection.execute(
+            """
+            INSERT INTO banking_deal_candidates (
+              raw_snapshot_id,
+              title,
+              institution_name,
+              category,
+              subcategory,
+              bonus_amount_cents,
+              currency,
+              source_name,
+              retrieved_at,
+              evidence_spans_json,
+              missing_fields_json,
+              confidence_score,
+              rejected
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                snapshot_id,
+                "Legacy Source Link Bank Bonus",
+                "Legacy Source Link Bank",
+                "banking",
+                "checking_bonus",
+                30000,
+                "USD",
+                "Legacy Source Link Row",
+                "2026-06-17T12:00:00+00:00",
+                "[]",
+                "[]",
+                0.8,
+                0,
+            ),
+        ).lastrowid
+        deal_id = connection.execute(
+            """
+            INSERT INTO banking_deals (
+              canonical_key,
+              title,
+              institution_name,
+              subcategory,
+              bonus_amount_cents,
+              discovered_at,
+              last_seen_at,
+              raw_snapshot_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "legacy-source-link-row",
+                "Legacy Source Link Bank Bonus",
+                "Legacy Source Link Bank",
+                "checking_bonus",
+                30000,
+                "2026-06-17T12:00:00+00:00",
+                "2026-06-17T12:00:00+00:00",
+                snapshot_id,
+            ),
+        ).lastrowid
+        source_link_id = connection.execute(
+            """
+            INSERT INTO banking_deal_source_links (
+              deal_id,
+              candidate_id,
+              raw_snapshot_id,
+              source_name,
+              source_url,
+              source_authority,
+              retrieved_at,
+              confidence_score,
+              evidence_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                deal_id,
+                candidate_id,
+                snapshot_id,
+                "Legacy Source Link Row",
+                "manual://legacy-source-link-row",
+                "unknown",
+                "2026-06-17T12:00:00+00:00",
+                0.8,
+                "[]",
+            ),
+        ).lastrowid
+        connection.commit()
+
+    initialize_database(db_path)
+    duplicate_link_id = insert_banking_deal_source_link(
+        db_path,
+        {
+            "deal_id": deal_id,
+            "candidate_id": candidate_id,
+            "raw_snapshot_id": snapshot_id,
+            "source_name": "Duplicate Legacy Source Link Row",
+            "source_authority": "official",
+            "link_type": "candidate_source",
+            "trust_tier": "official",
+            "official_source": True,
+            "notes": "Duplicate metadata must not overwrite the legacy row.",
+        },
+    )
+
+    by_deal = list_banking_deal_source_links(db_path, deal_id=deal_id)
+    by_candidate = list_banking_deal_source_links(
+        db_path,
+        candidate_id=candidate_id,
+    )
+
+    assert duplicate_link_id == source_link_id
+    assert [link["id"] for link in by_deal] == [source_link_id]
+    assert [link["id"] for link in by_candidate] == [source_link_id]
+    assert by_deal[0]["source_name"] == "Legacy Source Link Row"
+    assert by_deal[0]["source_authority"] == "unknown"
+    assert by_deal[0]["link_type"] == "candidate_source"
+    assert by_deal[0]["trust_tier"] is None
+    assert by_deal[0]["official_source"] is None
+    assert by_deal[0]["notes"] is None
+
+
+def test_source_link_foreign_keys_are_enforced(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    snapshot_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_url": "manual://source-link-fk",
+            "source_name": "Source Link FK Fixture",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "raw_text": "Mock Bank offers a $300 checking bonus.",
+            "collector_name": "fixture",
+        },
+    )
+    candidate_id = insert_banking_deal_candidate(
+        db_path,
+        {
+            "raw_snapshot_id": snapshot_id,
+            "title": "Mock Bank $300 Checking Bonus",
+            "institution_name": "Mock Bank",
+            "subcategory": "checking_bonus",
+            "bonus_amount_cents": 30000,
+            "source_name": "Source Link FK Fixture",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "confidence_score": 0.8,
+        },
+    )
+    deal_id = insert_banking_deal(
+        db_path,
+        {
+            "canonical_key": "source-link-fk-fixture",
+            "title": "Mock Bank $300 Checking Bonus",
+            "institution_name": "Mock Bank",
+            "subcategory": "checking_bonus",
+            "bonus_amount_cents": 30000,
+            "source_name": "Source Link FK Fixture",
+            "raw_snapshot_id": snapshot_id,
+        },
+    )
+
+    with pytest.raises(sqlite3.IntegrityError):
+        insert_banking_deal_source_link(
+            db_path,
+            {
+                "deal_id": 999,
+                "candidate_id": candidate_id,
+                "raw_snapshot_id": snapshot_id,
+                "source_name": "Source Link FK Fixture",
+            },
+        )
+    with pytest.raises(sqlite3.IntegrityError):
+        insert_banking_deal_source_link(
+            db_path,
+            {
+                "deal_id": deal_id,
+                "candidate_id": 999,
+                "raw_snapshot_id": snapshot_id,
+                "source_name": "Source Link FK Fixture",
+            },
+        )
+    with pytest.raises(sqlite3.IntegrityError):
+        insert_banking_deal_source_link(
+            db_path,
+            {
+                "deal_id": deal_id,
+                "candidate_id": candidate_id,
+                "raw_snapshot_id": 999,
+                "source_name": "Source Link FK Fixture",
             },
         )
 

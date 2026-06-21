@@ -387,6 +387,10 @@ Must validate:
   rejected filters, pending filters, canonicalization status filters, and raw
   snapshot foreign-key integrity
 - existing candidate rows migrate cleanly from older local database versions
+- `banking_deal_source_links` is the canonical deal-to-candidate/snapshot
+  evidence relation; helpers list by deal and candidate, preserve nullable
+  unknown source authority and review metadata, avoid duplicate relationship
+  rows, and enforce source-link foreign-key integrity
 - stored raw snapshots can be re-extracted offline without live collection
 - re-extraction dry-run reports deterministic candidate comparisons without
   writing new candidate rows

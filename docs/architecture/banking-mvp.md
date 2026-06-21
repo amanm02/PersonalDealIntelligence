@@ -265,7 +265,13 @@ Implemented dedupe and canonicalization is exposed under `pdi.dedupe`. It
 consumes non-rejected `banking_deal_candidates`, creates or updates canonical
 `banking_deals`, links every candidate/source snapshot to
 `banking_deal_source_links`, and records material differences in
-`deal_change_events`.
+`deal_change_events`. `banking_deal_source_links` is the canonical
+deal-to-candidate/snapshot evidence relation. Links preserve source name, URL,
+authority, link type, trust tier, official-source flag, notes, retrieval time,
+confidence, and compact evidence JSON; unknown source authority remains
+`unknown` and unknown review metadata remains null rather than guessed.
+Duplicate deal/candidate link inserts return the existing relation instead of
+creating duplicate rows.
 
 Matching uses conservative signals:
 
