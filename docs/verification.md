@@ -408,7 +408,8 @@ Must validate when implemented:
 Must validate when implemented:
 
 - list filters work
-- show output includes terms and score
+- show output includes terms, score, source references, field-level evidence,
+  snapshot hashes, and missing-evidence warnings
 - status updates create events
 - review-needed surfaces conflicts/missing data
 - expiring filter works

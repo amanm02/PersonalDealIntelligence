@@ -327,7 +327,11 @@ recommended action, status, expiration window, and needs-review state. `demo`
 seeds the local synthetic fixture corpus through the offline smoke flow and
 writes a local digest artifact for demo review.
 `show` includes terms, score explanation, source URLs, missing-data warnings,
-evidence links when available, and status history.
+source-link references, field-level evidence excerpts for critical terms,
+snapshot ids/content hashes, missing-evidence warnings, and status history.
+Field-level evidence is derived from stored candidate evidence spans and
+canonical source links; it is not a substitute for manual verification on
+official institution or issuer pages.
 
 Status updates create `deal_status_events` records and update the local
 canonical deal status. Status values include `new`, `needs_review`, `watching`,
