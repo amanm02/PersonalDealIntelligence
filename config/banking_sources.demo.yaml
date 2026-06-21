@@ -1,218 +1,335 @@
 sources:
-  - source_id: "demo-official-northstar-checking-page"
-    source_group: "demo"
-    name: "Demo Official Northstar Checking Page"
-    url: "https://northstar-demo.example.test/promos/everyday-checking"
-    source_type: "official_promo_page"
-    category_scope:
-      - "banking"
-    subcategory_scope:
-      - "checking_bonus"
-    enabled: true
-    collection_method: "manual_only"
-    max_frequency_hours: 24
-    requires_login: false
-    allow_scrape: false
-    allow_api: false
-    allow_rss: false
-    allow_email_parse: false
-    robots_policy_notes: "Synthetic local fixture that represents an official page; no automated page collection."
-    terms_policy_notes: "Demo-only fictional terms for offline extraction and review."
-    rate_limit_notes: "Local fixture only; no network requests."
-    compliance_status: "approved"
-    last_reviewed_at: "2026-06-20"
-    notes: "Fictional official checking promotion fixture for the reusable demo corpus."
-
-  - source_id: "demo-official-riverbend-savings-page"
-    source_group: "demo"
-    name: "Demo Official Riverbend Savings Page"
-    url: "https://riverbend-demo.example.test/promos/high-yield-savings"
-    source_type: "official_promo_page"
-    category_scope:
-      - "banking"
-    subcategory_scope:
-      - "savings_bonus"
-    enabled: true
-    collection_method: "manual_only"
-    max_frequency_hours: 24
-    requires_login: false
-    allow_scrape: false
-    allow_api: false
-    allow_rss: false
-    allow_email_parse: false
-    robots_policy_notes: "Synthetic local fixture that represents an official page; no automated page collection."
-    terms_policy_notes: "Demo-only fictional terms for offline extraction and review."
-    rate_limit_notes: "Local fixture only; no network requests."
-    compliance_status: "approved"
-    last_reviewed_at: "2026-06-20"
-    notes: "Fictional official savings promotion fixture for the reusable demo corpus."
-
-  - source_id: "demo-official-cypress-bundle-page"
-    source_group: "demo"
-    name: "Demo Official Cypress Bundle Page"
-    url: "https://cypress-demo.example.test/promos/checking-savings-bundle"
-    source_type: "official_promo_page"
-    category_scope:
-      - "banking"
-    subcategory_scope:
-      - "checking_savings_bundle"
-    enabled: true
-    collection_method: "manual_only"
-    max_frequency_hours: 24
-    requires_login: false
-    allow_scrape: false
-    allow_api: false
-    allow_rss: false
-    allow_email_parse: false
-    robots_policy_notes: "Synthetic local fixture that represents an official page; no automated page collection."
-    terms_policy_notes: "Demo-only fictional terms for offline extraction and review."
-    rate_limit_notes: "Local fixture only; no network requests."
-    compliance_status: "approved"
-    last_reviewed_at: "2026-06-20"
-    notes: "Fictional official bundle promotion fixture for the reusable demo corpus."
-
-  - source_id: "demo-official-harbor-brokerage-page"
-    source_group: "demo"
-    name: "Demo Official Harbor Brokerage Page"
-    url: "https://harbor-demo.example.test/promos/brokerage-transfer"
-    source_type: "official_promo_page"
-    category_scope:
-      - "banking"
-    subcategory_scope:
-      - "brokerage_bonus"
-    enabled: true
-    collection_method: "manual_only"
-    max_frequency_hours: 24
-    requires_login: false
-    allow_scrape: false
-    allow_api: false
-    allow_rss: false
-    allow_email_parse: false
-    robots_policy_notes: "Synthetic local fixture that represents an official page; no automated page collection."
-    terms_policy_notes: "Demo-only fictional terms for offline extraction and review."
-    rate_limit_notes: "Local fixture only; no network requests."
-    compliance_status: "approved"
-    last_reviewed_at: "2026-06-20"
-    notes: "Fictional official brokerage promotion fixture for the reusable demo corpus."
-
-  - source_id: "demo-official-pioneer-cd-page"
-    source_group: "demo"
-    name: "Demo Official Pioneer CD Page"
-    url: "https://pioneer-demo.example.test/promos/cd-new-money"
-    source_type: "official_promo_page"
-    category_scope:
-      - "banking"
-    subcategory_scope:
-      - "cd_bonus"
-    enabled: true
-    collection_method: "manual_only"
-    max_frequency_hours: 24
-    requires_login: false
-    allow_scrape: false
-    allow_api: false
-    allow_rss: false
-    allow_email_parse: false
-    robots_policy_notes: "Synthetic local fixture that represents an official page; no automated page collection."
-    terms_policy_notes: "Demo-only fictional terms for offline extraction and review."
-    rate_limit_notes: "Local fixture only; no network requests."
-    compliance_status: "approved"
-    last_reviewed_at: "2026-06-20"
-    notes: "Fictional official CD promotion fixture for the reusable demo corpus."
-
-  - source_id: "demo-banking-deal-blog-rss"
-    source_group: "demo"
-    name: "Demo Banking Deal Blog RSS"
-    url: "https://demo-deals.example.test/rss/banking.xml"
-    source_type: "deal_blog"
-    category_scope:
-      - "banking"
-    subcategory_scope:
-      - "checking_bonus"
-      - "savings_bonus"
-    enabled: true
-    collection_method: "rss_feed"
-    max_frequency_hours: 48
-    requires_login: false
-    allow_scrape: false
-    allow_api: false
-    allow_rss: true
-    allow_email_parse: false
-    robots_policy_notes: "RSS fixture only; no HTML scraping."
-    terms_policy_notes: "Fictional offline deal-blog feed for demo source-shape coverage."
-    rate_limit_notes: "Local fixture only; no network requests."
-    compliance_status: "approved"
-    last_reviewed_at: "2026-06-20"
-    notes: "Contains duplicate and expired synthetic banking promotion mentions."
-
-  - source_id: "demo-user-authorized-newsletter-export"
-    source_group: "demo"
-    name: "Demo User Authorized Newsletter Export"
-    url: "email-export://demo-banking-newsletter"
-    source_type: "newsletter_email"
-    category_scope:
-      - "banking"
-    subcategory_scope:
-      - "checking_bonus"
-    enabled: true
-    collection_method: "email_export"
-    max_frequency_hours: 24
-    requires_login: false
-    allow_scrape: false
-    allow_api: false
-    allow_rss: false
-    allow_email_parse: true
-    robots_policy_notes: "Not applicable to user-provided export fixtures."
-    terms_policy_notes: "Demo-only exported newsletter text; no mailbox connection or credential use."
-    rate_limit_notes: "Local fixture only; no network requests."
-    compliance_status: "approved"
-    last_reviewed_at: "2026-06-20"
-    notes: "Contains a conflicting synthetic mention of the Northstar checking promotion."
-
-  - source_id: "demo-manual-user-pasted-banking-notes"
-    source_group: "demo"
-    name: "Demo Manual User Pasted Banking Notes"
-    url: "manual://demo-banking-user-notes"
-    source_type: "manual_url"
-    category_scope:
-      - "banking"
-    subcategory_scope:
-      - "savings_bonus"
-      - "checking_bonus"
-    enabled: true
-    collection_method: "manual_only"
-    max_frequency_hours: 24
-    requires_login: false
-    allow_scrape: false
-    allow_api: false
-    allow_rss: false
-    allow_email_parse: false
-    robots_policy_notes: "User-pasted text and URL records only; no automated page collection."
-    terms_policy_notes: "Demo-only fictional manually pasted notes."
-    rate_limit_notes: "Local fixture only; no network requests."
-    compliance_status: "approved"
-    last_reviewed_at: "2026-06-20"
-    notes: "Contains low-value, ambiguous, and non-deal demo records."
-
-  - source_id: "demo-disabled-scrape-placeholder"
-    source_group: "demo"
-    name: "Demo Disabled Scrape Placeholder"
-    url: "https://blocked-demo.example.test/private-promos"
-    source_type: "disabled"
-    category_scope:
-      - "banking"
-    subcategory_scope:
-      - "checking_bonus"
-    enabled: false
-    collection_method: "disabled"
-    max_frequency_hours: 0
-    requires_login: false
-    allow_scrape: false
-    allow_api: false
-    allow_rss: false
-    allow_email_parse: false
-    robots_policy_notes: "Disabled placeholder; scraping is not approved."
-    terms_policy_notes: "Disabled until a future issue defines an approved collection policy."
-    rate_limit_notes: "Disabled; no requests."
-    compliance_status: "disabled"
-    last_reviewed_at: "2026-06-20"
-    notes: "Fail-closed demo policy used to prove unsafe or disabled records are not collected."
+- source_id: demo-official-northstar-checking-page
+  source_group: demo
+  publisher_name: Northstar Checking
+  name: Demo Official Northstar Checking Page
+  url: https://northstar-demo.example.test/promos/everyday-checking
+  source_type: official_promo_page
+  source_class: official
+  category_scope:
+  - banking
+  subcategory_scope:
+  - checking_bonus
+  coverage_purpose: Official promotion or offer terms source for manual review and
+    fixture-backed extraction.
+  trust_tier: official
+  official_source: true
+  deposit_account_source: true
+  brokerage_source: false
+  credit_card_source: false
+  fixture_enabled: true
+  source_priority: 80
+  region_scope:
+  - US
+  enabled: true
+  collection_method: manual_only
+  max_frequency_hours: 24
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: false
+  robots_policy_notes: Synthetic local fixture that represents an official page; no
+    automated page collection.
+  terms_policy_notes: Demo-only fictional terms for offline extraction and review.
+  rate_limit_notes: Local fixture only; no network requests.
+  compliance_status: approved
+  last_reviewed_at: '2026-06-20'
+  notes: Fictional official checking promotion fixture for the reusable demo corpus.
+- source_id: demo-official-riverbend-savings-page
+  source_group: demo
+  publisher_name: Riverbend Savings
+  name: Demo Official Riverbend Savings Page
+  url: https://riverbend-demo.example.test/promos/high-yield-savings
+  source_type: official_promo_page
+  source_class: official
+  category_scope:
+  - banking
+  subcategory_scope:
+  - savings_bonus
+  coverage_purpose: Official promotion or offer terms source for manual review and
+    fixture-backed extraction.
+  trust_tier: official
+  official_source: true
+  deposit_account_source: true
+  brokerage_source: false
+  credit_card_source: false
+  fixture_enabled: true
+  source_priority: 80
+  region_scope:
+  - US
+  enabled: true
+  collection_method: manual_only
+  max_frequency_hours: 24
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: false
+  robots_policy_notes: Synthetic local fixture that represents an official page; no
+    automated page collection.
+  terms_policy_notes: Demo-only fictional terms for offline extraction and review.
+  rate_limit_notes: Local fixture only; no network requests.
+  compliance_status: approved
+  last_reviewed_at: '2026-06-20'
+  notes: Fictional official savings promotion fixture for the reusable demo corpus.
+- source_id: demo-official-cypress-bundle-page
+  source_group: demo
+  publisher_name: Cypress Bundle
+  name: Demo Official Cypress Bundle Page
+  url: https://cypress-demo.example.test/promos/checking-savings-bundle
+  source_type: official_promo_page
+  source_class: official
+  category_scope:
+  - banking
+  subcategory_scope:
+  - checking_savings_bundle
+  coverage_purpose: Official promotion or offer terms source for manual review and
+    fixture-backed extraction.
+  trust_tier: official
+  official_source: true
+  deposit_account_source: true
+  brokerage_source: false
+  credit_card_source: false
+  fixture_enabled: true
+  source_priority: 80
+  region_scope:
+  - US
+  enabled: true
+  collection_method: manual_only
+  max_frequency_hours: 24
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: false
+  robots_policy_notes: Synthetic local fixture that represents an official page; no
+    automated page collection.
+  terms_policy_notes: Demo-only fictional terms for offline extraction and review.
+  rate_limit_notes: Local fixture only; no network requests.
+  compliance_status: approved
+  last_reviewed_at: '2026-06-20'
+  notes: Fictional official bundle promotion fixture for the reusable demo corpus.
+- source_id: demo-official-harbor-brokerage-page
+  source_group: demo
+  publisher_name: Harbor Brokerage
+  name: Demo Official Harbor Brokerage Page
+  url: https://harbor-demo.example.test/promos/brokerage-transfer
+  source_type: official_promo_page
+  source_class: official
+  category_scope:
+  - banking
+  subcategory_scope:
+  - brokerage_bonus
+  coverage_purpose: Official promotion or offer terms source for manual review and
+    fixture-backed extraction.
+  trust_tier: official
+  official_source: true
+  deposit_account_source: false
+  brokerage_source: true
+  credit_card_source: false
+  fixture_enabled: true
+  source_priority: 80
+  region_scope:
+  - US
+  enabled: true
+  collection_method: manual_only
+  max_frequency_hours: 24
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: false
+  robots_policy_notes: Synthetic local fixture that represents an official page; no
+    automated page collection.
+  terms_policy_notes: Demo-only fictional terms for offline extraction and review.
+  rate_limit_notes: Local fixture only; no network requests.
+  compliance_status: approved
+  last_reviewed_at: '2026-06-20'
+  notes: Fictional official brokerage promotion fixture for the reusable demo corpus.
+- source_id: demo-official-pioneer-cd-page
+  source_group: demo
+  publisher_name: Pioneer CD
+  name: Demo Official Pioneer CD Page
+  url: https://pioneer-demo.example.test/promos/cd-new-money
+  source_type: official_promo_page
+  source_class: official
+  category_scope:
+  - banking
+  subcategory_scope:
+  - cd_bonus
+  coverage_purpose: Official promotion or offer terms source for manual review and
+    fixture-backed extraction.
+  trust_tier: official
+  official_source: true
+  deposit_account_source: true
+  brokerage_source: false
+  credit_card_source: false
+  fixture_enabled: true
+  source_priority: 80
+  region_scope:
+  - US
+  enabled: true
+  collection_method: manual_only
+  max_frequency_hours: 24
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: false
+  robots_policy_notes: Synthetic local fixture that represents an official page; no
+    automated page collection.
+  terms_policy_notes: Demo-only fictional terms for offline extraction and review.
+  rate_limit_notes: Local fixture only; no network requests.
+  compliance_status: approved
+  last_reviewed_at: '2026-06-20'
+  notes: Fictional official CD promotion fixture for the reusable demo corpus.
+- source_id: demo-banking-deal-blog-rss
+  source_group: demo
+  publisher_name: Demo Banking Deal Blog
+  name: Demo Banking Deal Blog RSS
+  url: https://demo-deals.example.test/rss/banking.xml
+  source_type: deal_blog
+  source_class: third_party
+  category_scope:
+  - banking
+  subcategory_scope:
+  - checking_bonus
+  - savings_bonus
+  coverage_purpose: Third-party discovery source for finding candidate promotions
+    that require official-term verification.
+  trust_tier: community
+  official_source: false
+  deposit_account_source: true
+  brokerage_source: false
+  credit_card_source: false
+  fixture_enabled: true
+  source_priority: 50
+  region_scope:
+  - US
+  enabled: true
+  collection_method: rss_feed
+  max_frequency_hours: 48
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: true
+  allow_email_parse: false
+  robots_policy_notes: RSS fixture only; no HTML scraping.
+  terms_policy_notes: Fictional offline deal-blog feed for demo source-shape coverage.
+  rate_limit_notes: Local fixture only; no network requests.
+  compliance_status: approved
+  last_reviewed_at: '2026-06-20'
+  notes: Contains duplicate and expired synthetic banking promotion mentions.
+- source_id: demo-user-authorized-newsletter-export
+  source_group: demo
+  publisher_name: User-provided import
+  name: Demo User Authorized Newsletter Export
+  url: email-export://demo-banking-newsletter
+  source_type: newsletter_email
+  source_class: manual_import
+  category_scope:
+  - banking
+  subcategory_scope:
+  - checking_bonus
+  coverage_purpose: User-provided source record or export for local, manually reviewed
+    intake.
+  trust_tier: user_provided
+  official_source: false
+  deposit_account_source: true
+  brokerage_source: false
+  credit_card_source: false
+  fixture_enabled: true
+  source_priority: 35
+  region_scope:
+  - US
+  enabled: true
+  collection_method: email_export
+  max_frequency_hours: 24
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: true
+  robots_policy_notes: Not applicable to user-provided export fixtures.
+  terms_policy_notes: Demo-only exported newsletter text; no mailbox connection or
+    credential use.
+  rate_limit_notes: Local fixture only; no network requests.
+  compliance_status: approved
+  last_reviewed_at: '2026-06-20'
+  notes: Contains a conflicting synthetic mention of the Northstar checking promotion.
+- source_id: demo-manual-user-pasted-banking-notes
+  source_group: demo
+  publisher_name: User-provided import
+  name: Demo Manual User Pasted Banking Notes
+  url: manual://demo-banking-user-notes
+  source_type: manual_url
+  source_class: manual_import
+  category_scope:
+  - banking
+  subcategory_scope:
+  - savings_bonus
+  - checking_bonus
+  coverage_purpose: User-provided source record or export for local, manually reviewed
+    intake.
+  trust_tier: user_provided
+  official_source: false
+  deposit_account_source: true
+  brokerage_source: false
+  credit_card_source: false
+  fixture_enabled: true
+  source_priority: 35
+  region_scope:
+  - US
+  enabled: true
+  collection_method: manual_only
+  max_frequency_hours: 24
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: false
+  robots_policy_notes: User-pasted text and URL records only; no automated page collection.
+  terms_policy_notes: Demo-only fictional manually pasted notes.
+  rate_limit_notes: Local fixture only; no network requests.
+  compliance_status: approved
+  last_reviewed_at: '2026-06-20'
+  notes: Contains low-value, ambiguous, and non-deal demo records.
+- source_id: demo-disabled-scrape-placeholder
+  source_group: demo
+  publisher_name: Disabled placeholder
+  name: Demo Disabled Scrape Placeholder
+  url: https://blocked-demo.example.test/private-promos
+  source_type: disabled
+  source_class: disabled
+  category_scope:
+  - banking
+  subcategory_scope:
+  - checking_bonus
+  coverage_purpose: Fail-closed placeholder for unsafe or not-yet-reviewed source
+    behavior.
+  trust_tier: disabled
+  official_source: false
+  deposit_account_source: true
+  brokerage_source: false
+  credit_card_source: false
+  fixture_enabled: true
+  source_priority: 0
+  region_scope:
+  - US
+  enabled: false
+  collection_method: disabled
+  max_frequency_hours: 0
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: false
+  robots_policy_notes: Disabled placeholder; scraping is not approved.
+  terms_policy_notes: Disabled until a future issue defines an approved collection
+    policy.
+  rate_limit_notes: Disabled; no requests.
+  compliance_status: disabled
+  last_reviewed_at: '2026-06-20'
+  notes: Fail-closed demo policy used to prove unsafe or disabled records are not
+    collected.

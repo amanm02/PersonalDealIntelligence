@@ -15,11 +15,22 @@ import yaml
 REQUIRED_FIELDS = {
     "source_id",
     "source_group",
+    "publisher_name",
     "name",
     "url",
     "source_type",
+    "source_class",
     "category_scope",
     "subcategory_scope",
+    "coverage_purpose",
+    "trust_tier",
+    "official_source",
+    "deposit_account_source",
+    "brokerage_source",
+    "credit_card_source",
+    "fixture_enabled",
+    "source_priority",
+    "region_scope",
     "enabled",
     "collection_method",
     "max_frequency_hours",
@@ -60,6 +71,21 @@ ALLOWED_SOURCE_GROUPS = {
     "core",
     "demo",
     "public-pilot",
+}
+
+ALLOWED_SOURCE_CLASSES = {
+    "official",
+    "third_party",
+    "manual_import",
+    "disabled",
+}
+
+ALLOWED_TRUST_TIERS = {
+    "official",
+    "trusted_third_party",
+    "community",
+    "user_provided",
+    "disabled",
 }
 
 ALLOWED_COMPLIANCE_STATUSES = {
@@ -104,11 +130,22 @@ class SourcePolicy:
 
     source_id: str
     source_group: str
+    publisher_name: str
     name: str
     url: str
     source_type: str
+    source_class: str
     category_scope: tuple[str, ...]
     subcategory_scope: tuple[str, ...]
+    coverage_purpose: str
+    trust_tier: str
+    official_source: bool
+    deposit_account_source: bool
+    brokerage_source: bool
+    credit_card_source: bool
+    fixture_enabled: bool
+    source_priority: int
+    region_scope: tuple[str, ...]
     enabled: bool
     collection_method: str
     max_frequency_hours: int
@@ -225,8 +262,10 @@ def _validate_source_mapping(source: Mapping[str, Any], label: str) -> list[str]
 
     errors.extend(_validate_text(source, label, "source_id"))
     errors.extend(_validate_text(source, label, "source_group"))
+    errors.extend(_validate_text(source, label, "publisher_name"))
     errors.extend(_validate_text(source, label, "name"))
     errors.extend(_validate_text(source, label, "url"))
+    errors.extend(_validate_text(source, label, "coverage_purpose"))
     errors.extend(_validate_text(source, label, "robots_policy_notes"))
     errors.extend(_validate_text(source, label, "terms_policy_notes"))
     errors.extend(_validate_text(source, label, "rate_limit_notes"))
@@ -243,6 +282,14 @@ def _validate_source_mapping(source: Mapping[str, Any], label: str) -> list[str]
     source_group = source["source_group"]
     if source_group not in ALLOWED_SOURCE_GROUPS:
         errors.append(f"{label}: unsupported source_group: {source_group}")
+
+    source_class = source["source_class"]
+    if source_class not in ALLOWED_SOURCE_CLASSES:
+        errors.append(f"{label}: unsupported source_class: {source_class}")
+
+    trust_tier = source["trust_tier"]
+    if trust_tier not in ALLOWED_TRUST_TIERS:
+        errors.append(f"{label}: unsupported trust_tier: {trust_tier}")
 
     source_id = source["source_id"]
     if isinstance(source_id, str) and not SOURCE_ID_PATTERN.fullmatch(source_id):
@@ -261,14 +308,24 @@ def _validate_source_mapping(source: Mapping[str, Any], label: str) -> list[str]
         "allow_api",
         "allow_rss",
         "allow_email_parse",
+        "official_source",
+        "deposit_account_source",
+        "brokerage_source",
+        "credit_card_source",
+        "fixture_enabled",
     ]:
         if not isinstance(source[field], bool):
             errors.append(f"{label}: {field} must be true or false")
+
+    source_priority = source["source_priority"]
+    if not isinstance(source_priority, int) or not 0 <= source_priority <= 100:
+        errors.append(f"{label}: source_priority must be an integer from 0 to 100")
 
     max_frequency_hours = source["max_frequency_hours"]
     if not isinstance(max_frequency_hours, int) or max_frequency_hours < 0:
         errors.append(f"{label}: max_frequency_hours must be a non-negative integer")
 
+    errors.extend(_validate_string_list(source, label, "region_scope"))
     errors.extend(
         _validate_scope_list(
             source,
@@ -294,7 +351,64 @@ def _validate_source_mapping(source: Mapping[str, Any], label: str) -> list[str]
     if errors:
         return errors
 
+    errors.extend(_validate_source_universe_rules(source, label))
     errors.extend(_validate_compliance_rules(source, label))
+    return errors
+
+
+def _validate_source_universe_rules(
+    source: Mapping[str, Any], label: str
+) -> list[str]:
+    errors: list[str] = []
+    source_class = source["source_class"]
+    trust_tier = source["trust_tier"]
+
+    category_flags = [
+        source["deposit_account_source"],
+        source["brokerage_source"],
+        source["credit_card_source"],
+    ]
+    if not any(category_flags):
+        errors.append(
+            f"{label}: at least one product source flag must be true "
+            "(deposit_account_source, brokerage_source, credit_card_source)"
+        )
+
+    if source["official_source"] and source_class != "official":
+        errors.append(f"{label}: official_source true requires source_class official")
+    if source_class == "official" and not source["official_source"]:
+        errors.append(f"{label}: official source_class requires official_source true")
+    if source_class == "official" and trust_tier != "official":
+        errors.append(f"{label}: official source_class requires trust_tier official")
+    if source_class == "third_party" and trust_tier == "official":
+        errors.append(f"{label}: third_party source_class cannot use official trust_tier")
+    if source_class == "disabled" and trust_tier != "disabled":
+        errors.append(f"{label}: disabled source_class requires trust_tier disabled")
+    if source_class == "disabled" and source["enabled"]:
+        errors.append(f"{label}: disabled source_class cannot be enabled")
+
+    subcategories = set(source["subcategory_scope"])
+    deposit_subcategories = {
+        "checking_bonus",
+        "savings_bonus",
+        "checking_savings_bundle",
+        "money_market_bonus",
+        "cd_bonus",
+    }
+    if subcategories & deposit_subcategories and not source["deposit_account_source"]:
+        errors.append(
+            f"{label}: deposit subcategories require deposit_account_source true"
+        )
+    if "brokerage_bonus" in subcategories and not source["brokerage_source"]:
+        errors.append(f"{label}: brokerage_bonus requires brokerage_source true")
+    if (
+        "credit_card_signup_bonus" in subcategories
+        and not source["credit_card_source"]
+    ):
+        errors.append(
+            f"{label}: credit_card_signup_bonus requires credit_card_source true"
+        )
+
     return errors
 
 
@@ -401,15 +515,42 @@ def _validate_scope_list(
     return errors
 
 
+def _validate_string_list(
+    source: Mapping[str, Any],
+    label: str,
+    field: str,
+) -> list[str]:
+    value = source[field]
+    if not isinstance(value, list) or not value:
+        return [f"{label}: {field} must be a non-empty list"]
+
+    errors = []
+    for item in value:
+        if not isinstance(item, str) or not item.strip():
+            errors.append(f"{label}: {field} entries must be non-empty strings")
+    return errors
+
+
 def _to_policy(source: Mapping[str, Any]) -> SourcePolicy:
     return SourcePolicy(
         source_id=source["source_id"],
         source_group=source["source_group"],
+        publisher_name=source["publisher_name"],
         name=source["name"],
         url=source["url"],
         source_type=source["source_type"],
+        source_class=source["source_class"],
         category_scope=tuple(source["category_scope"]),
         subcategory_scope=tuple(source["subcategory_scope"]),
+        coverage_purpose=source["coverage_purpose"],
+        trust_tier=source["trust_tier"],
+        official_source=source["official_source"],
+        deposit_account_source=source["deposit_account_source"],
+        brokerage_source=source["brokerage_source"],
+        credit_card_source=source["credit_card_source"],
+        fixture_enabled=source["fixture_enabled"],
+        source_priority=source["source_priority"],
+        region_scope=tuple(source["region_scope"]),
         enabled=source["enabled"],
         collection_method=source["collection_method"],
         max_frequency_hours=source["max_frequency_hours"],

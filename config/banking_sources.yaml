@@ -1,132 +1,496 @@
 sources:
-  - source_id: "core-manual-official-promo-url"
-    source_group: "core"
-    name: "Example Manual Official Promo URL"
-    url: "manual://user-pasted-official-bank-promo-url"
-    source_type: "manual_url"
-    category_scope:
-      - "banking"
-    subcategory_scope:
-      - "checking_bonus"
-      - "savings_bonus"
-      - "checking_savings_bundle"
-    enabled: false
-    collection_method: "manual_only"
-    max_frequency_hours: 0
-    requires_login: false
-    allow_scrape: false
-    allow_api: false
-    allow_rss: false
-    allow_email_parse: false
-    robots_policy_notes: "User-provided URL record only; no automated page collection."
-    terms_policy_notes: "Review official bank terms before any future collection is enabled."
-    rate_limit_notes: "Manual-only placeholder; no scheduled requests."
-    compliance_status: "pending_review"
-    last_reviewed_at: "2026-06-17"
-    notes: "Use for a user-pasted official banking promotion URL after manual review."
-
-  - source_id: "core-banking-deal-rss-feed"
-    source_group: "core"
-    name: "Example Banking Deal RSS Feed"
-    url: "https://example.test/banking-deals/rss.xml"
-    source_type: "rss_feed"
-    category_scope:
-      - "banking"
-    subcategory_scope:
-      - "checking_bonus"
-      - "savings_bonus"
-      - "brokerage_bonus"
-      - "money_market_bonus"
-      - "cd_bonus"
-    enabled: true
-    collection_method: "rss_feed"
-    max_frequency_hours: 48
-    requires_login: false
-    allow_scrape: false
-    allow_api: false
-    allow_rss: true
-    allow_email_parse: false
-    robots_policy_notes: "RSS feed placeholder; no HTML scraping."
-    terms_policy_notes: "Confirm feed terms before replacing this placeholder with a real source."
-    rate_limit_notes: "Poll no more than once every 48 hours."
-    compliance_status: "approved"
-    last_reviewed_at: "2026-06-17"
-    notes: "Fictional RSS example for offline policy validation."
-
-  - source_id: "core-user-authorized-newsletter-export"
-    source_group: "core"
-    name: "Example User Authorized Newsletter Export"
-    url: "email-export://user-authorized-banking-newsletter"
-    source_type: "newsletter_email"
-    category_scope:
-      - "banking"
-    subcategory_scope:
-      - "checking_bonus"
-      - "savings_bonus"
-      - "brokerage_bonus"
-    enabled: true
-    collection_method: "email_export"
-    max_frequency_hours: 24
-    requires_login: false
-    allow_scrape: false
-    allow_api: false
-    allow_rss: false
-    allow_email_parse: true
-    robots_policy_notes: "Not applicable to user-provided email export content."
-    terms_policy_notes: "Parse only user-authorized exports or mailbox content from a future explicit flow."
-    rate_limit_notes: "Parse at most daily when user-authorized content is available."
-    compliance_status: "approved"
-    last_reviewed_at: "2026-06-17"
-    notes: "Placeholder only; do not store credentials or private mailbox tokens."
-
-  - source_id: "core-disabled-scrape-source"
-    source_group: "core"
-    name: "Example Disabled Scrape Source"
-    url: "https://example.test/disabled-bank-promos"
-    source_type: "disabled"
-    category_scope:
-      - "banking"
-    subcategory_scope:
-      - "checking_bonus"
-    enabled: false
-    collection_method: "disabled"
-    max_frequency_hours: 0
-    requires_login: false
-    allow_scrape: false
-    allow_api: false
-    allow_rss: false
-    allow_email_parse: false
-    robots_policy_notes: "Scraping is not approved for this placeholder."
-    terms_policy_notes: "Disabled until terms, robots policy, and rate limits are reviewed."
-    rate_limit_notes: "Disabled; no scheduled requests."
-    compliance_status: "disabled"
-    last_reviewed_at: "2026-06-17"
-    notes: "Example fail-closed source policy."
-
-  - source_id: "public-pilot-placeholder-rss"
-    source_group: "public-pilot"
-    name: "Public Pilot Placeholder RSS Feed"
-    url: "https://example.test/public-pilot/banking-promos.xml"
-    source_type: "rss_feed"
-    category_scope:
-      - "banking"
-    subcategory_scope:
-      - "checking_bonus"
-      - "savings_bonus"
-      - "brokerage_bonus"
-      - "money_market_bonus"
-      - "cd_bonus"
-    enabled: false
-    collection_method: "rss_feed"
-    max_frequency_hours: 48
-    requires_login: false
-    allow_scrape: false
-    allow_api: false
-    allow_rss: true
-    allow_email_parse: false
-    robots_policy_notes: "RSS-only public pilot placeholder; no scraping or private-session access."
-    terms_policy_notes: "Disabled until a real public feed is reviewed; final offer terms must be verified on the official institution page."
-    rate_limit_notes: "If explicitly enabled after review, poll no more than once every 48 hours."
-    compliance_status: "pending_review"
-    last_reviewed_at: "2026-06-21"
-    notes: "Disabled-by-default public-pilot source shape for opt-in policy validation."
+- source_id: core-manual-official-promo-url
+  source_group: core
+  publisher_name: Example Manual Official Promo URL
+  name: Example Manual Official Promo URL
+  url: manual://user-pasted-official-bank-promo-url
+  source_type: manual_url
+  source_class: official
+  category_scope:
+  - banking
+  subcategory_scope:
+  - checking_bonus
+  - savings_bonus
+  - checking_savings_bundle
+  coverage_purpose: Official promotion or offer terms source for manual review and
+    fixture-backed extraction.
+  trust_tier: official
+  official_source: true
+  deposit_account_source: true
+  brokerage_source: false
+  credit_card_source: false
+  fixture_enabled: false
+  source_priority: 80
+  region_scope:
+  - US
+  enabled: false
+  collection_method: manual_only
+  max_frequency_hours: 0
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: false
+  robots_policy_notes: User-provided URL record only; no automated page collection.
+  terms_policy_notes: Review official bank terms before any future collection is enabled.
+  rate_limit_notes: Manual-only placeholder; no scheduled requests.
+  compliance_status: pending_review
+  last_reviewed_at: '2026-06-17'
+  notes: Use for a user-pasted official banking promotion URL after manual review.
+- source_id: core-banking-deal-rss-feed
+  source_group: core
+  publisher_name: Example Banking Deal
+  name: Example Banking Deal RSS Feed
+  url: https://example.test/banking-deals/rss.xml
+  source_type: rss_feed
+  source_class: third_party
+  category_scope:
+  - banking
+  subcategory_scope:
+  - checking_bonus
+  - savings_bonus
+  - brokerage_bonus
+  - money_market_bonus
+  - cd_bonus
+  coverage_purpose: Third-party discovery source for finding candidate promotions
+    that require official-term verification.
+  trust_tier: community
+  official_source: false
+  deposit_account_source: true
+  brokerage_source: true
+  credit_card_source: false
+  fixture_enabled: false
+  source_priority: 50
+  region_scope:
+  - US
+  enabled: true
+  collection_method: rss_feed
+  max_frequency_hours: 48
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: true
+  allow_email_parse: false
+  robots_policy_notes: RSS feed placeholder; no HTML scraping.
+  terms_policy_notes: Confirm feed terms before replacing this placeholder with a
+    real source.
+  rate_limit_notes: Poll no more than once every 48 hours.
+  compliance_status: approved
+  last_reviewed_at: '2026-06-17'
+  notes: Fictional RSS example for offline policy validation.
+- source_id: core-user-authorized-newsletter-export
+  source_group: core
+  publisher_name: User-provided import
+  name: Example User Authorized Newsletter Export
+  url: email-export://user-authorized-banking-newsletter
+  source_type: newsletter_email
+  source_class: manual_import
+  category_scope:
+  - banking
+  subcategory_scope:
+  - checking_bonus
+  - savings_bonus
+  - brokerage_bonus
+  coverage_purpose: User-provided source record or export for local, manually reviewed
+    intake.
+  trust_tier: user_provided
+  official_source: false
+  deposit_account_source: true
+  brokerage_source: true
+  credit_card_source: false
+  fixture_enabled: false
+  source_priority: 35
+  region_scope:
+  - US
+  enabled: true
+  collection_method: email_export
+  max_frequency_hours: 24
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: true
+  robots_policy_notes: Not applicable to user-provided email export content.
+  terms_policy_notes: Parse only user-authorized exports or mailbox content from a
+    future explicit flow.
+  rate_limit_notes: Parse at most daily when user-authorized content is available.
+  compliance_status: approved
+  last_reviewed_at: '2026-06-17'
+  notes: Placeholder only; do not store credentials or private mailbox tokens.
+- source_id: core-disabled-scrape-source
+  source_group: core
+  publisher_name: Disabled placeholder
+  name: Example Disabled Scrape Source
+  url: https://example.test/disabled-bank-promos
+  source_type: disabled
+  source_class: disabled
+  category_scope:
+  - banking
+  subcategory_scope:
+  - checking_bonus
+  coverage_purpose: Fail-closed placeholder for unsafe or not-yet-reviewed source
+    behavior.
+  trust_tier: disabled
+  official_source: false
+  deposit_account_source: true
+  brokerage_source: false
+  credit_card_source: false
+  fixture_enabled: false
+  source_priority: 0
+  region_scope:
+  - US
+  enabled: false
+  collection_method: disabled
+  max_frequency_hours: 0
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: false
+  robots_policy_notes: Scraping is not approved for this placeholder.
+  terms_policy_notes: Disabled until terms, robots policy, and rate limits are reviewed.
+  rate_limit_notes: Disabled; no scheduled requests.
+  compliance_status: disabled
+  last_reviewed_at: '2026-06-17'
+  notes: Example fail-closed source policy.
+- source_id: public-pilot-placeholder-rss
+  source_group: public-pilot
+  publisher_name: Public Pilot Placeholder
+  name: Public Pilot Placeholder RSS Feed
+  url: https://example.test/public-pilot/banking-promos.xml
+  source_type: rss_feed
+  source_class: third_party
+  category_scope:
+  - banking
+  subcategory_scope:
+  - checking_bonus
+  - savings_bonus
+  - brokerage_bonus
+  - money_market_bonus
+  - cd_bonus
+  coverage_purpose: Third-party discovery source for finding candidate promotions
+    that require official-term verification.
+  trust_tier: community
+  official_source: false
+  deposit_account_source: true
+  brokerage_source: true
+  credit_card_source: false
+  fixture_enabled: false
+  source_priority: 50
+  region_scope:
+  - US
+  enabled: false
+  collection_method: rss_feed
+  max_frequency_hours: 48
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: true
+  allow_email_parse: false
+  robots_policy_notes: RSS-only public pilot placeholder; no scraping or private-session
+    access.
+  terms_policy_notes: Disabled until a real public feed is reviewed; final offer terms
+    must be verified on the official institution page.
+  rate_limit_notes: If explicitly enabled after review, poll no more than once every
+    48 hours.
+  compliance_status: pending_review
+  last_reviewed_at: '2026-06-21'
+  notes: Disabled-by-default public-pilot source shape for opt-in policy validation.
+- source_id: seed-national-bank-checking-promo
+  source_group: core
+  publisher_name: Example National Bank
+  name: Seed National Bank Checking Promotion Page
+  url: https://example.test/national-bank/checking-bonus
+  source_type: official_promo_page
+  source_class: official
+  category_scope:
+  - banking
+  subcategory_scope:
+  - checking_bonus
+  coverage_purpose: Official checking promotion page placeholder for source-universe
+    coverage planning.
+  trust_tier: official
+  official_source: true
+  deposit_account_source: true
+  brokerage_source: false
+  credit_card_source: false
+  fixture_enabled: false
+  source_priority: 80
+  region_scope:
+  - US
+  enabled: false
+  collection_method: manual_only
+  max_frequency_hours: 0
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: false
+  robots_policy_notes: Placeholder only; review robots policy before any future automated
+    access.
+  terms_policy_notes: Disabled until official terms and collection policy are reviewed.
+  rate_limit_notes: Manual review only; no scheduled requests.
+  compliance_status: pending_review
+  last_reviewed_at: '2026-06-21'
+  notes: Safe disabled seed for national bank checking promotion coverage.
+- source_id: seed-national-bank-savings-offer
+  source_group: core
+  publisher_name: Example National Bank
+  name: Seed National Bank Savings Offer Page
+  url: https://example.test/national-bank/savings-offer
+  source_type: official_promo_page
+  source_class: official
+  category_scope:
+  - banking
+  subcategory_scope:
+  - savings_bonus
+  coverage_purpose: Official savings offer placeholder for source-universe coverage
+    planning.
+  trust_tier: official
+  official_source: true
+  deposit_account_source: true
+  brokerage_source: false
+  credit_card_source: false
+  fixture_enabled: false
+  source_priority: 75
+  region_scope:
+  - US
+  enabled: false
+  collection_method: manual_only
+  max_frequency_hours: 0
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: false
+  robots_policy_notes: Placeholder only; review robots policy before any future automated
+    access.
+  terms_policy_notes: Disabled until official terms and collection policy are reviewed.
+  rate_limit_notes: Manual review only; no scheduled requests.
+  compliance_status: pending_review
+  last_reviewed_at: '2026-06-21'
+  notes: Safe disabled seed for savings promotion coverage.
+- source_id: seed-brokerage-transfer-bonus
+  source_group: core
+  publisher_name: Example Brokerage
+  name: Seed Brokerage Transfer Bonus Page
+  url: https://example.test/brokerage/transfer-bonus
+  source_type: official_promo_page
+  source_class: official
+  category_scope:
+  - banking
+  subcategory_scope:
+  - brokerage_bonus
+  coverage_purpose: Official brokerage transfer bonus placeholder for source-universe
+    coverage planning.
+  trust_tier: official
+  official_source: true
+  deposit_account_source: false
+  brokerage_source: true
+  credit_card_source: false
+  fixture_enabled: false
+  source_priority: 75
+  region_scope:
+  - US
+  enabled: false
+  collection_method: manual_only
+  max_frequency_hours: 0
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: false
+  robots_policy_notes: Placeholder only; review robots policy before any future automated
+    access.
+  terms_policy_notes: Disabled until official terms and collection policy are reviewed.
+  rate_limit_notes: Manual review only; no scheduled requests.
+  compliance_status: pending_review
+  last_reviewed_at: '2026-06-21'
+  notes: Safe disabled seed for brokerage bonus coverage.
+- source_id: seed-bank-cd-money-market-page
+  source_group: core
+  publisher_name: Example Regional Bank
+  name: Seed Bank CD and Money Market Promo Page
+  url: https://example.test/regional-bank/cd-money-market-promos
+  source_type: official_promo_page
+  source_class: official
+  category_scope:
+  - banking
+  subcategory_scope:
+  - cd_bonus
+  - money_market_bonus
+  coverage_purpose: Official CD and money market promotion placeholder for source-universe
+    coverage planning.
+  trust_tier: official
+  official_source: true
+  deposit_account_source: true
+  brokerage_source: false
+  credit_card_source: false
+  fixture_enabled: false
+  source_priority: 65
+  region_scope:
+  - US
+  enabled: false
+  collection_method: manual_only
+  max_frequency_hours: 0
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: false
+  robots_policy_notes: Placeholder only; review robots policy before any future automated
+    access.
+  terms_policy_notes: Disabled until official terms and collection policy are reviewed.
+  rate_limit_notes: Manual review only; no scheduled requests.
+  compliance_status: pending_review
+  last_reviewed_at: '2026-06-21'
+  notes: Safe disabled seed for CD and money market coverage.
+- source_id: seed-issuer-credit-card-detail
+  source_group: core
+  publisher_name: Example Card Issuer
+  name: Seed Issuer Credit Card Detail Page
+  url: https://example.test/card-issuer/cards/rewards-card
+  source_type: official_promo_page
+  source_class: official
+  category_scope:
+  - banking
+  subcategory_scope:
+  - credit_card_signup_bonus
+  coverage_purpose: Official issuer card detail page placeholder for acquisition-offer
+    source coverage.
+  trust_tier: official
+  official_source: true
+  deposit_account_source: false
+  brokerage_source: false
+  credit_card_source: true
+  fixture_enabled: false
+  source_priority: 80
+  region_scope:
+  - US
+  enabled: false
+  collection_method: manual_only
+  max_frequency_hours: 0
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: false
+  robots_policy_notes: Placeholder only; review robots policy before any future automated
+    access.
+  terms_policy_notes: Disabled until official terms and collection policy are reviewed;
+    no applications or form submission.
+  rate_limit_notes: Manual review only; no scheduled requests.
+  compliance_status: pending_review
+  last_reviewed_at: '2026-06-21'
+  notes: Safe disabled seed for official credit-card acquisition offer coverage.
+- source_id: seed-issuer-credit-card-terms
+  source_group: core
+  publisher_name: Example Card Issuer
+  name: Seed Issuer Credit Card Offer Terms Page
+  url: https://example.test/card-issuer/cards/rewards-card/offer-terms
+  source_type: official_promo_page
+  source_class: official
+  category_scope:
+  - banking
+  subcategory_scope:
+  - credit_card_signup_bonus
+  coverage_purpose: Official issuer offer terms page placeholder for source-term verification.
+  trust_tier: official
+  official_source: true
+  deposit_account_source: false
+  brokerage_source: false
+  credit_card_source: true
+  fixture_enabled: false
+  source_priority: 85
+  region_scope:
+  - US
+  enabled: false
+  collection_method: manual_only
+  max_frequency_hours: 0
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: false
+  robots_policy_notes: Placeholder only; review robots policy before any future automated
+    access.
+  terms_policy_notes: Disabled until official terms and collection policy are reviewed;
+    no applications or form submission.
+  rate_limit_notes: Manual review only; no scheduled requests.
+  compliance_status: pending_review
+  last_reviewed_at: '2026-06-21'
+  notes: Safe disabled seed for official credit-card offer terms coverage.
+- source_id: seed-third-party-card-offers-rss
+  source_group: core
+  publisher_name: Example Card Offers Publisher
+  name: Seed Third-Party Credit Card Offers RSS
+  url: https://example.test/card-offers/rss.xml
+  source_type: rss_feed
+  source_class: third_party
+  category_scope:
+  - banking
+  subcategory_scope:
+  - credit_card_signup_bonus
+  coverage_purpose: Third-party credit-card offer discovery placeholder requiring
+    official issuer verification.
+  trust_tier: community
+  official_source: false
+  deposit_account_source: false
+  brokerage_source: false
+  credit_card_source: true
+  fixture_enabled: false
+  source_priority: 45
+  region_scope:
+  - US
+  enabled: false
+  collection_method: rss_feed
+  max_frequency_hours: 48
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: true
+  allow_email_parse: false
+  robots_policy_notes: RSS placeholder only; no scraping or private-session access.
+  terms_policy_notes: Disabled until source policy is reviewed; verify any card offer
+    on official issuer pages.
+  rate_limit_notes: If enabled after review, poll no more than once every 48 hours.
+  compliance_status: pending_review
+  last_reviewed_at: '2026-06-21'
+  notes: Safe disabled seed for third-party credit-card offer discovery.
+- source_id: seed-user-card-newsletter-export
+  source_group: core
+  publisher_name: User-provided import
+  name: Seed User Credit Card Newsletter Export
+  url: email-export://user-credit-card-offers
+  source_type: newsletter_email
+  source_class: manual_import
+  category_scope:
+  - banking
+  subcategory_scope:
+  - credit_card_signup_bonus
+  coverage_purpose: User-authorized newsletter export placeholder for manual credit-card
+    offer intake.
+  trust_tier: user_provided
+  official_source: false
+  deposit_account_source: false
+  brokerage_source: false
+  credit_card_source: true
+  fixture_enabled: false
+  source_priority: 35
+  region_scope:
+  - US
+  enabled: false
+  collection_method: email_export
+  max_frequency_hours: 24
+  requires_login: false
+  allow_scrape: false
+  allow_api: false
+  allow_rss: false
+  allow_email_parse: true
+  robots_policy_notes: Not applicable to user-provided exported content.
+  terms_policy_notes: Parse only explicit user-provided exports; do not connect private
+    mailboxes or store credentials.
+  rate_limit_notes: Manual import only unless a future explicit flow is reviewed.
+  compliance_status: pending_review
+  last_reviewed_at: '2026-06-21'
+  notes: Safe disabled seed for manual credit-card offer imports.

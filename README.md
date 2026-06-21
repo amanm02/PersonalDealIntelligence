@@ -175,10 +175,21 @@ python3 -m pdi.sources validate --config config/banking_sources.demo.yaml
 
 `config/banking_sources.yaml` is the source-policy authority for future
 collectors. Add new sources there only after documenting the collection method,
-banking category/subcategory scope, source id/group, rate limits, terms/robots
-notes, compliance status, and review date. Leave sources disabled unless they
-are explicitly approved, and never add credentials, private tokens, personal
-mailbox labels, or private-session collection details.
+banking category/subcategory scope, source id/group, publisher, source class,
+trust tier, official-source flag, deposit/brokerage/credit-card coverage flags,
+region scope, priority, rate limits, terms/robots notes, compliance status, and
+review date. Leave sources disabled or fixture-only unless they are explicitly
+approved, and never add credentials, private tokens, personal mailbox labels, or
+private-session collection details.
+
+The checked-in source universe includes safe placeholder coverage for official
+deposit pages, brokerage bonus pages, CD/money market pages, credit-card issuer
+pages and terms pages, third-party discovery feeds, and user-provided imports.
+These seed sources make the coverage model visible without enabling broad live
+collection. New source onboarding should start in disabled or fixture-only mode,
+use the appropriate trust tier (`official`, `trusted_third_party`, `community`,
+`user_provided`, or `disabled`), and be reviewed before any live collection is
+enabled.
 
 The `public-pilot` source group is an opt-in skeleton for reviewed public
 sources. The checked-in public-pilot RSS placeholder is disabled by default.

@@ -90,13 +90,25 @@ def _public_pilot_config(tmp_path, *, enabled):
         f"""sources:
   - source_id: "public-pilot-fixture-rss"
     source_group: "public-pilot"
+    publisher_name: "Public Pilot Fixture Publisher"
     name: "Public Pilot Fixture RSS"
     url: "https://pilot-public.example.test/rss.xml"
     source_type: "rss_feed"
+    source_class: "third_party"
     category_scope:
       - "banking"
     subcategory_scope:
       - "checking_bonus"
+    coverage_purpose: "Fixture-backed public-pilot discovery source for offline tests."
+    trust_tier: "community"
+    official_source: false
+    deposit_account_source: true
+    brokerage_source: false
+    credit_card_source: false
+    fixture_enabled: true
+    source_priority: 50
+    region_scope:
+      - "US"
     enabled: {str(enabled).lower()}
     collection_method: "rss_feed"
     max_frequency_hours: 48
