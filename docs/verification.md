@@ -64,9 +64,26 @@ python3 -m pip install -e '.[dev]'
 
 If the implementation chooses another package manager, update this file and README together.
 
-## GitHub Actions runner
+## GitHub Actions runners
 
-AgentOps GitHub Actions use an organization-level self-hosted runner from the `amanm02` organization:
+Product CI uses GitHub-hosted `ubuntu-latest` runners. AgentOps GitHub Actions
+remain separate and use the organization-level self-hosted runner from the
+`amanm02` organization with selector `[self-hosted, macOS, ARM64]`.
+
+The organization runner must be made available to `amanm02/PersonalDealIntelligence` through organization runner access settings and must have all three labels. See `docs/agentops/github-actions-runners.md`.
+
+## Product CI validation
+
+The product CI workflow mirrors these local commands:
+
+```bash
+python3 -m pdi.sources validate --config config/banking_sources.yaml
+python3 -m pdi.scoring validate --config config/banking_scoring.yaml
+python3 -m pdi.alerts validate --config config/banking_alerts.yaml
+python3 -m pytest
+```
+
+## Test validation
 
 Current narrower source policy command:
 
@@ -121,8 +138,6 @@ Current narrower run history command:
 ```bash
 python3 -m pytest tests/storage tests/cli tests/integration
 ```
-
-The organization runner must be made available to `amanm02/PersonalDealIntelligence` through organization runner access settings and must have all three labels. See `docs/agentops/github-actions-runners.md`.
 
 ## Source policy validation
 

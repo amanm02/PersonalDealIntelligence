@@ -1,0 +1,32 @@
+name: Product CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  product-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install dev dependencies
+        run: python3 -m pip install -e '.[dev]'
+      - name: Validate source policy
+        run: python3 -m pdi.sources validate --config config/banking_sources.yaml
+      - name: Validate scoring config
+        run: python3 -m pdi.scoring validate --config config/banking_scoring.yaml
+      - name: Validate alert config
+        run: python3 -m pdi.alerts validate --config config/banking_alerts.yaml
+      - name: Run tests
+        run: python3 -m pytest
