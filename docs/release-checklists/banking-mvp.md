@@ -192,7 +192,7 @@ mypy .
 - [ ] Source coverage is limited by configured sources.
 - [ ] User must verify final offers manually.
 - [ ] Live source collection, if added later, must remain source-policy controlled.
-- [ ] Fresh-clone demo readiness is planned until Issue #16 is complete.
+- [ ] Fresh-clone demo readiness remains local-only and fixture-backed.
 
 ## Release decision
 
