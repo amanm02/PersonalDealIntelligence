@@ -10,6 +10,7 @@ from typing import Any
 
 from pdi.public_pilot import (
     DEFAULT_PUBLIC_PILOT_CONFIG,
+    PublicPilotCollectionError,
     run_public_pilot_workflow,
 )
 from pdi.smoke import (
@@ -145,12 +146,20 @@ def run_banking_workflow_once(
         else:
             raise ValueError(f"Unsupported banking run source group: {sources}")
     except Exception as error:  # pragma: no cover - exercised through callers.
+        failure_metadata = {**metadata, "digest_written": False}
+        if sources == "public-pilot" and isinstance(error, PublicPilotCollectionError):
+            failure_metadata["public_pilot"] = {
+                "message": str(error),
+                "planned_sources": error.planned_sources,
+                "enabled_source_count": error.enabled_source_count,
+                "network_fetch_attempted": error.network_fetch_attempted,
+            }
         update_banking_run(
             db_path,
             run_id,
             status="failed",
             errors=[f"{type(error).__name__}: {error}"],
-            metadata={**metadata, "digest_written": False},
+            metadata=failure_metadata,
         )
     finally:
         release_banking_run_lock(db_path, run_id=run_id)
