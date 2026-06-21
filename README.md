@@ -197,11 +197,20 @@ python3 -m pdi --db data/pdi.sqlite banking show <deal_id>
 python3 -m pdi --db data/pdi.sqlite banking update-status <deal_id> in_progress --note "Reviewing official page."
 python3 -m pdi --db data/pdi.sqlite banking review-needed
 python3 -m pdi --db data/pdi.sqlite banking expiring --days 14
+python3 -m pdi --db data/pdi.sqlite banking search --query "checking bonus direct deposit"
+python3 -m pdi --db data/pdi.sqlite banking find --query "checking bonus direct deposit"
+python3 -m pdi --db data/pdi.sqlite banking search --subcategory checking_bonus --min-bonus 300
+python3 -m pdi --db data/pdi.sqlite banking search --recommended-action review_now
+python3 -m pdi --db data/pdi.sqlite banking search --expiring-days 14
 python3 -m pdi --db data/pdi.sqlite banking search --institution "Example Bank"
 python3 -m pdi --db data/pdi.sqlite banking score <deal_id>
 python3 -m pdi --db data/pdi.sqlite banking digest
 python3 -m pdi --db data/pdi.sqlite banking digest --format json --output data/digests/banking_digest.json
 ```
+
+Search results are ranked by score, estimated net value, bonus amount, and deal
+id. `find` is an alias for the ranked local search command. Use `--format json`
+when structured match reason and source context are needed.
 
 Use `--format json` on review commands when structured output is needed.
 Status changes are local review notes only. The system does not perform account
@@ -225,6 +234,22 @@ loads local fixture text, creates raw snapshots, extracts candidates,
 canonicalizes duplicate/conflicting deals, scores canonical deals, writes a
 local markdown digest, and prints summary counts. It does not fetch websites,
 connect email accounts, send external messages, or automate banking actions.
+
+After the smoke flow seeds a local database, these searches should return
+checking, savings, and brokerage examples from the synthetic corpus:
+
+```bash
+python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking find \
+  --query "checking bonus"
+
+python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking search \
+  --query "savings" \
+  --subcategory savings_bonus
+
+python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking find \
+  --subcategory brokerage_bonus \
+  --min-bonus 500
+```
 
 Run tests:
 
@@ -255,10 +280,8 @@ part of local scheduling. Stale run-lock cleanup is not automatic yet; if a
 process is interrupted while running, inspect `banking_run_locks` manually and
 remove a stale local lock only after confirming no run is active.
 
-Planned demo-readiness work will add or document fixture-backed commands for
-finding ranked local banking deals and running a fresh-clone demo gate. Until
-#15 and #16 are implemented, those commands are roadmap items, not current CLI
-guarantees.
+Planned demo-readiness work will add or document a fresh-clone demo gate. Until
+#16 is implemented, that gate is a roadmap item, not a current CLI guarantee.
 
 ## Validation
 
@@ -410,8 +433,8 @@ fixture/manual collector support, and review CLI commands. Offline extraction
 and conservative dedupe into canonical deals are implemented, as is transparent
 scoring, local alert digest generation, and an offline fixture smoke flow for
 canonical deals. Local run history and dry-run run orchestration are
-implemented. Credit-card acquisition offers are now MVP scope, with runtime
-support tracked in the dedicated Track A/B issues rather than implemented in
-this docs-only scope update. Realistic demo source fixtures, product-facing
-find/search, fresh-clone demo readiness, built-in live collection, and external
-alert sending are not implemented.
+implemented. Product-facing local find/search is implemented for ranked review
+of stored banking deals. Credit-card acquisition offers are now MVP scope, with
+runtime support tracked in the dedicated Track A/B issues rather than
+implemented in this docs-only scope update. Fresh-clone demo readiness,
+built-in live collection, and external alert sending are not implemented.

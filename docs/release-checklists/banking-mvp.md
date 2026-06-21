@@ -93,8 +93,8 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 
 - [ ] User can list deals.
 - [ ] User can inspect one deal.
-- [ ] User can find/search ranked local deals when Issue #15 is complete.
-- [ ] Search/find covers checking, savings or money market/CD, and brokerage demo examples when Issue #15 is complete.
+- [ ] User can find/search ranked local deals.
+- [ ] Search/find covers checking, savings or money market/CD, and brokerage demo examples.
 - [ ] User can filter by status.
 - [ ] User can filter by institution or subcategory.
 - [ ] User can update deal status.
@@ -129,7 +129,7 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 - [ ] Fresh clone setup instructions work.
 - [ ] Demo database/source data can be initialized from scratch when Issue #16 is complete.
 - [ ] At least three banking subcategories produce searchable local demo deals when Issue #16 is complete.
-- [ ] Search/find results include ranking or scoring context when Issue #15 is complete.
+- [ ] Search/find results include ranking or scoring context.
 - [ ] `show` displays terms, evidence/source references, missing data warnings, and status.
 - [ ] Demo digest generation creates a local artifact.
 - [ ] Demo path requires no internet access, credentials, external notifications, or banking actions.
@@ -192,7 +192,7 @@ mypy .
 - [ ] Source coverage is limited by configured sources.
 - [ ] User must verify final offers manually.
 - [ ] Live source collection, if added later, must remain source-policy controlled.
-- [ ] Product-facing demo find/search and fresh-clone demo readiness are planned until Issues #15 and #16 are complete.
+- [ ] Fresh-clone demo readiness is planned until Issue #16 is complete.
 
 ## Release decision
 
