@@ -29,9 +29,11 @@ For documentation-only changes, manually verify:
 - Internal links point to files that exist or are explicitly planned.
 - Banking MVP scope is clear.
 - Deferred categories are not accidentally included.
+- Credit-card acquisition offers are in MVP scope and are not described as deferred.
 - Safety boundaries are preserved.
 - No docs instruct agents to circumvent source rules or collect from private sessions.
 - No docs ask agents to store private auth material or highly sensitive personal identifiers.
+- No docs instruct agents to apply for cards, submit forms, store full card numbers, store sensitive personal financial information, bypass anti-bot protections, bypass paywalls, bypass CAPTCHAs, or bypass access controls.
 - Any command examples are labeled as expected/future if not yet implemented.
 - GitHub Issue bodies are directly usable as implementation prompts and do not include a separate implementation-prompt section.
 - Runner docs describe the organization-level `amanm02` self-hosted runner, not a repository-level runner, unless that changes.
@@ -308,6 +310,11 @@ Must validate when implemented:
 - checking bonus fixture parses correctly
 - savings bonus fixture parses correctly
 - brokerage bonus fixture parses correctly
+- credit-card acquisition fixtures parse issuer, card name, offer currency,
+  headline value, minimum spend, spend window, annual fee, public/targeted
+  classification, and evidence when credit-card extraction is implemented
+- benefits-only credit-card pages are rejected or low confidence when
+  credit-card extraction is implemented
 - missing high-impact fields stay unknown
 - non-deal content is rejected or low confidence
 - evidence spans are preserved when available
@@ -331,6 +338,9 @@ Must validate when implemented:
 - missing data creates warnings
 - expired deals are handled
 - config changes affect outputs predictably
+- credit-card scoring explains cash-equivalent value, annual fee, minimum spend
+  friction, spend-window pressure, missing data, source confidence, and
+  valuation assumptions when credit-card scoring is implemented
 
 ### CLI/review workflow
 

@@ -15,6 +15,7 @@ Keep prompts compact. Point to source-of-truth files instead of embedding long c
 - Ask for evidence, validation, and risks in the output.
 - Do not expand beyond the issue scope.
 - Keep Banking MVP work separate from future clothing, travel, flight, hotel, and shopping work.
+- Treat credit-card acquisition offers as Banking MVP scope, but implement them only through the dedicated credit-card/source/taxonomy/scoring issues.
 
 ## Prompt: implement a GitHub issue
 
@@ -33,7 +34,7 @@ Read in order:
 
 Implement the smallest safe change that satisfies the issue acceptance criteria.
 Do not expand scope.
-Do not add deferred categories.
+Do not add non-MVP deferred categories.
 Run the relevant validation from docs/verification.md.
 Final response must include Summary, Files changed, Validation, and Risks / follow-ups.
 ```

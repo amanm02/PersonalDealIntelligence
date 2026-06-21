@@ -22,10 +22,11 @@ Use this backlog to keep `docs/issue-map.md` focused on current execution work.
 - Requirement reminder workflow for deposits, holds, and expiration dates.
 - Better source authority ranking.
 - Historical deal value trends.
+- Rewards optimization beyond acquisition offers.
+- Transfer partner valuation assumptions beyond explicit MVP credit-card offer support.
 
 ## Future categories
 
-- Banking-adjacent card offers.
 - Cashback stack optimization.
 - Retail and clothing deals.
 - Travel deals.

@@ -17,6 +17,8 @@ Included:
 - checking + savings bundle bonuses
 - brokerage transfer/deposit bonuses
 - money market and CD bonuses
+- publicly available business banking bonuses when clearly separated from personal offers
+- personal and business credit card acquisition offers
 - local review workflow
 - local digest
 - offline fixture pipeline
@@ -30,7 +32,8 @@ Deferred:
 - cashback stack optimizer
 - browser extension
 - full hosted app
-- run history and dry-run orchestration
+- automatic financial actions, applications, enrollment, form submission, or money movement
+- rewards optimization beyond acquisition offers, including transfer partner assumptions unless explicitly implemented later
 
 ## Data flow
 
@@ -48,8 +51,8 @@ flowchart TD
   F --> K[Change Events]
   I --> L[Status Events]
   J --> M[Local Artifacts]
-  N[Future Run History] -. Issue #12 .-> J
-  B -. future run metadata .-> N
+  N[Run History] --> J
+  B --> N
 ```
 
 If Mermaid rendering is not supported in a viewer, treat the diagram as a text representation of the pipeline.
@@ -75,6 +78,11 @@ Expected source types:
 - `affiliate_feed`
 - `api`
 - `disabled`
+
+Credit-card source policies should distinguish issuer landing pages, issuer
+offer terms pages, issuer business-card pages, public comparison/listing pages
+owned by issuers, third-party offer trackers, newsletters/manual exports, and
+clearly marked targeted offers from allowed non-private sources.
 
 Each source should define:
 
@@ -153,9 +161,19 @@ It reads raw snapshot text and source metadata, produces pre-dedupe
 Extractor identifies:
 
 - institution name
+- issuer name for credit-card offers
 - promotion title
+- card name and visible card network for credit-card offers
 - subcategory
 - bonus amount
+- credit-card offer currency: cash, points, miles, statement credit, or mixed
+- headline bonus amount or value
+- estimated cash-equivalent value when supported by transparent assumptions
+- minimum spend requirement and spend window
+- annual fee and first-year fee waiver when present
+- statement credits and statement-credit requirements
+- business vs personal card classification
+- public vs targeted offer classification
 - direct deposit requirement
 - minimum deposit or balance
 - holding period
@@ -172,6 +190,10 @@ Extractor identifies:
 Extraction must not guess. Unknown fields should remain null/unknown.
 Evidence spans, missing fields, extraction notes, and tiered bonus matches are
 stored with candidates for review and later dedupe/canonicalization.
+Intro APR and category multipliers are supporting context unless the offer is
+explicitly about 0% APR or those multipliers are part of the signup offer terms.
+Issuer application restrictions should be captured as review notes, not hard
+financial advice.
 
 ### 5. Dedupe and canonicalization
 
@@ -186,8 +208,10 @@ consumes non-rejected `banking_deal_candidates`, creates or updates canonical
 Matching uses conservative signals:
 
 - normalized institution name
+- issuer and card name for credit-card offers
 - subcategory
 - bonus amount
+- credit-card offer currency, minimum spend, spend window, and annual fee when present
 - account/product name
 - expiration date if known
 - source URL path/domain clues
@@ -211,11 +235,15 @@ canonical row, and returns the full component breakdown for callers.
 Scoring components:
 
 - gross bonus value
+- estimated cash-equivalent value for credit-card cash, points, miles, statement-credit, or mixed offers
 - fee cost
+- annual fee cost and first-year waiver when present
 - cash lockup opportunity cost
 - direct deposit friction
+- minimum spend friction and spend-window pressure for credit-card offers
 - hassle penalty
 - risk/restriction penalty
+- targeted/public offer and issuer restriction review adjustment
 - missing data penalty
 - expiration urgency
 
@@ -230,6 +258,8 @@ Outputs:
 
 Scoring is transparent and configurable. It is for personal review support only
 and must not be presented as financial advice.
+Credit-card scoring must not hard-code opaque point or mile valuations without a
+configurable assumption and explanation.
 
 ### 7. Review CLI
 
@@ -259,8 +289,10 @@ canonical deal status. Status values include `new`, `needs_review`, `watching`,
 legacy `applied` rows remain accepted for compatibility.
 
 The CLI is a personal review aid only. It does not request credentials, perform
-applications, enroll in offers, or move money. Final offer terms should be
-verified on the official institution page before acting.
+applications, submit forms, enroll in offers, or move money. It must not store
+full card numbers or sensitive personal financial information. Final offer
+terms should be verified on the official institution or issuer page before
+acting.
 
 ### 8. Digest
 
@@ -281,6 +313,10 @@ Digest sections:
 
 Digest outputs are local markdown first, with JSON available for deterministic
 tests and future automation.
+Credit-card digest entries should show acquisition-offer fields when available,
+including issuer, card name, offer currency, headline value, estimated
+cash-equivalent value, minimum spend, spend window, annual fee, public/targeted
+classification, missing critical fields, and source evidence.
 
 External notifications are disabled by default. The implemented notification
 hook is no-op/dry-run only and does not send live messages.
@@ -329,11 +365,6 @@ python3 -m pdi --db data/pdi.sqlite banking run-status <run_id>
 ```
 
 Run records include:
-Status: deferred to Issue #12. The current Banking MVP has an offline smoke
-command but does not persist run records, expose a `banking run --dry-run`
-command, list past runs, or block overlapping runs.
-
-Run records should include:
 
 - run id
 - start time
@@ -394,7 +425,10 @@ The architecture must keep:
 - source collection limited to configured allowed methods
 - private-session data outside automated collection
 - private auth material and highly sensitive personal identifiers outside project storage
-- financial actions, applications, enrollment, and money movement under direct user control
+- full card numbers and sensitive personal financial information outside project storage
+- financial actions, card applications, form submission, enrollment, and money movement under direct user control
+- personalized financial advice outside system behavior
+- anti-bot protections, paywalls, CAPTCHAs, and access controls respected without bypass
 - external notifications and live collection disabled unless a future issue adds explicit policy, tests, and review steps
 
 ## First usable MVP
@@ -403,7 +437,7 @@ The first usable release should support:
 
 1. offline fixture pipeline
 2. local database
-3. structured extraction from sample banking promotion text
+3. structured extraction from sample banking and credit-card acquisition promotion text
 4. dedupe/canonicalization
 5. score calculation
 6. CLI review

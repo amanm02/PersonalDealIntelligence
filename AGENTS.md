@@ -21,9 +21,9 @@ Do not read unrelated docs or expand scope unless the issue requires it.
 
 ## Project scope
 
-Personal Deal Intelligence is currently the Banking MVP only. Included categories are checking, savings, checking plus savings bundles, brokerage bonuses, money market bonuses, and CD bonuses. Credit card sign-up bonuses are deferred banking-adjacent work.
+Personal Deal Intelligence is currently the Banking MVP only. Included categories are checking, savings, checking plus savings bundles, brokerage bonuses, money market bonuses, CD bonuses, publicly available business banking bonuses when clearly separated from personal offers, and personal or business credit-card acquisition offers.
 
-Out of scope for the initial build: clothing, travel, flights, hotels, cashback stack optimization, browser extensions, automatic financial actions, private-session collection, source-access workarounds, credentials, and highly sensitive personal identifiers.
+Out of scope for the initial build: clothing, travel, flights, hotels, cashback stack optimization, browser extensions, automatic financial actions, applications, form submission, private-session collection, source-access workarounds, credentials, full card numbers, and highly sensitive personal or financial identifiers.
 
 ## Working rules
 

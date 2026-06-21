@@ -5,6 +5,7 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 ## 1. Scope check
 
 - [ ] Banking remains the only active MVP category.
+- [ ] Credit-card acquisition offers are included in Banking MVP scope, not deferred.
 - [ ] Clothing, travel, flights, hotels, cashback stacking, and browser extension work are deferred.
 - [ ] README reflects the current implementation.
 - [ ] `docs/issue-map.md` reflects current issue status.
@@ -35,7 +36,7 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 - [ ] Terms and restrictions can be stored.
 - [ ] Status events can be stored.
 - [ ] Change events can be stored.
-- [ ] Run history can be stored if implemented.
+- [ ] Run history can be stored.
 
 ## 5. Offline fixture pipeline
 
@@ -47,6 +48,7 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 - [ ] Brokerage bonus fixture is processed.
 - [ ] Checking + savings bundle fixture is processed when demo corpus exists.
 - [ ] Money market or CD fixture is processed when demo corpus exists.
+- [ ] Credit-card acquisition fixtures cover cash, points, miles, statement-credit, mixed, business, targeted, duplicate, conflicting, benefits-only non-deal, and expired offers when credit-card support is implemented.
 - [ ] Duplicate fixture is deduped.
 - [ ] Conflicting fixture is marked for review.
 - [ ] Low-value fixture is suppressed from high-priority digest sections.
@@ -62,6 +64,7 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 - [ ] Monthly fee extracts when present.
 - [ ] Expiration date extracts when present.
 - [ ] State restrictions extract when present.
+- [ ] Credit-card issuer, card name, visible network, offer currency, headline value, estimated cash-equivalent value, minimum spend, spend window, annual fee, fee waiver, statement credits, business/personal classification, public/targeted classification, and issuer restrictions extract when credit-card support is implemented.
 - [ ] Missing high-impact terms remain unknown.
 - [ ] Evidence spans or source references are preserved where possible.
 
@@ -80,6 +83,7 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 - [ ] Monthly fees reduce estimated net value.
 - [ ] Cash lockup opportunity cost is included.
 - [ ] Direct deposit friction is reflected.
+- [ ] Credit-card annual fee, minimum spend, spend window pressure, public/targeted classification, missing terms, and transparent cash-equivalent assumptions are reflected when credit-card scoring is implemented.
 - [ ] Missing data creates warnings or penalties.
 - [ ] Expired deals are handled.
 - [ ] Recommended actions are explainable.
@@ -97,6 +101,7 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 - [ ] Status updates create event records.
 - [ ] Review-needed command surfaces conflicts and missing critical terms.
 - [ ] Expiring deals can be listed.
+- [ ] Credit-card offers can be searched and filtered by issuer/card, personal/business, offer currency, score, and review state when credit-card support is implemented.
 
 ## 10. Digest generation
 
@@ -145,7 +150,8 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 - [ ] Source collection follows explicit source policies.
 - [ ] Private-session data is not collected by automated source flows.
 - [ ] Source access workarounds are not part of the implementation.
-- [ ] Docs state that final terms must be verified on official institution pages.
+- [ ] Card applications, application form submission, full card number storage, sensitive personal financial information storage, personalized financial advice, and anti-bot/paywall/CAPTCHA/access-control bypass are not part of the implementation.
+- [ ] Docs state that final terms must be verified on official institution or issuer pages.
 
 ## 15. Validation commands
 
