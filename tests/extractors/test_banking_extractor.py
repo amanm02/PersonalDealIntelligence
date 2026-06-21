@@ -34,6 +34,10 @@ def assert_evidence_matches_source(raw_text, candidate):
         assert normalized[span.start : span.end] == span.text
 
 
+def evidence_fields(candidate):
+    return {span.field for span in candidate.evidence_spans}
+
+
 def test_extracts_checking_bonus_with_direct_deposit_and_evidence():
     raw_text = load_fixture("checking_direct_deposit.txt")
 
@@ -57,6 +61,12 @@ def test_extracts_checking_bonus_with_direct_deposit_and_evidence():
     assert "bonus_amount_cents" not in candidate.missing_fields
     assert "expires_at" not in candidate.missing_fields
     assert_evidence_matches_source(raw_text, candidate)
+    assert {
+        "bonus_amount_cents",
+        "direct_deposit_required",
+        "direct_deposit_minimum_cents",
+        "monthly_fee_cents",
+    }.issubset(evidence_fields(candidate))
 
 
 def test_extracts_savings_bonus_with_minimum_balance_hold():
@@ -75,6 +85,13 @@ def test_extracts_savings_bonus_with_minimum_balance_hold():
     assert candidate.monthly_fee_cents == 0
     assert candidate.expires_at == "2026-11-30"
     assert_evidence_matches_source(raw_text, candidate)
+    assert {
+        "bonus_amount_cents",
+        "minimum_deposit_amount_cents",
+        "minimum_balance_required_cents",
+        "balance_hold_days",
+        "direct_deposit_required",
+    }.issubset(evidence_fields(candidate))
 
 
 def test_extracts_brokerage_tiered_bonus_amounts():
@@ -105,6 +122,12 @@ def test_extracts_brokerage_tiered_bonus_amounts():
         },
     ]
     assert_evidence_matches_source(raw_text, candidate)
+    assert {
+        "tiered_bonus",
+        "bonus_amount_cents",
+        "minimum_deposit_amount_cents",
+        "balance_hold_days",
+    }.issubset(evidence_fields(candidate))
 
 
 def test_ambiguous_promo_keeps_missing_expiration_unknown():

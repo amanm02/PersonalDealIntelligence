@@ -16,12 +16,16 @@ from pdi.storage import (
     get_raw_snapshot,
     initialize_database,
     insert_banking_deal,
+    insert_banking_deal_candidate,
+    insert_banking_deal_source_link,
     insert_banking_run,
     insert_raw_snapshot,
     insert_source_record,
     insert_status_event,
     list_banking_deals,
     list_banking_runs,
+    list_field_evidence_links,
+    list_missing_field_evidence,
     list_raw_snapshots_by_content_hash,
     load_seed_fixture,
     release_banking_run_lock,
@@ -53,6 +57,7 @@ def test_initializes_database_from_scratch(tmp_path):
             "banking_deal_terms",
             "banking_deal_candidates",
             "banking_deal_source_links",
+            "banking_field_evidence_links",
             "banking_runs",
             "banking_run_locks",
             "deal_status_events",
@@ -60,7 +65,7 @@ def test_initializes_database_from_scratch(tmp_path):
         }.issubset(table_names)
         assert connection.execute(
             "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0] == 5
+        ).fetchone()[0] == 6
 
 
 def test_migrations_are_idempotent(tmp_path):
@@ -72,7 +77,7 @@ def test_migrations_are_idempotent(tmp_path):
     with sqlite3.connect(db_path) as connection:
         assert connection.execute(
             "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0] == 5
+        ).fetchone()[0] == 6
 
 
 def test_raw_snapshot_content_hash_is_stable_and_content_derived(tmp_path):
@@ -199,6 +204,310 @@ def test_raw_snapshot_rejects_mismatched_supplied_content_hash(tmp_path):
                 "collector_name": "fixture",
             },
         )
+
+
+def test_field_evidence_links_are_queryable_from_source_links(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    snapshot_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_url": "manual://evidence",
+            "source_name": "Mock Evidence Source",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "raw_text": "Mock Bank offers a $300 checking bonus.",
+            "collector_name": "fixture",
+        },
+    )
+    candidate_id = insert_banking_deal_candidate(
+        db_path,
+        {
+            "raw_snapshot_id": snapshot_id,
+            "title": "Mock Evidence Bank $300 Checking Bonus",
+            "institution_name": "Mock Evidence Bank",
+            "subcategory": "checking_bonus",
+            "bonus_amount_cents": 30000,
+            "source_name": "Mock Evidence Source",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "evidence_spans": [
+                {"field": "bonus_amount_cents", "text": "$300", "start": 19, "end": 23}
+            ],
+            "missing_fields": [],
+            "confidence_score": 0.8,
+        },
+    )
+    deal_id = insert_banking_deal(
+        db_path,
+        {
+            "canonical_key": "mock-evidence-checking",
+            "title": "Mock Evidence Bank $300 Checking Bonus",
+            "institution_name": "Mock Evidence Bank",
+            "subcategory": "checking_bonus",
+            "bonus_amount_cents": 30000,
+            "discovered_at": "2026-06-17T12:00:00+00:00",
+            "last_seen_at": "2026-06-17T12:00:00+00:00",
+            "raw_snapshot_id": snapshot_id,
+        },
+    )
+    insert_banking_deal_source_link(
+        db_path,
+        {
+            "deal_id": deal_id,
+            "candidate_id": candidate_id,
+            "raw_snapshot_id": snapshot_id,
+            "source_name": "Mock Evidence Source",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "confidence_score": 0.8,
+            "evidence": [
+                {
+                    "field": "bonus_amount_cents",
+                    "text": "$300",
+                    "start": 19,
+                    "end": 23,
+                    "extracted_value": 30000,
+                    "extraction_method": "fixture_parser",
+                    "extraction_version": "test",
+                }
+            ],
+        },
+    )
+
+    evidence = list_field_evidence_links(
+        db_path,
+        deal_id=deal_id,
+        field_name="bonus_amount_cents",
+    )
+
+    assert len(evidence) == 1
+    assert evidence[0]["deal_id"] == deal_id
+    assert evidence[0]["candidate_id"] == candidate_id
+    assert evidence[0]["raw_snapshot_id"] == snapshot_id
+    assert evidence[0]["field"] == "bonus_amount_cents"
+    assert evidence[0]["extracted_value"] == 30000
+    assert evidence[0]["evidence_text"] == "$300"
+    assert evidence[0]["content_hash"]
+    assert evidence[0]["confidence_score"] == 0.8
+    assert evidence[0]["extraction_method"] == "fixture_parser"
+    assert evidence[0]["created_at"]
+
+
+def test_missing_field_evidence_reports_populated_fields_without_links(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    snapshot_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_url": "manual://missing-evidence",
+            "source_name": "Mock Missing Evidence Source",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "raw_text": "Mock Bank offers a checking bonus.",
+            "collector_name": "fixture",
+        },
+    )
+    candidate_id = insert_banking_deal_candidate(
+        db_path,
+        {
+            "raw_snapshot_id": snapshot_id,
+            "title": "Mock Missing Evidence Bank Bonus",
+            "institution_name": "Mock Missing Evidence Bank",
+            "subcategory": "checking_bonus",
+            "bonus_amount_cents": 30000,
+            "direct_deposit_required": True,
+            "source_name": "Mock Missing Evidence Source",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "evidence_spans": [
+                {"field": "bonus_amount_cents", "text": "$300", "start": 17, "end": 21}
+            ],
+            "missing_fields": [],
+            "confidence_score": 0.8,
+        },
+    )
+    deal_id = insert_banking_deal(
+        db_path,
+        {
+            "canonical_key": "mock-missing-evidence-checking",
+            "title": "Mock Missing Evidence Bank Bonus",
+            "institution_name": "Mock Missing Evidence Bank",
+            "subcategory": "checking_bonus",
+            "bonus_amount_cents": 30000,
+            "discovered_at": "2026-06-17T12:00:00+00:00",
+            "last_seen_at": "2026-06-17T12:00:00+00:00",
+            "raw_snapshot_id": snapshot_id,
+            "terms": {"direct_deposit_required": True},
+        },
+    )
+    insert_banking_deal_source_link(
+        db_path,
+        {
+            "deal_id": deal_id,
+            "candidate_id": candidate_id,
+            "raw_snapshot_id": snapshot_id,
+            "source_name": "Mock Missing Evidence Source",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "confidence_score": 0.8,
+            "evidence": [
+                {
+                    "field": "bonus_amount_cents",
+                    "text": "$300",
+                    "start": 17,
+                    "end": 21,
+                    "extracted_value": 30000,
+                }
+            ],
+        },
+    )
+
+    missing = list_missing_field_evidence(
+        db_path,
+        deal_id,
+        field_names=("bonus_amount_cents", "direct_deposit_required"),
+    )
+
+    assert missing == [
+        {
+            "deal_id": deal_id,
+            "field": "direct_deposit_required",
+            "value": 1,
+            "reason": "value_without_field_evidence",
+        }
+    ]
+
+
+def test_field_evidence_links_backfill_existing_source_link_json(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    _initialize_through_migration(db_path, "005")
+    with sqlite3.connect(db_path) as connection:
+        snapshot_id = connection.execute(
+            """
+            INSERT INTO raw_deal_snapshots (
+              source_url,
+              source_name,
+              retrieved_at,
+              content_hash,
+              raw_text,
+              collector_name
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "manual://legacy-evidence",
+                "Legacy Evidence Source",
+                "2026-06-17T12:00:00+00:00",
+                hashlib.sha256(b"legacy evidence text").hexdigest(),
+                "legacy evidence text",
+                "fixture",
+            ),
+        ).lastrowid
+        candidate_id = connection.execute(
+            """
+            INSERT INTO banking_deal_candidates (
+              raw_snapshot_id,
+              title,
+              institution_name,
+              category,
+              subcategory,
+              bonus_amount_cents,
+              currency,
+              source_name,
+              retrieved_at,
+              evidence_spans_json,
+              missing_fields_json,
+              confidence_score,
+              rejected
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                snapshot_id,
+                "Legacy Evidence Bank Bonus",
+                "Legacy Evidence Bank",
+                "banking",
+                "checking_bonus",
+                30000,
+                "USD",
+                "Legacy Evidence Source",
+                "2026-06-17T12:00:00+00:00",
+                "[]",
+                "[]",
+                0.8,
+                0,
+            ),
+        ).lastrowid
+        deal_id = connection.execute(
+            """
+            INSERT INTO banking_deals (
+              canonical_key,
+              title,
+              institution_name,
+              subcategory,
+              bonus_amount_cents,
+              discovered_at,
+              last_seen_at,
+              raw_snapshot_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "legacy-evidence-checking",
+                "Legacy Evidence Bank Bonus",
+                "Legacy Evidence Bank",
+                "checking_bonus",
+                30000,
+                "2026-06-17T12:00:00+00:00",
+                "2026-06-17T12:00:00+00:00",
+                snapshot_id,
+            ),
+        ).lastrowid
+        connection.execute(
+            """
+            INSERT INTO banking_deal_source_links (
+              deal_id,
+              candidate_id,
+              raw_snapshot_id,
+              source_name,
+              retrieved_at,
+              confidence_score,
+              evidence_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                deal_id,
+                candidate_id,
+                snapshot_id,
+                "Legacy Evidence Source",
+                "2026-06-17T12:00:00+00:00",
+                0.8,
+                json.dumps(
+                    [
+                        {
+                            "field": "bonus_amount_cents",
+                            "text": "$300",
+                            "start": 0,
+                            "end": 4,
+                            "extracted_value": 30000,
+                        },
+                        {
+                            "field": "tiered_bonus",
+                            "text": "$300 for $25,000",
+                            "start": 0,
+                            "end": 16,
+                        },
+                    ],
+                    sort_keys=True,
+                ),
+            ),
+        )
+        connection.commit()
+
+    initialize_database(db_path)
+
+    evidence = list_field_evidence_links(db_path, deal_id=deal_id)
+    assert [item["field"] for item in evidence] == ["bonus_amount_cents"]
+    assert evidence[0]["extracted_value"] == 30000
+    assert evidence[0]["evidence_text"] == "$300"
+    assert evidence[0]["raw_snapshot_id"] == snapshot_id
+    assert evidence[0]["candidate_id"] == candidate_id
 
 
 def test_insert_and_query_partial_deal_with_raw_snapshot_link(tmp_path):

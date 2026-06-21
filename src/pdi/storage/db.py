@@ -15,6 +15,19 @@ from typing import Any, Mapping
 
 
 DbPath = str | Path
+FIELD_EVIDENCE_FIELDS = (
+    "bonus_amount_cents",
+    "direct_deposit_required",
+    "direct_deposit_minimum_cents",
+    "minimum_deposit_amount_cents",
+    "minimum_balance_required_cents",
+    "balance_hold_days",
+    "expires_at",
+    "application_deadline",
+    "monthly_fee_cents",
+    "state_restrictions",
+    "new_customer_only",
+)
 
 
 def initialize_database(db_path: DbPath) -> None:
@@ -46,6 +59,7 @@ def initialize_database(db_path: DbPath) -> None:
                 "INSERT INTO schema_migrations (version) VALUES (?)",
                 (version,),
             )
+        _backfill_field_evidence_links(connection)
         connection.commit()
 
 
@@ -394,8 +408,10 @@ def insert_banking_deal_source_link(
                 _json_text(data.get("evidence")),
             ),
         )
+        source_link_id = _source_link_id(connection, data)
+        _insert_field_evidence_links(connection, source_link_id, data)
         connection.commit()
-        return int(cursor.lastrowid)
+        return source_link_id
 
 
 def insert_deal_change_event(
@@ -886,6 +902,91 @@ def list_banking_deal_source_links(
         ]
 
 
+def list_field_evidence_links(
+    db_path: DbPath,
+    *,
+    deal_id: int | None = None,
+    candidate_id: int | None = None,
+    field_name: str | None = None,
+) -> list[dict[str, Any]]:
+    """List normalized field-level evidence from durable source links."""
+
+    clauses: list[str] = []
+    values: list[Any] = []
+    if deal_id is not None:
+        clauses.append("field.deal_id = ?")
+        values.append(deal_id)
+    if candidate_id is not None:
+        clauses.append("field.candidate_id = ?")
+        values.append(candidate_id)
+    if field_name is not None:
+        clauses.append("field.field_name = ?")
+        values.append(field_name)
+
+    query = """
+        SELECT
+          field.*,
+          link.source_name,
+          link.source_url,
+          link.source_authority,
+          link.retrieved_at,
+          snapshot.content_hash
+        FROM banking_field_evidence_links AS field
+        JOIN banking_deal_source_links AS link
+          ON link.id = field.source_link_id
+        LEFT JOIN raw_deal_snapshots AS snapshot
+          ON snapshot.id = field.raw_snapshot_id
+    """
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    query += """
+        ORDER BY
+          field.field_name ASC,
+          field.deal_id ASC,
+          field.candidate_id ASC,
+          field.raw_snapshot_id ASC,
+          field.start_offset ASC,
+          field.id ASC
+    """
+
+    with _connect(db_path) as connection:
+        return [
+            _field_evidence_row(row)
+            for row in connection.execute(query, tuple(values)).fetchall()
+        ]
+
+
+def list_missing_field_evidence(
+    db_path: DbPath,
+    deal_id: int,
+    *,
+    field_names: tuple[str, ...] = FIELD_EVIDENCE_FIELDS,
+) -> list[dict[str, Any]]:
+    """Return populated canonical fields that have no field-level evidence."""
+
+    deal = get_banking_deal(db_path, deal_id)
+    if deal is None:
+        raise ValueError(f"Deal id {deal_id} does not exist.")
+
+    evidence_fields = {
+        item.get("field") for item in list_field_evidence_links(db_path, deal_id=deal_id)
+    }
+    field_values = _deal_field_values(deal)
+    missing: list[dict[str, Any]] = []
+    for name in field_names:
+        value = field_values.get(name)
+        if value is not None and name not in evidence_fields:
+            missing.append(
+                {
+                    "deal_id": deal_id,
+                    "field": name,
+                    "value": value,
+                    "reason": "value_without_field_evidence",
+                }
+            )
+    return missing
+
+
 def list_deal_change_events(
     db_path: DbPath,
     *,
@@ -1157,6 +1258,149 @@ def _json_text(value: Any) -> str | None:
     return json.dumps(value, sort_keys=True)
 
 
+def _json_value(value: Any) -> Any:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return value
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return value
+
+
+def _source_link_id(connection: sqlite3.Connection, data: Mapping[str, Any]) -> int:
+    row = connection.execute(
+        """
+        SELECT id
+        FROM banking_deal_source_links
+        WHERE deal_id = ? AND candidate_id = ?
+        """,
+        (data["deal_id"], data["candidate_id"]),
+    ).fetchone()
+    if row is None:
+        raise ValueError("banking deal source link was not inserted")
+    return int(row["id"])
+
+
+def _insert_field_evidence_links(
+    connection: sqlite3.Connection,
+    source_link_id: int,
+    data: Mapping[str, Any],
+) -> None:
+    evidence = _json_value(data.get("evidence", data.get("evidence_json"))) or []
+    if not isinstance(evidence, list):
+        return
+    candidate = connection.execute(
+        "SELECT * FROM banking_deal_candidates WHERE id = ?",
+        (data["candidate_id"],),
+    ).fetchone()
+    candidate_data = _row_to_dict(candidate) if candidate is not None else None
+    for span in evidence:
+        if not isinstance(span, Mapping):
+            continue
+        field_name = span.get("field")
+        evidence_text = span.get("evidence_text") or span.get("text")
+        if (
+            not field_name
+            or str(field_name) not in FIELD_EVIDENCE_FIELDS
+            or evidence_text is None
+        ):
+            continue
+        extracted_value = span.get("extracted_value")
+        if extracted_value is None and candidate_data is not None:
+            extracted_value = _candidate_field_value(candidate_data, str(field_name))
+        connection.execute(
+            """
+            INSERT OR IGNORE INTO banking_field_evidence_links (
+              deal_id,
+              candidate_id,
+              raw_snapshot_id,
+              source_link_id,
+              field_name,
+              extracted_value_json,
+              evidence_text,
+              excerpt,
+              start_offset,
+              end_offset,
+              confidence_score,
+              extraction_method,
+              extraction_version
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                data["deal_id"],
+                data["candidate_id"],
+                data["raw_snapshot_id"],
+                source_link_id,
+                field_name,
+                _json_text(extracted_value),
+                evidence_text,
+                span.get("excerpt") or span.get("text") or evidence_text,
+                span.get("start"),
+                span.get("end"),
+                span.get("confidence_score", data.get("confidence_score")),
+                span.get("extraction_method"),
+                span.get("extraction_version"),
+            ),
+        )
+
+
+def _backfill_field_evidence_links(connection: sqlite3.Connection) -> None:
+    table_exists = connection.execute(
+        """
+        SELECT 1
+        FROM sqlite_master
+        WHERE type = 'table'
+          AND name = 'banking_field_evidence_links'
+        """
+    ).fetchone()
+    if table_exists is None:
+        return
+
+    rows = connection.execute(
+        """
+        SELECT link.*
+        FROM banking_deal_source_links AS link
+        LEFT JOIN banking_field_evidence_links AS field
+          ON field.source_link_id = link.id
+        WHERE field.id IS NULL
+          AND link.evidence_json IS NOT NULL
+        ORDER BY link.id ASC
+        """
+    ).fetchall()
+    for row in rows:
+        data = _row_to_dict(row)
+        _insert_field_evidence_links(connection, int(data["id"]), data)
+
+
+def _field_evidence_row(row: sqlite3.Row) -> dict[str, Any]:
+    data = _row_to_dict(row)
+    return {
+        "id": data["id"],
+        "deal_id": data["deal_id"],
+        "candidate_id": data["candidate_id"],
+        "raw_snapshot_id": data["raw_snapshot_id"],
+        "source_link_id": data["source_link_id"],
+        "field": data["field_name"],
+        "extracted_value": _json_value(data.get("extracted_value_json")),
+        "evidence_text": data["evidence_text"],
+        "excerpt": data.get("excerpt"),
+        "start": data.get("start_offset"),
+        "end": data.get("end_offset"),
+        "source_name": data.get("source_name"),
+        "source_url": data.get("source_url"),
+        "source_authority": data.get("source_authority"),
+        "content_hash": data.get("content_hash"),
+        "retrieved_at": data.get("retrieved_at"),
+        "confidence_score": data.get("confidence_score"),
+        "extraction_method": data.get("extraction_method"),
+        "extraction_version": data.get("extraction_version"),
+        "created_at": data.get("created_at"),
+    }
+
+
 def _hash_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
@@ -1168,6 +1412,72 @@ def _content_hash_for_raw_text(raw_text: str, supplied_hash: Any) -> str:
     if supplied_hash != computed_hash:
         raise ValueError("raw snapshot content_hash must match raw_text")
     return computed_hash
+
+
+def _field_evidence_link(
+    link: Mapping[str, Any],
+    span: Mapping[str, Any],
+    *,
+    snapshot: Mapping[str, Any] | None,
+    candidate: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    field_name = span.get("field")
+    extracted_value = span.get("extracted_value")
+    if extracted_value is None and candidate is not None and field_name:
+        extracted_value = _candidate_field_value(candidate, str(field_name))
+    return {
+        "deal_id": link.get("deal_id"),
+        "candidate_id": link.get("candidate_id"),
+        "raw_snapshot_id": link.get("raw_snapshot_id"),
+        "field": field_name,
+        "extracted_value": extracted_value,
+        "evidence_text": span.get("text") or span.get("evidence_text"),
+        "excerpt": span.get("excerpt") or span.get("text"),
+        "start": span.get("start"),
+        "end": span.get("end"),
+        "source_name": link.get("source_name"),
+        "source_url": link.get("source_url"),
+        "source_authority": link.get("source_authority"),
+        "content_hash": snapshot.get("content_hash") if snapshot else None,
+        "retrieved_at": link.get("retrieved_at"),
+        "confidence_score": span.get("confidence_score", link.get("confidence_score")),
+        "extraction_method": span.get("extraction_method"),
+        "extraction_version": span.get("extraction_version"),
+        "created_at": link.get("created_at"),
+    }
+
+
+def _candidate_field_value(candidate: Mapping[str, Any], field_name: str) -> Any:
+    value = candidate.get(field_name)
+    if field_name in {
+        "direct_deposit_required",
+        "new_customer_only",
+        "hard_pull_risk",
+        "soft_pull_only",
+    }:
+        if value is None:
+            return None
+        return bool(value)
+    if field_name == "state_restrictions":
+        return _json_value(candidate.get("state_restrictions_json"))
+    return value
+
+
+def _deal_field_values(deal: Mapping[str, Any]) -> dict[str, Any]:
+    terms = deal.get("terms") or {}
+    return {
+        "bonus_amount_cents": deal.get("bonus_amount_cents"),
+        "expires_at": deal.get("expires_at"),
+        "application_deadline": deal.get("application_deadline"),
+        "direct_deposit_required": terms.get("direct_deposit_required"),
+        "direct_deposit_minimum_cents": terms.get("direct_deposit_minimum_cents"),
+        "minimum_deposit_amount_cents": terms.get("minimum_deposit_amount_cents"),
+        "minimum_balance_required_cents": terms.get("minimum_balance_required_cents"),
+        "balance_hold_days": terms.get("balance_hold_days"),
+        "monthly_fee_cents": terms.get("monthly_fee_cents"),
+        "state_restrictions": terms.get("state_restrictions"),
+        "new_customer_only": terms.get("new_customer_only"),
+    }
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
