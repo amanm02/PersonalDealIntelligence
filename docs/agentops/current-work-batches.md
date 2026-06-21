@@ -14,18 +14,20 @@ Use this file for near-term scheduling only. `docs/issue-map.md` remains the dur
 | #52 / PR #55 concurrency operating model and hygiene checks | merged | Closed and merged | AgentOps concurrency docs, issue hygiene docs, prompt/PR template additions, and baseline hygiene scripts | done | `make workflow-hygiene`, `make agentops-pr`, `python3 -m pytest`, `git diff --check` | Already merged before PR #56 |
 | #16 / PR #54 demo readiness implementation | merged | Verified complete; Issue #16 should close with this reconciliation | README, demo script, CLI/docs/tests; unblocks #17 after issue closure | done | Demo gate plus product CI commands | Already merged before #17 |
 | PR #56 AgentOps optimization batch | merged | #52 / PR #55 and PR #54 verified merged | AgentOps docs, hygiene scripts, tests, PR template, workflow hygiene wiring, and AgentOps workflow remediation | done | `make workflow-hygiene`, `make agentops-pr`, `make agentops-test`, `python3 -m pytest`, `git diff --check` | Already merged before issue rewrites |
+| #17 / PR #58 opt-in public source pilot | merged | Closed by PR #58 after #16 completed | Source policy, public-pilot runtime, Banking CLI run/source commands, config, docs, tests. Unblocks source-universe issue rewrites. | done | Source policy validation, offline public-pilot tests, demo gate, product CI commands, no default live network | Already merged before #28/#29/#31/#33 public-source expansion |
 
 ## Current Exclusive Work
 
 | Work | State | Dependency status | Owned/blocked file families | Concurrent? | Validation gate | Merge order |
 |---|---|---|---|---|---|---|
-| #17 opt-in public source pilot | in progress on `codex/issue-017-public-source-pilot` | #16 is closed/completed; stale #17 blocked label removed during preflight | Source policy, public-pilot runtime, Banking CLI run/source commands, config, docs, tests. Blocks live-source expansion. | no; exclusive while this PR is open | Source policy validation, offline public-pilot tests, demo gate, product CI commands, no default live network | Merge before #28/#29/#31/#33 public-source expansion |
+| None known | Latest open-PR preflight returned no open PRs | Re-run GitHub preflight before starting new work | n/a | n/a | n/a |
 
 ## Next Sequential Work
 
 | Work | State | Dependency status | Owned/blocked file families | Concurrent? | Validation gate | Merge order |
 |---|---|---|---|---|---|---|
-| #28/#29/#31/#33 source expansion sequence | open; next only after #17 merges | Depends on #17 landing as the narrow disabled-by-default pilot | Source policy, collection rules, source health, freshness, managed coverage | no until #17 closes and issue bodies are rechecked | Source policy validation and offline tests; no default live network unless explicitly scoped | Start after #17 closes |
+| #28/#30/#34 rewrite/split | open; preferred next step before implementation | #17 is closed by PR #58; broad issue bodies still need narrowed contracts before coding | Issue bodies, labels, ownership, validation contracts, and demo-script planning only | read-only or docs/issue-only until narrowed implementation is selected | AgentOps checks and issue-body review; no product behavior change | Rewrite/split before #28A, #30A, or #34A implementation |
+| #28A source universe/config expansion | not started; allowed only after #28 is narrowed | Depends on explicit #28A contract, owned/blocked files, and clean open-PR preflight | Source metadata, categories, trust tiers, official-source flags, placeholder seed pack, source validation, source list/validate/docs | exclusive while touching source policy/config/CLI/shared docs | Source policy validation, focused sources/CLI tests, demo gate, full pytest, AgentOps checks | Start after #28A contract is explicit |
 
 ## Future Parallelizable Batches
 
