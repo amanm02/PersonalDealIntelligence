@@ -94,7 +94,7 @@ def insert_raw_snapshot(
 
     data = _merge_record(raw_snapshot, fields)
     raw_text = data["raw_text"]
-    content_hash = data.get("content_hash") or _hash_text(raw_text)
+    content_hash = _content_hash_for_raw_text(raw_text, data.get("content_hash"))
 
     with _connect(db_path) as connection:
         cursor = connection.execute(
@@ -128,6 +128,27 @@ def insert_raw_snapshot(
         )
         connection.commit()
         return int(cursor.lastrowid)
+
+
+def list_raw_snapshots_by_content_hash(
+    db_path: DbPath,
+    content_hash: str,
+) -> list[dict[str, Any]]:
+    """Return raw snapshots with the same content hash in deterministic order."""
+
+    with _connect(db_path) as connection:
+        return [
+            _row_to_dict(row)
+            for row in connection.execute(
+                """
+                SELECT *
+                FROM raw_deal_snapshots
+                WHERE content_hash = ?
+                ORDER BY id ASC
+                """,
+                (content_hash,),
+            ).fetchall()
+        ]
 
 
 def get_raw_snapshot(db_path: DbPath, snapshot_id: int) -> dict[str, Any] | None:
@@ -1138,6 +1159,15 @@ def _json_text(value: Any) -> str | None:
 
 def _hash_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _content_hash_for_raw_text(raw_text: str, supplied_hash: Any) -> str:
+    computed_hash = _hash_text(raw_text)
+    if supplied_hash in (None, ""):
+        return computed_hash
+    if supplied_hash != computed_hash:
+        raise ValueError("raw snapshot content_hash must match raw_text")
+    return computed_hash
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:

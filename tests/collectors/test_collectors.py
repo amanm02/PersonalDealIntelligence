@@ -14,6 +14,7 @@ from pdi.collectors import (
 )
 from pdi.sources import SourcePolicy
 from pdi.storage import initialize_database
+from pdi.storage import get_raw_snapshot
 
 
 def policy(**overrides):
@@ -225,6 +226,7 @@ def test_snapshot_persistence_uses_existing_raw_snapshot_schema(tmp_path):
         policy(),
         raw_text="Mock Bank offers a fictional $300 checking bonus.",
         retrieved_at="2026-06-17T12:00:00+00:00",
+        raw_payload={"fixture_id": "collector-persistence"},
     )
 
     snapshot_id = persist_collected_snapshot(db_path, snapshot)
@@ -239,4 +241,9 @@ def test_snapshot_persistence_uses_existing_raw_snapshot_schema(tmp_path):
     assert row[0] == "Test Manual Source"
     assert row[1] == snapshot.content_hash
     assert '"input_method": "manual_text"' in row[2]
+    assert '"fixture_id": "collector-persistence"' in row[2]
     assert row[3] == "manual_text"
+    stored = get_raw_snapshot(db_path, snapshot_id)
+    assert stored["source_url"] == "manual://test-source"
+    assert stored["retrieved_at"] == "2026-06-17T12:00:00+00:00"
+    assert stored["raw_text"] == "Mock Bank offers a fictional $300 checking bonus."

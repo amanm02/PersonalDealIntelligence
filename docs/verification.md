@@ -373,6 +373,8 @@ Must validate:
 - database initializes from scratch
 - mock banking deals can be inserted and queried
 - raw snapshots link to extracted/canonical records
+- raw snapshot content hashes are derived from stored raw text
+- duplicate raw snapshot content hashes are queryable without deduping rows
 - status/change events can be recorded
 - partially extracted unknown fields remain null
 
