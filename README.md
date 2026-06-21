@@ -566,13 +566,14 @@ AgentOps docs and registries live under `docs/agentops/`. The workflow uses the 
 Initial documentation and issue planning are in progress. The Banking MVP now has
 a local SQLite storage foundation for raw snapshots, canonical deals, structured
 terms, status/change history, explicit source policy validation, local
-fixture/manual collector support, and review CLI commands. Offline extraction
-and conservative dedupe into canonical deals are implemented, as is transparent
+fixture/manual collector support, safe source-universe placeholders, config-first
+source onboarding helpers, and review CLI commands. Offline extraction and
+conservative dedupe into canonical deals are implemented, as is transparent
 scoring, local alert digest generation, and an offline fixture smoke flow for
 canonical deals. Local run history and dry-run run orchestration are
 implemented. Product-facing local find/search is implemented for ranked review
 of stored banking deals. Credit-card acquisition offers are now MVP scope, with
 runtime support tracked in the dedicated Track A/B issues rather than
-implemented in this docs-only scope update. Fresh-clone demo readiness is
-implemented and fixture-backed; built-in live collection and external alert
+implemented in the source-universe/onboarding slices. Fresh-clone demo readiness
+is implemented and fixture-backed; broad live collection and external alert
 sending are not implemented.
