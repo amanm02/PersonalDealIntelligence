@@ -772,6 +772,7 @@ def test_public_pilot_dry_run_plans_without_network(tmp_path):
     assert public_pilot["network_fetch_attempted"] is False
     assert public_pilot["enabled_source_count"] == 0
     assert public_pilot["message"] == "No enabled public pilot sources configured."
+    assert public_pilot["planned_sources"][0]["collection_status"] == "disabled"
 
 
 def test_public_pilot_confirm_live_with_no_enabled_sources_is_clean(tmp_path):
@@ -788,6 +789,74 @@ def test_public_pilot_confirm_live_with_no_enabled_sources_is_clean(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert "No enabled public pilot sources configured." in result.stdout
+
+
+def test_public_pilot_confirm_live_bad_url_fails_closed_with_json_metadata(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    config_path = tmp_path / "banking_sources.yaml"
+    config_path.write_text(
+        """sources:
+  - source_id: "public-pilot-bad-url"
+    source_group: "public-pilot"
+    publisher_name: "Public Pilot Bad URL Publisher"
+    name: "Public Pilot Bad URL RSS"
+    url: "feed://user:secret@pilot-public.example.test/rss.xml?token=secret"
+    source_type: "rss_feed"
+    source_class: "third_party"
+    category_scope:
+      - "banking"
+    subcategory_scope:
+      - "checking_bonus"
+    coverage_purpose: "Bad URL public-pilot test source."
+    trust_tier: "community"
+    official_source: false
+    deposit_account_source: true
+    brokerage_source: false
+    credit_card_source: false
+    fixture_enabled: false
+    source_priority: 50
+    region_scope:
+      - "US"
+    enabled: true
+    collection_method: "rss_feed"
+    max_frequency_hours: 48
+    requires_login: false
+    allow_scrape: false
+    allow_api: false
+    allow_rss: true
+    allow_email_parse: false
+    robots_policy_notes: "RSS only; no scraping."
+    terms_policy_notes: "Bad URL test source."
+    rate_limit_notes: "At most once every 48 hours."
+    compliance_status: "approved"
+    last_reviewed_at: "2026-06-21"
+    notes: "CLI fetch failure metadata test source."
+""",
+        encoding="utf-8",
+    )
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "run",
+        "--sources",
+        "public-pilot",
+        "--confirm-live",
+        "--source-config",
+        str(config_path),
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 1
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "failed"
+    public_pilot = payload["metadata"]["public_pilot"]
+    assert public_pilot["network_fetch_attempted"] is True
+    assert "secret" not in str(public_pilot)
+    source = public_pilot["planned_sources"][0]
+    assert source["collection_status"] == "fetch_failed"
+    assert source["fetch_result"]["error_type"] == "bad_url"
 
 
 def _days_from_now(days):

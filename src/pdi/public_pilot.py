@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import urllib.request
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
@@ -14,6 +13,7 @@ from pdi.alerts import generate_banking_digest, write_digest_artifact
 from pdi.collectors import RssCollector, persist_collected_snapshot
 from pdi.dedupe import canonicalize_pending_candidates
 from pdi.extractors import extract_and_persist_snapshot
+from pdi.fetchers import SafeFetchResult, safe_fetch_public_source
 from pdi.scoring import persist_banking_deal_score
 from pdi.smoke import DEFAULT_ALERT_CONFIG, DEFAULT_AS_OF
 from pdi.sources import SourcePolicy, load_source_policies
@@ -26,12 +26,29 @@ from pdi.storage import (
 
 
 DbPath = str | Path
-TextFetcher = Callable[[SourcePolicy], str]
+PublicPilotFetcher = Callable[[SourcePolicy], SafeFetchResult]
 PUBLIC_PILOT_GROUP = "public-pilot"
 NO_ENABLED_PUBLIC_PILOT_MESSAGE = "No enabled public pilot sources configured."
 DEFAULT_PUBLIC_PILOT_CONFIG = Path("config/banking_sources.yaml")
 DEFAULT_PUBLIC_PILOT_DIGEST_OUTPUT = Path("data/digests/public_pilot_digest.md")
 DEFAULT_RETRIEVED_AT = "2026-06-21T12:00:00+00:00"
+
+
+class PublicPilotCollectionError(ValueError):
+    """Raised for fail-closed public-pilot collection errors."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        planned_sources: list[dict[str, Any]],
+        enabled_source_count: int,
+        network_fetch_attempted: bool,
+    ) -> None:
+        self.planned_sources = planned_sources
+        self.enabled_source_count = enabled_source_count
+        self.network_fetch_attempted = network_fetch_attempted
+        super().__init__(message)
 
 
 def list_public_pilot_sources(
@@ -74,7 +91,7 @@ def run_public_pilot_workflow(
     dry_run: bool,
     confirm_live: bool = False,
     fixture_dir: str | Path | None = None,
-    fetcher: TextFetcher | None = None,
+    fetcher: PublicPilotFetcher | None = None,
     digest_output: str | Path = DEFAULT_PUBLIC_PILOT_DIGEST_OUTPUT,
     alert_config_path: str | Path = DEFAULT_ALERT_CONFIG,
     as_of: date = DEFAULT_AS_OF,
@@ -87,7 +104,7 @@ def run_public_pilot_workflow(
         if policy.source_group == PUBLIC_PILOT_GROUP
     ]
     enabled_policies = [policy for policy in policies if policy.enabled]
-    planned_sources = [_source_summary(policy) for policy in policies]
+    planned_sources = [_source_summary(policy, dry_run=dry_run) for policy in policies]
 
     if dry_run:
         return _empty_summary(
@@ -111,12 +128,15 @@ def run_public_pilot_workflow(
     unsupported = [
         policy.source_id
         for policy in enabled_policies
-        if policy.collection_method != "rss_feed"
+        if _blocked_reason(policy) is not None
     ]
     if unsupported:
-        raise ValueError(
-            "Public pilot live collection is limited to RSS sources: "
-            + ", ".join(sorted(unsupported))
+        raise PublicPilotCollectionError(
+            "Public pilot live collection is blocked by source policy: "
+            + ", ".join(sorted(unsupported)),
+            planned_sources=planned_sources,
+            enabled_source_count=len(enabled_policies),
+            network_fetch_attempted=False,
         )
 
     initialize_database(db_path)
@@ -146,7 +166,16 @@ def run_public_pilot_workflow(
         raw_text: str | None = None
         if fixture_path is None:
             network_fetch_attempted = True
-            raw_text = fetcher(policy) if fetcher else _fetch_public_rss(policy)
+            fetch_result = fetcher(policy) if fetcher else _fetch_public_rss(policy)
+            _update_source_fetch_metadata(planned_sources, policy, fetch_result)
+            if not fetch_result.ok or fetch_result.body_text is None:
+                raise PublicPilotCollectionError(
+                    _fetch_failure_message(policy, fetch_result),
+                    planned_sources=planned_sources,
+                    enabled_source_count=len(enabled_policies),
+                    network_fetch_attempted=network_fetch_attempted,
+                )
+            raw_text = fetch_result.body_text
 
         snapshots = collector.collect(
             policy,
@@ -209,8 +238,14 @@ def run_public_pilot_workflow(
     }
 
 
-def _source_summary(policy: SourcePolicy) -> dict[str, Any]:
+def _source_summary(policy: SourcePolicy, *, dry_run: bool = False) -> dict[str, Any]:
     blocked_reason = _blocked_reason(policy)
+    eligibility_status = _eligibility_status(policy)
+    collection_status = (
+        "skipped_due_to_dry_run"
+        if dry_run and blocked_reason is None
+        else eligibility_status
+    )
     return {
         "source_id": policy.source_id,
         "source_group": policy.source_group,
@@ -233,6 +268,9 @@ def _source_summary(policy: SourcePolicy) -> dict[str, Any]:
         "last_reviewed_at": policy.last_reviewed_at.isoformat(),
         "safety_state": "ready" if blocked_reason is None else "blocked",
         "blocked_reason": blocked_reason,
+        "eligibility_status": eligibility_status,
+        "collection_status": collection_status,
+        "fetch_result": None,
     }
 
 
@@ -246,6 +284,43 @@ def _blocked_reason(policy: SourcePolicy) -> str | None:
     if policy.source_group == PUBLIC_PILOT_GROUP and policy.collection_method != "rss_feed":
         return "unsupported_public_pilot_method"
     return None
+
+
+def _eligibility_status(policy: SourcePolicy) -> str:
+    if not policy.enabled:
+        return "disabled"
+    if policy.requires_login:
+        return "requires_login"
+    if policy.compliance_status == "pending_review":
+        return "pending_review"
+    if policy.compliance_status != "approved":
+        return "not_approved"
+    if policy.source_group == PUBLIC_PILOT_GROUP and policy.collection_method != "rss_feed":
+        return "unsupported_method"
+    return "eligible"
+
+
+def _update_source_fetch_metadata(
+    planned_sources: list[dict[str, Any]],
+    policy: SourcePolicy,
+    fetch_result: SafeFetchResult,
+) -> None:
+    for source in planned_sources:
+        if source["source_id"] == policy.source_id:
+            source["collection_status"] = (
+                "fetch_succeeded" if fetch_result.ok else "fetch_failed"
+            )
+            source["fetch_result"] = fetch_result.to_metadata()
+            return
+
+
+def _fetch_failure_message(
+    policy: SourcePolicy,
+    fetch_result: SafeFetchResult,
+) -> str:
+    error_type = fetch_result.error_type or "fetch_failed"
+    error_message = fetch_result.error_message or "public-pilot fetch failed"
+    return f"{policy.source_id}: {error_type}: {error_message}"
 
 
 def _empty_summary(
@@ -299,15 +374,5 @@ def _load_fixture_map(fixture_dir: str | Path | None) -> dict[str, Path]:
     return fixtures
 
 
-def _fetch_public_rss(policy: SourcePolicy) -> str:
-    if not policy.url.startswith(("https://", "http://")):
-        raise ValueError(f"{policy.source_id}: RSS URL must be http or https")
-    if "@" in policy.url.split("://", 1)[1].split("/", 1)[0]:
-        raise ValueError(f"{policy.source_id}: RSS URL cannot include credentials")
-    request = urllib.request.Request(
-        policy.url,
-        headers={"User-Agent": "PersonalDealIntelligence-public-pilot/1.0"},
-    )
-    with urllib.request.urlopen(request, timeout=10) as response:  # nosec B310
-        charset = response.headers.get_content_charset() or "utf-8"
-        return response.read().decode(charset, errors="replace")
+def _fetch_public_rss(policy: SourcePolicy) -> SafeFetchResult:
+    return safe_fetch_public_source(policy)

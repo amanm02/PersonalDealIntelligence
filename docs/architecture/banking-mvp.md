@@ -133,6 +133,9 @@ is RSS-only and requires explicit `--confirm-live`; dry-run planning does not
 fetch network content. Public-pilot policy validation rejects missing metadata,
 unsafe or unknown fields, login-required live sources, unsupported methods,
 unsafe allow flags, and invalid frequency metadata.
+The live public-pilot fetch shell is bounded to HTTP/HTTPS public feed or
+text-compatible content with URL credential rejection, timeout, max-size,
+content-type, and sanitized error metadata checks.
 
 Unsafe behavior is disabled by default. Validation rejects unknown fields,
 unsafe source-access flags, logged-in scraping, unapproved enabled sources,

@@ -221,7 +221,8 @@ future issue explicitly approves live collection.
 
 The `public-pilot` source group is an opt-in skeleton for reviewed public
 sources. The checked-in public-pilot RSS placeholder is disabled by default.
-Dry-run planning never fetches network content:
+Dry-run planning never fetches network content and reports source-level
+eligibility or skip metadata:
 
 ```bash
 python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking run --dry-run --sources public-pilot
@@ -235,10 +236,14 @@ python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking run --sources public-pi
 ```
 
 If no public-pilot source is enabled, the command exits cleanly with `No enabled
-public pilot sources configured.` Public-pilot collection does not support
-credentials, private sessions, browser automation, external notifications,
-applications, enrollment, money movement, or any other banking action. Final
-offer terms must be manually verified on the official institution page.
+public pilot sources configured.` When explicitly confirmed, the public-pilot
+fetch shell allows only HTTP/HTTPS public RSS, Atom, XML, or text-compatible
+responses, rejects URL credentials, enforces a timeout and max response size,
+and surfaces sanitized source-level fetch metadata. Public-pilot collection does
+not support credentials, private sessions, browser automation, external
+notifications, applications, enrollment, money movement, or any other banking
+action. Tests stay offline by default and use fixtures or injected fetchers.
+Final offer terms must be manually verified on the official institution page.
 
 `config/banking_sources.demo.yaml` and `examples/demo_banking/` provide a
 fictional, reusable, local-only demo source seed pack. It includes official-page
