@@ -174,3 +174,50 @@ Use deterministic tests.
 
 Validation must prove config changes affect scores predictably.
 ```
+
+## Prompt: concurrency planning
+
+```text
+Plan safe parallel work for GitHub issue #<ISSUE_NUMBER>.
+
+Read AGENTS.md, docs/issue-map.md, docs/agentops/concurrency.md, docs/agentops/issue-hygiene.md, and docs/agentops/current-work-batches.md.
+Verify current GitHub issue and PR state before trusting old issue text.
+
+Return dependencies, owned files, blocked files, safe concurrent issues, unsafe overlaps, validation gates, and merge order.
+Do not edit files.
+```
+
+## Prompt: issue rewrite
+
+```text
+Rewrite GitHub issue #<ISSUE_NUMBER> for safe Codex implementation.
+
+Read docs/agentops/issue-hygiene.md and docs/agentops/concurrency.md.
+Keep the issue scoped to one PR.
+Add dependencies, owned files, blocked files, validation commands, stop conditions, concurrency label guidance, and PR body requirements.
+Do not add product behavior beyond the original issue intent.
+```
+
+## Prompt: issue verification
+
+```text
+Verify GitHub issue #<ISSUE_NUMBER> before implementation.
+
+Read AGENTS.md, docs/issue-map.md, docs/verification.md, docs/agentops/issue-hygiene.md, and the issue body.
+Check dependency state, duplicate open PRs, owned/blocked file clarity, validation commands, safety boundaries, and stale roadmap references.
+
+Return pass/fail with exact blockers and recommended rewrite or close action.
+Do not edit files.
+```
+
+## Prompt: batch verification
+
+```text
+Verify the current work batch.
+
+Read docs/agentops/concurrency.md, docs/agentops/current-work-batches.md, docs/issue-map.md, and open GitHub PR/issue state.
+Confirm each batch item has dependencies, owned files, blocked files, validation gates, concurrency safety, and merge order.
+
+Return the safe schedule, exclusive work, stale entries, and required validation.
+Do not edit files.
+```

@@ -2,9 +2,26 @@
 
 -
 
+## Linked issue
+
+- Closes #
+
+## Dependency status
+
+-
+
 ## Files changed
 
 -
+
+## Owned files
+
+-
+
+## Blocked files touched?
+
+- [ ] No
+- [ ] Yes; explain:
 
 ## Docs update
 
@@ -27,6 +44,18 @@
 - [ ] `make mcp-smoke`
 - [ ] `make test`
 - [ ] Other repo-specific checks from `docs/verification.md` if applicable.
+
+## Validation commands and results
+
+-
+
+## Concurrency risk notes
+
+-
+
+## Safety / non-goals
+
+-
 
 ## Risks / follow-ups
 
