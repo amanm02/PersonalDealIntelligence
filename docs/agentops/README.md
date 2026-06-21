@@ -37,6 +37,10 @@ Run work
 - `agent-legibility-scorecard.md`
 - `harness-scorecard.md`
 - `folder-structure-map.md`
+- `concurrency.md`
+- `issue-hygiene.md`
+- `current-work-batches.md`
+- `stale-knowledge-log.md`
 - `hook-registry.md`
 - `mcp-registry.md`
 - `tool-registry.md`
@@ -44,3 +48,4 @@ Run work
 - `ralph-loop-protocol.md`
 - `improvement-backlog.md`
 - `github-actions-runners.md`
+- `github-codex-runbook.md`

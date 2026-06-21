@@ -74,6 +74,41 @@ remain separate and use the organization-level self-hosted runner from the
 
 The organization runner must be made available to `amanm02/PersonalDealIntelligence` through organization runner access settings and must have all three labels. See `docs/agentops/github-actions-runners.md`.
 
+If `gh workflow list --all` reports `AgentOps` as `disabled_manually`, do not
+claim AgentOps CI coverage from the PR check rollup. Re-enable the workflow only
+after `main` contains the current runner-safe AgentOps workflow.
+
+AgentOps currently uses the self-hosted runner's existing `python3` rather than
+`actions/setup-python`. Failed runs on June 20, 2026 showed `setup-python`
+failing while creating `/Users/runner` on the self-hosted macOS runner. Treat
+that symptom as runner/toolcache setup, not Product CI failure.
+
+## AgentOps tooling validation
+
+Validate AgentOps workflow hygiene locally with:
+
+```bash
+make workflow-hygiene
+make agentops-test
+python3 -m pytest tests/agentops -q
+python3 -m tools.agentops.check_work_state || true
+python3 -m tools.agentops.check_work_state --advisory
+python3 -m tools.agentops.check_work_state --expected-issue <ISSUE_NUMBER> || true
+python3 -m tools.agentops.summarize_ci_failure --help
+python3 -m tools.agentops.recommend_next_issue
+```
+
+Use `python3 -m tools.agentops.check_issue_map_freshness --fixture <path>` for
+offline issue-status comparisons, or `--github` only when live GitHub access is
+explicitly intended.
+
+Use `python3 -m tools.agentops.check_pr_body --body-file <path>` before PR
+creation, or `--github-pr <number>` for an existing PR when GitHub access is
+explicitly intended.
+
+Use `docs/agentops/github-codex-runbook.md` when GitHub CLI, network approval,
+PR publishing, or Codex thread inspection behavior is ambiguous.
+
 ## Product CI validation
 
 The product CI workflow mirrors these local commands:

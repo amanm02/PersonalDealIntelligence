@@ -4,9 +4,15 @@ test:
 	python3 -m pytest
 
 workflow-hygiene:
-	python3 tools/agentops/check_pr_template.py
-	python3 tools/agentops/check_issue_map_freshness.py
-	python3 tools/agentops/check_context_budget.py
+	python3 -m tools.agentops.check_pr_template
+	python3 -m tools.agentops.check_prompt_library
+	python3 -m tools.agentops.check_issue_hygiene
+	python3 -m tools.agentops.check_issue_map_freshness
+	python3 -m tools.agentops.check_work_state --advisory
+	python3 -m tools.agentops.worktree_report
+	python3 -m tools.agentops.check_generated_artifacts
+	python3 -m tools.agentops.recommend_next_issue
+	python3 -m tools.agentops.check_context_budget
 
 agentops-pr: workflow-hygiene
 	python3 -m tools.agentops.audit_docs
@@ -31,4 +37,5 @@ hooks-smoke:
 mcp-smoke:
 	python3 -m tools.agentops.audit_mcp --smoke
 
-agentops-test: agentops-pr hooks-smoke mcp-smoke test
+agentops-test: agentops-pr hooks-smoke mcp-smoke
+	python3 -m pytest tests/agentops -q
