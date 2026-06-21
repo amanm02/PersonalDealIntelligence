@@ -69,6 +69,30 @@ def test_qa_benchmark_table_output_reports_core_checks(tmp_path):
     assert "pending_runtime" in result.stdout
 
 
+def test_qa_benchmark_can_be_repeated_against_same_database(tmp_path):
+    db_path = tmp_path / "pdi-demo-qa.sqlite"
+    table_result = run_cli(
+        db_path,
+        "banking",
+        "qa-benchmark",
+    )
+    json_result = run_cli(
+        db_path,
+        "banking",
+        "qa-benchmark",
+        "--json",
+    )
+
+    assert table_result.returncode == 0, table_result.stderr
+    assert json_result.returncode == 0, json_result.stderr
+    payload = json.loads(json_result.stdout)
+    assert payload["verification_status"] == "pass"
+    assert payload["summary"]["raw_snapshots"] == 11
+    assert payload["summary"]["canonical_deals"] == 8
+    assert payload["summary"]["duplicate_merges"] == 2
+    assert payload["summary"]["conflicts"] == 1
+
+
 def test_qa_benchmark_deposit_category_runs_runnable_fixture_scope(tmp_path):
     result = run_cli(
         tmp_path / "pdi-demo-qa.sqlite",
