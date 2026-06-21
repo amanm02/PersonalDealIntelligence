@@ -62,7 +62,7 @@ The expanded MVP uses two coordinated tracks:
 | 15 | #17 | Add opt-in compliant public source pilot | #3, #4, #10, #12, #16 | closed; PR #58 verified |
 | 16 | #18 | Sync issue map and roadmap after demo expansion | #1, after #14-#17 exist | closed |
 | 17 | #27 | Expand MVP scope to include credit card offers | #1 | closed |
-| 18 | #28 | Build comprehensive banking and credit card source universe with onboarding workflow | #3, #27 | open |
+| 18 | #28 | Build comprehensive banking and credit card source universe with onboarding workflow | #3, #27 | closed; #28A PR #60 and #28B PR #65 verified |
 | 19 | #29 | Add compliant live fetcher hardening, retry rules, rate limits, and source health tracking | #3, #4, #28 | open |
 | 20 | #30 | Add evidence capture with raw snapshots, content hashes, and source-term links | #2, #4, #5, #29 if live metadata is reused | open |
 | 21 | #31 | Add freshness scheduling, stale-source detection, and recrawl priority rules | #3, #12, #28, #29 | open |
@@ -83,10 +83,10 @@ The expanded MVP uses two coordinated tracks:
 
 Current GitHub state should be verified before editing because batch examples in issue bodies can become stale.
 
-- Completed prerequisites: #27 / PR #51, product CI / PR #50, #15 / PR #53, #52 / PR #55, PR #54 demo readiness, PR #56 AgentOps workflow hygiene, and #17 / PR #58 opt-in public source pilot are merged.
+- Completed prerequisites: #27 / PR #51, product CI / PR #50, #15 / PR #53, #52 / PR #55, PR #54 demo readiness, PR #56 AgentOps workflow hygiene, #17 / PR #58 opt-in public source pilot, #28A / PR #60 source-universe metadata, and #28B / PR #65 source onboarding are merged.
 - Current exclusive work: none known from the latest open-PR preflight.
-- Next sequential work: rewrite or split #28, #30, and #34 before implementation; only a narrowed #28A source-universe/config expansion should proceed after ownership and validation are explicit.
-- Future work #28-#43 should be split or rewritten before implementation when it overlaps source policy, schema, taxonomy, evidence, scoring, CLI, workflow, or shared docs.
+- Next sequential work: narrow or split #29 before implementation, and continue rewriting broad #30 and #34 before coding.
+- Future work #29-#43 should be split or rewritten before implementation when it overlaps source policy, schema, taxonomy, evidence, scoring, CLI, workflow, or shared docs.
 - Use `docs/agentops/concurrency.md`, `docs/agentops/issue-hygiene.md`, and `docs/agentops/current-work-batches.md` before launching parallel agents.
 
 ## Dependency notes
@@ -108,9 +108,9 @@ Current GitHub state should be verified before editing because batch examples in
 - #17 is a separate opt-in public source pilot after offline demo readiness; it must stay disabled by default and source-policy controlled.
 - #18 keeps this roadmap aligned with the current GitHub issue sequence.
 - #27 is documentation-only scope alignment. It does not add runtime credit-card collection, extraction, scoring, or review behavior.
-- #28-#34 form Track A and Track A+B work for source coverage, compliant fetch hardening, evidence capture, freshness, official verification, managed source expansion, and QA.
+- #28A/#28B delivered the initial source-universe metadata and config-first onboarding workflow. #29-#34 continue Track A and Track A+B work for compliant fetch hardening, evidence capture, freshness, official verification, managed source expansion, and QA.
 - #35-#43 form Track B work for persistence, taxonomy, rules, historical classification, rate handling, first-class credit-card offer support, conflict/audit handling, query/service access, and export/import.
-- Credit-card support should be implemented through the dedicated Track A/B issues, especially #28, #36, #37, and #40, not crammed into existing deposit-only components without tests and docs.
+- Credit-card source scope is covered by #28A/#28B; remaining credit-card support should be implemented through the dedicated Track B issues, especially #36, #37, and #40, not crammed into existing deposit-only components without tests and docs.
 
 ## Implementation principles
 
