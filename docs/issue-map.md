@@ -20,6 +20,7 @@ Included:
 - local digest
 - local run history and dry-run orchestration
 - offline demo readiness
+- opt-in public-pilot source planning and guarded RSS collection
 
 Deferred:
 
@@ -58,7 +59,7 @@ The expanded MVP uses two coordinated tracks:
 | 12 | #14 | Add realistic demo fixture corpus and source seed pack | #2, #3, #4, #5 | closed |
 | 13 | #15 | Add product-facing banking deal find command | #2, #6, #7, #8, #14 | closed |
 | 14 | #16 | Add fresh-clone demo readiness gate | #2-#12, #14, #15 | closed; PR #54 verified |
-| 15 | #17 | Add opt-in compliant public source pilot | #3, #4, #10, #12, #16 | open; unblocked after #16 closure |
+| 15 | #17 | Add opt-in compliant public source pilot | #3, #4, #10, #12, #16 | open |
 | 16 | #18 | Sync issue map and roadmap after demo expansion | #1, after #14-#17 exist | closed |
 | 17 | #27 | Expand MVP scope to include credit card offers | #1 | closed |
 | 18 | #28 | Build comprehensive banking and credit card source universe with onboarding workflow | #3, #27 | open |

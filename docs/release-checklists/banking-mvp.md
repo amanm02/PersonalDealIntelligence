@@ -148,6 +148,8 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 - [ ] Highly sensitive personal identifiers stay out of project storage.
 - [ ] Financial actions, applications, enrollment, and money movement stay under direct user control.
 - [ ] Source collection follows explicit source policies.
+- [ ] Public-pilot live collection is opt-in, disabled by default, and requires an enabled policy-valid local source plus explicit confirmation.
+- [ ] Public-pilot dry-run and tests remain offline and deterministic.
 - [ ] Private-session data is not collected by automated source flows.
 - [ ] Source access workarounds are not part of the implementation.
 - [ ] Card applications, application form submission, full card number storage, sensitive personal financial information storage, personalized financial advice, and anti-bot/paywall/CAPTCHA/access-control bypass are not part of the implementation.
@@ -163,6 +165,8 @@ Current Banking MVP readiness commands:
 python3 -m pdi.sources validate --config config/banking_sources.yaml
 python3 -m pdi.scoring validate --config config/banking_scoring.yaml
 python3 -m pdi.alerts validate --config config/banking_alerts.yaml
+python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking sources validate
+python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking run --dry-run --sources public-pilot
 python3 -m pytest tests/sources
 python3 -m pytest tests/extractors
 python3 -m pytest tests/dedupe

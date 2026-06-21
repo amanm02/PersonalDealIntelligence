@@ -163,6 +163,8 @@ Validate banking source policies:
 
 ```bash
 python3 -m pdi.sources validate --config config/banking_sources.yaml
+python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking sources list
+python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking sources validate
 ```
 
 Validate the reusable offline demo source pack:
@@ -173,10 +175,31 @@ python3 -m pdi.sources validate --config config/banking_sources.demo.yaml
 
 `config/banking_sources.yaml` is the source-policy authority for future
 collectors. Add new sources there only after documenting the collection method,
-banking category/subcategory scope, rate limits, terms/robots notes, compliance
-status, and review date. Leave sources disabled unless they are explicitly
-approved, and never add credentials, private tokens, personal mailbox labels, or
-private-session collection details.
+banking category/subcategory scope, source id/group, rate limits, terms/robots
+notes, compliance status, and review date. Leave sources disabled unless they
+are explicitly approved, and never add credentials, private tokens, personal
+mailbox labels, or private-session collection details.
+
+The `public-pilot` source group is an opt-in skeleton for reviewed public
+sources. The checked-in public-pilot RSS placeholder is disabled by default.
+Dry-run planning never fetches network content:
+
+```bash
+python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking run --dry-run --sources public-pilot
+```
+
+Live public-pilot execution is RSS-only for now and requires both an explicitly
+enabled, policy-valid local source config and explicit user intent:
+
+```bash
+python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking run --sources public-pilot --confirm-live
+```
+
+If no public-pilot source is enabled, the command exits cleanly with `No enabled
+public pilot sources configured.` Public-pilot collection does not support
+credentials, private sessions, browser automation, external notifications,
+applications, enrollment, money movement, or any other banking action. Final
+offer terms must be manually verified on the official institution page.
 
 `config/banking_sources.demo.yaml` and `examples/demo_banking/` provide a
 fictional, reusable, local-only demo source seed pack. It includes official-page
@@ -345,7 +368,18 @@ For source policy changes, run:
 
 ```bash
 python3 -m pdi.sources validate --config config/banking_sources.yaml
+python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking sources validate
 python3 -m pytest tests/sources
+python3 -m pytest
+```
+
+For public-pilot source changes, run:
+
+```bash
+python3 -m pdi.sources validate --config config/banking_sources.yaml
+python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking sources list
+python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking run --dry-run --sources public-pilot
+python3 -m pytest tests/sources tests/collectors tests/cli tests/integration
 python3 -m pytest
 ```
 

@@ -188,6 +188,8 @@ Validate the source registry with:
 
 ```bash
 python3 -m pdi.sources validate --config config/banking_sources.yaml
+python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking sources validate
+python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking sources list
 ```
 
 Validate the reusable offline demo source seed pack with:
@@ -196,6 +198,17 @@ Validate the reusable offline demo source seed pack with:
 python3 -m pdi.sources validate --config config/banking_sources.demo.yaml
 python3 -m pytest tests/collectors/test_demo_corpus.py tests/integration/test_demo_corpus_flow.py
 ```
+
+Validate the opt-in public-pilot path with:
+
+```bash
+python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking run --dry-run --sources public-pilot
+python3 -m pytest tests/sources tests/collectors tests/cli tests/integration
+```
+
+Public-pilot tests are offline and deterministic. Checked-in public-pilot
+sources are disabled by default; live RSS collection requires an enabled,
+policy-valid local source config and `--confirm-live`.
 
 ## Scoring config validation
 

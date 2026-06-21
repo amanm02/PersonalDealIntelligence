@@ -16,6 +16,8 @@ DEMO_CONFIG_PATH = REPO_ROOT / "config" / "banking_sources.demo.yaml"
 
 def base_source(**overrides):
     source = {
+        "source_id": "test-rss-source",
+        "source_group": "core",
         "name": "Test RSS Source",
         "url": "https://example.test/rss.xml",
         "source_type": "rss_feed",
@@ -47,13 +49,19 @@ def config_for(source):
 def test_repository_source_config_validates():
     policies = load_source_policies(CONFIG_PATH)
 
-    assert len(policies) == 4
+    assert len(policies) == 5
     assert {policy.source_type for policy in policies} == {
         "manual_url",
         "rss_feed",
         "newsletter_email",
         "disabled",
     }
+    public_pilot = [
+        policy for policy in policies if policy.source_group == "public-pilot"
+    ]
+    assert len(public_pilot) == 1
+    assert public_pilot[0].enabled is False
+    assert public_pilot[0].allow_rss is True
 
 
 def test_demo_source_config_validates():
@@ -69,6 +77,7 @@ def test_demo_source_config_validates():
     }
     assert all(policy.requires_login is False for policy in policies)
     assert all(policy.allow_scrape is False for policy in policies)
+    assert all(policy.source_group == "demo" for policy in policies)
 
 
 def test_unsafe_demo_source_variant_fails_validation():
@@ -101,12 +110,31 @@ def test_valid_source_config_returns_typed_policy():
 
 def test_missing_required_field_fails_validation():
     source = base_source()
+    del source["source_id"]
+
+    with pytest.raises(SourcePolicyError) as error:
+        validate_source_config(config_for(source))
+
+    assert "missing required field: source_id" in str(error.value)
+
+
+def test_missing_collection_method_fails_validation():
+    source = base_source()
     del source["collection_method"]
 
     with pytest.raises(SourcePolicyError) as error:
         validate_source_config(config_for(source))
 
     assert "missing required field: collection_method" in str(error.value)
+
+
+def test_invalid_source_group_fails_validation():
+    source = base_source(source_group="managed-source-universe")
+
+    with pytest.raises(SourcePolicyError) as error:
+        validate_source_config(config_for(source))
+
+    assert "unsupported source_group: managed-source-universe" in str(error.value)
 
 
 def test_unknown_field_fails_validation():
@@ -150,6 +178,32 @@ def test_logged_in_scraping_fails_closed():
         validate_source_config(config_for(source))
 
     assert "logged-in source scraping is not allowed" in str(error.value)
+
+
+def test_public_pilot_requires_login_fails_closed():
+    source = base_source(
+        source_group="public-pilot",
+        requires_login=True,
+    )
+
+    with pytest.raises(SourcePolicyError) as error:
+        validate_source_config(config_for(source))
+
+    assert "public-pilot sources cannot require login" in str(error.value)
+
+
+def test_public_pilot_enabled_non_rss_method_fails_validation():
+    source = base_source(
+        source_group="public-pilot",
+        source_type="manual_url",
+        collection_method="manual_only",
+        allow_rss=False,
+    )
+
+    with pytest.raises(SourcePolicyError) as error:
+        validate_source_config(config_for(source))
+
+    assert "public-pilot live collection is limited to rss_feed" in str(error.value)
 
 
 def test_high_frequency_scraping_fails_validation():

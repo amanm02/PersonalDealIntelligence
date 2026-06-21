@@ -233,6 +233,8 @@ def run_offline_banking_smoke(
 
 def _source_policy(fixture: SmokeFixture) -> SourcePolicy:
     return SourcePolicy(
+        source_id=f"offline-smoke-{fixture.fixture_id}",
+        source_group="demo",
         name=fixture.source_name,
         url=fixture.source_url,
         source_type=fixture.source_type,

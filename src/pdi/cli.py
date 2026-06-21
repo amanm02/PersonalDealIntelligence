@@ -16,6 +16,11 @@ from pdi.alerts import (
     load_alert_config,
     write_digest_artifact,
 )
+from pdi.public_pilot import (
+    NO_ENABLED_PUBLIC_PILOT_MESSAGE,
+    list_public_pilot_sources,
+    validate_public_pilot_sources,
+)
 from pdi.runs import run_banking_workflow_once
 from pdi.scoring import BankingScore, score_banking_deal
 from pdi.smoke import run_offline_banking_smoke
@@ -190,6 +195,43 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     digest_parser.set_defaults(handler=_handle_digest)
 
+    sources_parser = banking_subparsers.add_parser(
+        "sources",
+        help="Inspect and validate banking source policy entries.",
+    )
+    sources_subparsers = sources_parser.add_subparsers(
+        dest="sources_command",
+        required=True,
+    )
+    sources_list_parser = sources_subparsers.add_parser(
+        "list",
+        help="List configured banking source policy entries.",
+    )
+    sources_list_parser.add_argument(
+        "--config",
+        default="config/banking_sources.yaml",
+        help="Path to source policy YAML.",
+    )
+    sources_list_parser.add_argument(
+        "--group",
+        choices=("core", "demo", "public-pilot"),
+        help="Limit output to one source group.",
+    )
+    _add_output_format(sources_list_parser)
+    sources_list_parser.set_defaults(handler=_handle_sources_list)
+
+    sources_validate_parser = sources_subparsers.add_parser(
+        "validate",
+        help="Validate configured banking source policy entries.",
+    )
+    sources_validate_parser.add_argument(
+        "--config",
+        default="config/banking_sources.yaml",
+        help="Path to source policy YAML.",
+    )
+    _add_output_format(sources_validate_parser)
+    sources_validate_parser.set_defaults(handler=_handle_sources_validate)
+
     run_parser = banking_subparsers.add_parser(
         "run",
         help="Run the local Banking MVP workflow once.",
@@ -199,7 +241,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         dest="dry_run",
         action="store_true",
-        default=True,
+        default=None,
         help="Preview the workflow without durable deal or digest changes.",
     )
     run_mode.add_argument(
@@ -207,6 +249,22 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="dry_run",
         action="store_false",
         help="Persist workflow changes and write the digest artifact.",
+    )
+    run_parser.add_argument(
+        "--sources",
+        choices=("demo", "public-pilot"),
+        default="demo",
+        help="Source group to run.",
+    )
+    run_parser.add_argument(
+        "--source-config",
+        default="config/banking_sources.yaml",
+        help="Path to source policy YAML for source-group runs.",
+    )
+    run_parser.add_argument(
+        "--confirm-live",
+        action="store_true",
+        help="Explicitly allow guarded live public-pilot collection.",
     )
     run_parser.add_argument(
         "--fixture-dir",
@@ -476,10 +534,57 @@ def _handle_digest(args: argparse.Namespace) -> int:
     return 0
 
 
+def _handle_sources_list(args: argparse.Namespace) -> int:
+    sources = list_public_pilot_sources(args.config, source_group=args.group)
+    if args.format == "json":
+        _print_json(sources)
+    else:
+        columns = [
+            "source_id",
+            "source_group",
+            "source_type",
+            "collection_method",
+            "enabled",
+            "compliance_status",
+            "last_reviewed_at",
+            "safety_state",
+            "blocked_reason",
+        ]
+        _print_table(
+            [
+                {column: source.get(column) for column in columns}
+                for source in sources
+            ],
+            empty_message="No banking sources configured.",
+        )
+    return 0
+
+
+def _handle_sources_validate(args: argparse.Namespace) -> int:
+    result = validate_public_pilot_sources(args.config)
+    if args.format == "json":
+        _print_json(result)
+    else:
+        print(
+            f"Validated {result['source_count']} source policies from "
+            f"{result['config_path']}."
+        )
+        print(
+            "Public-pilot sources: "
+            f"{result['public_pilot_source_count']} configured, "
+            f"{result['enabled_public_pilot_source_count']} enabled."
+        )
+    return 0
+
+
 def _handle_run(args: argparse.Namespace) -> int:
+    dry_run = _resolve_run_mode(args)
     run = run_banking_workflow_once(
         args.db,
-        dry_run=args.dry_run,
+        dry_run=dry_run,
+        sources=args.sources,
+        source_config_path=args.source_config,
+        confirm_live=args.confirm_live,
         fixture_dir=args.fixture_dir,
         digest_output=args.digest_output,
         alert_config_path=args.alert_config,
@@ -495,7 +600,40 @@ def _handle_run(args: argparse.Namespace) -> int:
             f"({'dry-run' if payload['dry_run'] else 'execute'})."
         )
         _print_run_detail(payload)
+        message = _run_metadata_message(payload)
+        if message:
+            print(message)
     return 0 if payload["status"] == "succeeded" else 1
+
+
+def _resolve_run_mode(args: argparse.Namespace) -> bool:
+    if args.sources == "demo":
+        if args.confirm_live:
+            raise ValueError("--confirm-live is only supported with --sources public-pilot")
+        return True if args.dry_run is None else bool(args.dry_run)
+
+    if args.sources != "public-pilot":
+        raise ValueError(f"Unsupported source group: {args.sources}")
+    if args.confirm_live and args.dry_run is True:
+        raise ValueError("--dry-run and --confirm-live cannot be used together")
+    if args.confirm_live:
+        return False
+    if args.dry_run is True:
+        return True
+    raise ValueError("Public pilot live collection requires --confirm-live or use --dry-run.")
+
+
+def _run_metadata_message(payload: Mapping[str, Any]) -> str | None:
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, Mapping):
+        return None
+    public_pilot = metadata.get("public_pilot")
+    if not isinstance(public_pilot, Mapping):
+        return None
+    message = public_pilot.get("message")
+    if message == NO_ENABLED_PUBLIC_PILOT_MESSAGE:
+        return NO_ENABLED_PUBLIC_PILOT_MESSAGE
+    return str(message) if message else None
 
 
 def _handle_runs(args: argparse.Namespace) -> int:

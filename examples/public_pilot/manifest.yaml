@@ -1,0 +1,3 @@
+sources:
+  - source_id: "public-pilot-fixture-rss"
+    fixture_path: "banking_promos.xml"

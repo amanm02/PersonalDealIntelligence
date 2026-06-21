@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -12,6 +13,8 @@ import yaml
 
 
 REQUIRED_FIELDS = {
+    "source_id",
+    "source_group",
     "name",
     "url",
     "source_type",
@@ -53,6 +56,12 @@ ALLOWED_COLLECTION_METHODS = {
     "disabled",
 }
 
+ALLOWED_SOURCE_GROUPS = {
+    "core",
+    "demo",
+    "public-pilot",
+}
+
 ALLOWED_COMPLIANCE_STATUSES = {
     "approved",
     "pending_review",
@@ -86,12 +95,15 @@ FORBIDDEN_FIELD_FRAGMENTS = {
 }
 
 LOW_FREQUENCY_HOURS = 24
+SOURCE_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
 
 @dataclass(frozen=True)
 class SourcePolicy:
     """Validated source policy record."""
 
+    source_id: str
+    source_group: str
     name: str
     url: str
     source_type: str
@@ -211,6 +223,8 @@ def _validate_source_mapping(source: Mapping[str, Any], label: str) -> list[str]
     if missing_fields or unknown_fields:
         return errors
 
+    errors.extend(_validate_text(source, label, "source_id"))
+    errors.extend(_validate_text(source, label, "source_group"))
     errors.extend(_validate_text(source, label, "name"))
     errors.extend(_validate_text(source, label, "url"))
     errors.extend(_validate_text(source, label, "robots_policy_notes"))
@@ -225,6 +239,16 @@ def _validate_source_mapping(source: Mapping[str, Any], label: str) -> list[str]
     collection_method = source["collection_method"]
     if collection_method not in ALLOWED_COLLECTION_METHODS:
         errors.append(f"{label}: unsupported collection_method: {collection_method}")
+
+    source_group = source["source_group"]
+    if source_group not in ALLOWED_SOURCE_GROUPS:
+        errors.append(f"{label}: unsupported source_group: {source_group}")
+
+    source_id = source["source_id"]
+    if isinstance(source_id, str) and not SOURCE_ID_PATTERN.fullmatch(source_id):
+        errors.append(
+            f"{label}: source_id must use lowercase letters, numbers, and hyphens"
+        )
 
     compliance_status = source["compliance_status"]
     if compliance_status not in ALLOWED_COMPLIANCE_STATUSES:
@@ -285,6 +309,19 @@ def _validate_compliance_rules(source: Mapping[str, Any], label: str) -> list[st
 
     if source["requires_login"] and source["allow_scrape"]:
         errors.append(f"{label}: logged-in source scraping is not allowed")
+
+    if source["source_group"] == "public-pilot":
+        if source["requires_login"]:
+            errors.append(
+                f"{label}: public-pilot sources cannot require login unless a "
+                "future local export method is explicitly approved"
+            )
+        if enabled and method != "rss_feed":
+            errors.append(
+                f"{label}: public-pilot live collection is limited to rss_feed"
+            )
+        if enabled and source["allow_scrape"]:
+            errors.append(f"{label}: public-pilot sources cannot enable scraping")
 
     if method == "scrape":
         if not source["allow_scrape"]:
@@ -366,6 +403,8 @@ def _validate_scope_list(
 
 def _to_policy(source: Mapping[str, Any]) -> SourcePolicy:
     return SourcePolicy(
+        source_id=source["source_id"],
+        source_group=source["source_group"],
         name=source["name"],
         url=source["url"],
         source_type=source["source_type"],
@@ -389,6 +428,8 @@ def _to_policy(source: Mapping[str, Any]) -> SourcePolicy:
 
 
 def _source_label(index: int, source: Any) -> str:
+    if isinstance(source, Mapping) and isinstance(source.get("source_id"), str):
+        return f"sources[{index}] {source['source_id']!r}"
     if isinstance(source, Mapping) and isinstance(source.get("name"), str):
         return f"sources[{index}] {source['name']!r}"
     return f"sources[{index}]"

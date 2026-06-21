@@ -18,6 +18,8 @@ from pdi.storage import initialize_database
 
 def policy(**overrides):
     values = {
+        "source_id": "test-manual-source",
+        "source_group": "demo",
         "name": "Test Manual Source",
         "url": "manual://test-source",
         "source_type": "manual_url",

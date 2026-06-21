@@ -86,6 +86,8 @@ clearly marked targeted offers from allowed non-private sources.
 
 Each source should define:
 
+- `source_id`
+- `source_group`
 - `name`
 - `url`
 - `source_type`
@@ -104,6 +106,15 @@ Each source should define:
 - `rate_limit_notes`
 - `compliance_status`
 - `last_reviewed_at`
+- `notes`
+
+Allowed source groups are `core`, `demo`, and `public-pilot`. The
+`public-pilot` group is disabled by default in checked-in config and is limited
+to reviewed public source shapes. For Issue #17, guarded live collection is
+RSS-only and requires explicit `--confirm-live`; dry-run planning does not fetch
+network content. Public-pilot policy validation rejects missing group/id
+metadata, unsafe or unknown fields, login-required live sources, unsupported
+methods, unsafe allow flags, and invalid frequency metadata.
 - `notes`
 
 Unsafe behavior is disabled by default. Validation rejects unknown fields,
@@ -361,6 +372,27 @@ The demo corpus is loaded through existing offline collectors and source policy
 validation, and the fresh-clone demo gate uses it through local CLI commands. It
 does not add live fetching, browser automation, email account access,
 credentials, notifications, or banking actions.
+
+### 8c. Opt-in public-pilot sources
+
+Purpose: prove the public-source collection shape without enabling broad live
+collection or managed source coverage.
+
+Issue #17 adds a `public-pilot` source group and one disabled RSS placeholder in
+`config/banking_sources.yaml`. `python3 -m pdi banking sources list` shows
+source id, group, method, enabled status, review metadata, and safety state.
+`python3 -m pdi banking sources validate` validates policy metadata. `python3
+-m pdi banking run --dry-run --sources public-pilot` plans collection without
+network access. `python3 -m pdi banking run --sources public-pilot
+--confirm-live` is the only live path and proceeds only when an enabled,
+approved, policy-valid RSS source is present in local config.
+
+The default public-pilot config has no enabled live sources. If none are
+enabled, the run exits successfully with `No enabled public pilot sources
+configured.` Public-pilot collection does not support credentials, private
+sessions, browser automation, external notifications, applications, enrollment,
+money movement, or non-MVP product categories. Final offer terms still require
+manual verification on the official institution page.
 
 ### 9. Run history
 

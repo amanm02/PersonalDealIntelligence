@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<rss version="2.0">
+  <channel>
+    <title>Fictional Public Pilot Banking Promos</title>
+    <item>
+      <title>Pilot Public Bank $450 checking bonus</title>
+      <link>https://pilot-public.example.test/promos/checking-450</link>
+      <description>Pilot Public Bank offers a $450 checking bonus for new customers. Open a qualifying checking account by December 31, 2026. Receive qualifying direct deposits totaling $2,000 within 90 days. Monthly service fee is $10, waived with qualifying direct deposit. Available only to residents of CA, OR, WA. Final terms must be verified on the official institution page.</description>
+      <pubDate>Sun, 21 Jun 2026 12:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

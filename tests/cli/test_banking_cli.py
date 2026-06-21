@@ -571,6 +571,103 @@ def test_run_records_blocked_status_without_taking_over_existing_lock(tmp_path):
     assert lock[0] == locked_run_id
 
 
+def test_sources_list_and_validate_show_public_pilot_metadata(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+
+    list_result = run_cli(
+        db_path,
+        "banking",
+        "sources",
+        "list",
+        "--group",
+        "public-pilot",
+        "--format",
+        "json",
+    )
+
+    assert list_result.returncode == 0, list_result.stderr
+    sources = json.loads(list_result.stdout)
+    assert len(sources) == 1
+    assert sources[0]["source_id"] == "public-pilot-placeholder-rss"
+    assert sources[0]["source_group"] == "public-pilot"
+    assert sources[0]["enabled"] is False
+    assert sources[0]["blocked_reason"] == "disabled"
+
+    validate_result = run_cli(
+        db_path,
+        "banking",
+        "sources",
+        "validate",
+        "--format",
+        "json",
+    )
+
+    assert validate_result.returncode == 0, validate_result.stderr
+    payload = json.loads(validate_result.stdout)
+    assert payload["status"] == "valid"
+    assert payload["public_pilot_source_count"] == 1
+    assert payload["enabled_public_pilot_source_count"] == 0
+
+
+def test_public_pilot_run_requires_dry_run_or_live_confirmation(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "run",
+        "--sources",
+        "public-pilot",
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 1
+    assert (
+        "Public pilot live collection requires --confirm-live or use --dry-run."
+        in result.stdout
+    )
+
+
+def test_public_pilot_dry_run_plans_without_network(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "run",
+        "--dry-run",
+        "--sources",
+        "public-pilot",
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    public_pilot = payload["metadata"]["public_pilot"]
+    assert payload["dry_run"] is True
+    assert public_pilot["network_fetch_attempted"] is False
+    assert public_pilot["enabled_source_count"] == 0
+    assert public_pilot["message"] == "No enabled public pilot sources configured."
+
+
+def test_public_pilot_confirm_live_with_no_enabled_sources_is_clean(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "run",
+        "--sources",
+        "public-pilot",
+        "--confirm-live",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "No enabled public pilot sources configured." in result.stdout
+
+
 def _days_from_now(days):
     return (date.today() + timedelta(days=days)).isoformat()
 
