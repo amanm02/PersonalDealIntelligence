@@ -590,6 +590,12 @@ def test_sources_list_and_validate_show_public_pilot_metadata(tmp_path):
     assert len(sources) == 1
     assert sources[0]["source_id"] == "public-pilot-placeholder-rss"
     assert sources[0]["source_group"] == "public-pilot"
+    assert sources[0]["source_class"] == "third_party"
+    assert sources[0]["trust_tier"] == "community"
+    assert sources[0]["official_source"] is False
+    assert sources[0]["deposit_account_source"] is True
+    assert sources[0]["brokerage_source"] is True
+    assert sources[0]["credit_card_source"] is False
     assert sources[0]["enabled"] is False
     assert sources[0]["blocked_reason"] == "disabled"
 

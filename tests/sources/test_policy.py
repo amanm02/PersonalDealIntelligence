@@ -18,11 +18,22 @@ def base_source(**overrides):
     source = {
         "source_id": "test-rss-source",
         "source_group": "core",
+        "publisher_name": "Test Publisher",
         "name": "Test RSS Source",
         "url": "https://example.test/rss.xml",
         "source_type": "rss_feed",
+        "source_class": "third_party",
         "category_scope": ["banking"],
         "subcategory_scope": ["checking_bonus", "savings_bonus"],
+        "coverage_purpose": "Source policy validation test.",
+        "trust_tier": "community",
+        "official_source": False,
+        "deposit_account_source": True,
+        "brokerage_source": False,
+        "credit_card_source": False,
+        "fixture_enabled": False,
+        "source_priority": 50,
+        "region_scope": ["US"],
         "enabled": True,
         "collection_method": "rss_feed",
         "max_frequency_hours": 24,
@@ -49,13 +60,18 @@ def config_for(source):
 def test_repository_source_config_validates():
     policies = load_source_policies(CONFIG_PATH)
 
-    assert len(policies) == 5
+    assert len(policies) == 13
     assert {policy.source_type for policy in policies} == {
         "manual_url",
+        "official_promo_page",
         "rss_feed",
         "newsletter_email",
         "disabled",
     }
+    assert any(policy.credit_card_source for policy in policies)
+    assert any(policy.brokerage_source for policy in policies)
+    assert any(policy.deposit_account_source for policy in policies)
+    assert any(policy.official_source for policy in policies)
     public_pilot = [
         policy for policy in policies if policy.source_group == "public-pilot"
     ]
@@ -105,7 +121,11 @@ def test_valid_source_config_returns_typed_policy():
 
     assert len(policies) == 1
     assert policies[0].name == "Test RSS Source"
+    assert policies[0].publisher_name == "Test Publisher"
+    assert policies[0].source_class == "third_party"
+    assert policies[0].trust_tier == "community"
     assert policies[0].subcategory_scope == ("checking_bonus", "savings_bonus")
+    assert policies[0].region_scope == ("US",)
 
 
 def test_missing_required_field_fails_validation():
@@ -135,6 +155,55 @@ def test_invalid_source_group_fails_validation():
         validate_source_config(config_for(source))
 
     assert "unsupported source_group: managed-source-universe" in str(error.value)
+
+
+def test_invalid_trust_tier_fails_validation():
+    source = base_source(trust_tier="unreviewed")
+
+    with pytest.raises(SourcePolicyError) as error:
+        validate_source_config(config_for(source))
+
+    assert "unsupported trust_tier: unreviewed" in str(error.value)
+
+
+def test_official_source_flag_requires_official_source_class():
+    source = base_source(official_source=True)
+
+    with pytest.raises(SourcePolicyError) as error:
+        validate_source_config(config_for(source))
+
+    assert "official_source true requires source_class official" in str(error.value)
+
+
+def test_subcategory_requires_matching_product_source_flag():
+    source = base_source(deposit_account_source=False)
+
+    with pytest.raises(SourcePolicyError) as error:
+        validate_source_config(config_for(source))
+
+    assert "deposit subcategories require deposit_account_source true" in str(
+        error.value
+    )
+
+
+def test_credit_card_source_metadata_validates():
+    policies = validate_source_config(
+        config_for(
+            base_source(
+                source_id="test-credit-card-source",
+                source_type="official_promo_page",
+                source_class="official",
+                subcategory_scope=["credit_card_signup_bonus"],
+                trust_tier="official",
+                official_source=True,
+                deposit_account_source=False,
+                credit_card_source=True,
+            )
+        )
+    )
+
+    assert policies[0].credit_card_source is True
+    assert policies[0].official_source is True
 
 
 def test_unknown_field_fails_validation():

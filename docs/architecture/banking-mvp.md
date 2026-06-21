@@ -88,11 +88,22 @@ Each source should define:
 
 - `source_id`
 - `source_group`
+- `publisher_name`
 - `name`
 - `url`
 - `source_type`
+- `source_class`
 - `category_scope`
 - `subcategory_scope`
+- `coverage_purpose`
+- `trust_tier`
+- `official_source`
+- `deposit_account_source`
+- `brokerage_source`
+- `credit_card_source`
+- `fixture_enabled`
+- `source_priority`
+- `region_scope`
 - `enabled`
 - `collection_method`
 - `max_frequency_hours`
@@ -108,19 +119,31 @@ Each source should define:
 - `last_reviewed_at`
 - `notes`
 
-Allowed source groups are `core`, `demo`, and `public-pilot`. The
-`public-pilot` group is disabled by default in checked-in config and is limited
-to reviewed public source shapes. For Issue #17, guarded live collection is
-RSS-only and requires explicit `--confirm-live`; dry-run planning does not fetch
-network content. Public-pilot policy validation rejects missing group/id
-metadata, unsafe or unknown fields, login-required live sources, unsupported
-methods, unsafe allow flags, and invalid frequency metadata.
-- `notes`
+Allowed source groups are `core`, `demo`, and `public-pilot`. Allowed source
+classes are `official`, `third_party`, `manual_import`, and `disabled`; trust
+tiers are `official`, `trusted_third_party`, `community`, `user_provided`, and
+`disabled`. Source policies must mark whether each source covers deposit
+accounts, brokerage bonuses, credit-card offers, or a combination. Official
+sources must use the official trust tier, and third-party discovery sources must
+not be treated as official evidence.
+
+The `public-pilot` group is disabled by default in checked-in config and is
+limited to reviewed public source shapes. For Issue #17, guarded live collection
+is RSS-only and requires explicit `--confirm-live`; dry-run planning does not
+fetch network content. Public-pilot policy validation rejects missing metadata,
+unsafe or unknown fields, login-required live sources, unsupported methods,
+unsafe allow flags, and invalid frequency metadata.
 
 Unsafe behavior is disabled by default. Validation rejects unknown fields,
 unsafe source-access flags, logged-in scraping, unapproved enabled sources,
 method/allow-flag mismatches, high-frequency scraping, and scopes outside the
 Banking MVP.
+
+New source onboarding starts by adding a disabled or fixture-only policy record,
+choosing source class/trust tier/category flags, documenting terms and robots
+notes, validating with `pdi.sources`, and only then considering a future explicit
+enablement path. The current seed pack is intentionally placeholder-only and
+does not add new live fetching.
 
 ### 2. Collector framework
 
