@@ -141,6 +141,12 @@ Current narrower run history command:
 python3 -m pytest tests/storage tests/cli tests/integration
 ```
 
+Current demo readiness command:
+
+```bash
+python3 scripts/check_banking_demo.py
+```
+
 ## Source policy validation
 
 Validate the source registry with:
@@ -382,6 +388,22 @@ Must validate:
 - markdown digest artifact is generated locally
 - no live network, browser automation, external messages, email account access,
   or banking actions are required
+
+### Demo readiness
+
+Must validate:
+
+- fresh setup instructions are copy/pasteable
+- `pdi banking demo --reset --seed fixtures` initializes a clean local database
+- `pdi banking find` returns ranked checking, savings, and brokerage demo deals
+- find results include score/net value context, match reason, needs-review
+  state, and source label or URL
+- `pdi banking show <deal_id>` displays terms, evidence/source references,
+  missing-data warnings, and status
+- `pdi banking digest --demo` writes a local artifact
+- the demo path is deterministic across reset runs
+- no live network, external notification send, credential, personal identifier,
+  or financial-action step is required
 
 ### Run history
 

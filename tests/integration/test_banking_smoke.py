@@ -155,6 +155,263 @@ def test_smoke_test_cli_outputs_json_summary(tmp_path):
     assert digest_path.exists()
 
 
+def test_demo_cli_initializes_clean_fixture_database(tmp_path):
+    db_path = tmp_path / "pdi-demo.sqlite"
+    digest_path = tmp_path / "demo-digest.md"
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "demo",
+        "--reset",
+        "--seed",
+        "fixtures",
+        "--digest-output",
+        str(digest_path),
+        "--as-of",
+        "2026-06-18",
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["raw_snapshots"] == 8
+    assert payload["canonical_deals"] == 5
+    assert payload["scored_deals"] == 5
+    assert payload["digest_path"] == str(digest_path)
+    assert db_path.exists()
+    assert digest_path.exists()
+
+
+def test_find_alias_supports_demo_categories_and_ranked_fields(tmp_path):
+    db_path = tmp_path / "pdi-demo.sqlite"
+    run_cli(
+        db_path,
+        "banking",
+        "demo",
+        "--reset",
+        "--seed",
+        "fixtures",
+        "--digest-output",
+        str(tmp_path / "demo-digest.md"),
+        "--format",
+        "json",
+    )
+
+    searches = {
+        "checking_bonus": (
+            "--query",
+            "checking bonus",
+            "--subcategory",
+            "checking_bonus",
+        ),
+        "savings_bonus": ("--query", "savings", "--subcategory", "savings_bonus"),
+        "brokerage_bonus": (
+            "--subcategory",
+            "brokerage_bonus",
+            "--min-bonus",
+            "500",
+        ),
+    }
+
+    for subcategory, args in searches.items():
+        result = run_cli(
+            db_path,
+            "banking",
+            "find",
+            *args,
+            "--format",
+            "json",
+        )
+        assert result.returncode == 0, result.stderr
+        rows = json.loads(result.stdout)
+        assert rows
+        assert rows[0]["subcategory"] == subcategory
+        assert rows[0]["estimated_net_value_cents"] is not None
+        assert rows[0]["score_0_to_100"] is not None
+        assert rows[0]["match_reason"]
+        assert isinstance(rows[0]["needs_review"], bool)
+        assert rows[0]["source_name"] or rows[0]["source_url"]
+
+
+def test_demo_show_and_digest_commands_are_reviewable(tmp_path):
+    db_path = tmp_path / "pdi-demo.sqlite"
+    digest_path = tmp_path / "demo-digest.md"
+    run_cli(
+        db_path,
+        "banking",
+        "demo",
+        "--reset",
+        "--seed",
+        "fixtures",
+        "--digest-output",
+        str(digest_path),
+        "--format",
+        "json",
+    )
+    find_result = run_cli(
+        db_path,
+        "banking",
+        "find",
+        "--query",
+        "checking bonus",
+        "--subcategory",
+        "checking_bonus",
+        "--format",
+        "json",
+    )
+    deal_id = json.loads(find_result.stdout)[0]["id"]
+
+    show_result = run_cli(
+        db_path,
+        "banking",
+        "show",
+        str(deal_id),
+        "--format",
+        "json",
+    )
+    assert show_result.returncode == 0, show_result.stderr
+    detail = json.loads(show_result.stdout)
+    assert detail["status"]
+    assert detail["requirements"]
+    assert "missing_data_warnings" in detail
+    assert detail["source_urls"] or detail["evidence_references"]
+
+    digest_path.unlink()
+    digest_result = run_cli(
+        db_path,
+        "banking",
+        "digest",
+        "--demo",
+        "--output",
+        str(digest_path),
+        "--as-of",
+        "2026-06-18",
+    )
+    assert digest_result.returncode == 0, digest_result.stderr
+    assert digest_path.exists()
+    assert "# Banking Deal Digest" in digest_path.read_text(encoding="utf-8")
+
+
+def test_demo_command_is_deterministic_across_repeated_reset_runs(tmp_path):
+    db_path = tmp_path / "pdi-demo.sqlite"
+    digest_path = tmp_path / "demo-digest.md"
+
+    first = run_cli(
+        db_path,
+        "banking",
+        "demo",
+        "--reset",
+        "--seed",
+        "fixtures",
+        "--digest-output",
+        str(digest_path),
+        "--format",
+        "json",
+    )
+    second = run_cli(
+        db_path,
+        "banking",
+        "demo",
+        "--reset",
+        "--seed",
+        "fixtures",
+        "--digest-output",
+        str(digest_path),
+        "--format",
+        "json",
+    )
+
+    assert first.returncode == 0, first.stderr
+    assert second.returncode == 0, second.stderr
+    assert json.loads(first.stdout) == json.loads(second.stdout)
+
+
+def test_banking_demo_readiness_script_passes(tmp_path):
+    db_path = tmp_path / "pdi-demo.sqlite"
+    digest_path = tmp_path / "demo-digest.md"
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(REPO_ROOT / "src")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/check_banking_demo.py",
+            "--db",
+            str(db_path),
+            "--digest-output",
+            str(digest_path),
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Banking demo readiness check passed." in result.stdout
+    assert db_path.exists()
+    assert digest_path.exists()
+
+
+def test_smoke_test_database_supports_demo_searches(tmp_path):
+    db_path = tmp_path / "pdi-smoke.sqlite"
+    digest_path = tmp_path / "offline-smoke-digest.md"
+    run_offline_banking_smoke(
+        db_path,
+        digest_output=digest_path,
+        reset_db=True,
+    )
+
+    checking = run_cli(
+        db_path,
+        "banking",
+        "find",
+        "--query",
+        "checking bonus",
+        "--subcategory",
+        "checking_bonus",
+        "--format",
+        "json",
+    )
+    savings = run_cli(
+        db_path,
+        "banking",
+        "find",
+        "--query",
+        "savings",
+        "--subcategory",
+        "savings_bonus",
+        "--format",
+        "json",
+    )
+    brokerage = run_cli(
+        db_path,
+        "banking",
+        "find",
+        "--query",
+        "brokerage",
+        "--subcategory",
+        "brokerage_bonus",
+        "--format",
+        "json",
+    )
+
+    assert checking.returncode == 0, checking.stderr
+    assert savings.returncode == 0, savings.stderr
+    assert brokerage.returncode == 0, brokerage.stderr
+
+    checking_rows = json.loads(checking.stdout)
+    savings_rows = json.loads(savings.stdout)
+    brokerage_rows = json.loads(brokerage.stdout)
+
+    assert checking_rows[0]["institution_name"] == "Northstar Mock Bank"
+    assert savings_rows[0]["institution_name"] == "Riverbend Sample Bank"
+    assert brokerage_rows[0]["institution_name"] == "Harbor Demo Brokerage"
+
+
 def test_smoke_test_cli_refuses_existing_database_without_reset(tmp_path):
     db_path = tmp_path / "pdi-smoke.sqlite"
     digest_path = tmp_path / "offline-smoke-digest.md"

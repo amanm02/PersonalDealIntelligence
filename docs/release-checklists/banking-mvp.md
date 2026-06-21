@@ -113,7 +113,6 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 - [ ] Changed watched/interested deals appear.
 - [ ] Review-needed deals appear.
 - [ ] Digest includes deal IDs for CLI follow-up.
-- [ ] Fresh-clone demo gate generates a local digest artifact when Issue #16 is complete.
 
 ## 11. Run history and dry-run
 
@@ -126,13 +125,14 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 
 ## 12. Demo readiness
 
-- [ ] Fresh clone setup instructions work.
-- [ ] Demo database/source data can be initialized from scratch when Issue #16 is complete.
-- [ ] At least three banking subcategories produce searchable local demo deals when Issue #16 is complete.
-- [ ] Search/find results include ranking or scoring context.
-- [ ] `show` displays terms, evidence/source references, missing data warnings, and status.
-- [ ] Demo digest generation creates a local artifact.
-- [ ] Demo path requires no internet access, credentials, external notifications, or banking actions.
+- [ ] `python3 scripts/check_banking_demo.py` passes from a fresh setup.
+- [ ] `python3 -m pdi banking demo --reset --seed fixtures` initializes local demo data.
+- [ ] `python3 -m pdi banking find` returns ranked checking, savings, and brokerage deals.
+- [ ] Find results include score/net value, match reason, needs-review state, and source label or URL.
+- [ ] `python3 -m pdi banking show <deal_id>` displays terms, evidence/source references, missing data warnings, and status.
+- [ ] `python3 -m pdi banking digest --demo` writes a local digest artifact.
+- [ ] Demo output is deterministic across reset runs.
+- [ ] Demo commands do not require internet access, credentials, sensitive personal data, external notification sends, or financial actions.
 - [ ] Live public source pilot is not required for offline demo readiness.
 
 ## 13. Opt-in public source pilot

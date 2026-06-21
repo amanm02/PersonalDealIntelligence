@@ -34,6 +34,10 @@ from pdi.storage import (
 
 DEFAULT_DB_PATH = Path("data/pdi.sqlite")
 DEFAULT_OUTPUT_FORMAT = "table"
+DEFAULT_DEMO_FIXTURE_DIR = "examples/offline_smoke"
+DEFAULT_DEMO_DIGEST_OUTPUT = "data/digests/banking_demo_digest.md"
+DEFAULT_DEMO_JSON_DIGEST_OUTPUT = "data/digests/banking_demo_digest.json"
+DEFAULT_DEMO_AS_OF = "2026-06-18"
 STATUS_VALUES = (
     "new",
     "needs_review",
@@ -179,6 +183,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Exercise notification hooks without external sends.",
     )
+    digest_parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Use deterministic local-only demo digest defaults.",
+    )
     digest_parser.set_defaults(handler=_handle_digest)
 
     run_parser = banking_subparsers.add_parser(
@@ -238,6 +247,47 @@ def _build_parser() -> argparse.ArgumentParser:
     run_status_parser.add_argument("run_id", type=int)
     _add_output_format(run_status_parser)
     run_status_parser.set_defaults(handler=_handle_run_status)
+
+    demo_parser = banking_subparsers.add_parser(
+        "demo",
+        help="Seed the local Banking MVP demo from offline fixtures.",
+    )
+    demo_parser.add_argument(
+        "--seed",
+        choices=("fixtures",),
+        default="fixtures",
+        help="Demo seed source.",
+    )
+    demo_parser.add_argument(
+        "--fixture-dir",
+        default=DEFAULT_DEMO_FIXTURE_DIR,
+        help="Directory containing demo fixture text.",
+    )
+    demo_parser.add_argument(
+        "--digest-output",
+        default=DEFAULT_DEMO_DIGEST_OUTPUT,
+        help="Markdown digest artifact path.",
+    )
+    demo_parser.add_argument(
+        "--alert-config",
+        default="config/banking_alerts.yaml",
+        help="Path to banking alert config.",
+    )
+    demo_parser.add_argument("--as-of", default=DEFAULT_DEMO_AS_OF)
+    demo_parser.add_argument(
+        "--reset",
+        "--reset-db",
+        dest="reset",
+        action="store_true",
+        help="Replace the target demo database if it already exists.",
+    )
+    demo_parser.add_argument(
+        "--format",
+        choices=("table", "json"),
+        default=DEFAULT_OUTPUT_FORMAT,
+        help="Output format.",
+    )
+    demo_parser.set_defaults(handler=_handle_demo)
 
     smoke_parser = banking_subparsers.add_parser(
         "smoke-test",
@@ -391,25 +441,36 @@ def _handle_score(args: argparse.Namespace) -> int:
 
 def _handle_digest(args: argparse.Namespace) -> int:
     config = load_alert_config(args.config)
-    as_of = _parse_cli_date(args.as_of) if args.as_of else None
+    as_of_value = args.as_of or (DEFAULT_DEMO_AS_OF if args.demo else None)
+    as_of = _parse_cli_date(as_of_value) if as_of_value else None
     digest = generate_banking_digest(args.db, config=config, as_of=as_of)
     notification_results = dispatch_notifications(
         digest,
         config,
-        dry_run=args.dry_run_notifications,
+        dry_run=args.dry_run_notifications or args.demo,
     )
     digest = replace(digest, notification_results=notification_results)
     output_path = args.output or (
-        config.default_json_output_path
-        if args.format == "json"
-        else config.default_markdown_output_path
+        (
+            DEFAULT_DEMO_JSON_DIGEST_OUTPUT
+            if args.format == "json"
+            else DEFAULT_DEMO_DIGEST_OUTPUT
+        )
+        if args.demo
+        else (
+            config.default_json_output_path
+            if args.format == "json"
+            else config.default_markdown_output_path
+        )
     )
     written_path = write_digest_artifact(
         digest,
         output_path,
         output_format=args.format,
-        minimum_hours_between_digests=config.minimum_hours_between_digests,
-        force=args.force,
+        minimum_hours_between_digests=(
+            0 if args.demo else config.minimum_hours_between_digests
+        ),
+        force=args.force or args.demo,
     )
     print(f"Generated banking digest at {written_path} ({args.format}).")
     return 0
@@ -457,6 +518,30 @@ def _handle_run_status(args: argparse.Namespace) -> int:
         _print_json(payload)
     else:
         _print_run_detail(payload)
+    return 0
+
+
+def _handle_demo(args: argparse.Namespace) -> int:
+    _ = args.seed
+    summary = run_offline_banking_smoke(
+        args.db,
+        fixture_dir=args.fixture_dir,
+        digest_output=args.digest_output,
+        alert_config_path=args.alert_config,
+        as_of=_parse_cli_date(args.as_of),
+        reset_db=args.reset,
+    )
+    if args.format == "json":
+        _print_json(summary.to_dict())
+    else:
+        print("Banking MVP demo data ready.")
+        _print_table(
+            [
+                {"metric": key, "value": value}
+                for key, value in summary.to_dict().items()
+            ],
+            empty_message="No demo summary generated.",
+        )
     return 0
 
 
