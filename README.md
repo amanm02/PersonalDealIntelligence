@@ -239,6 +239,12 @@ candidate/source evidence in `banking_deal_source_links`, records material
 differences in `deal_change_events`, and marks important conflicts
 `needs_review`.
 
+`pdi banking show <deal_id>` exposes source URLs, source-link references,
+field-level evidence excerpts for critical terms, raw snapshot ids, snapshot
+content hashes, and missing-evidence warnings. Evidence is a review aid for
+manual verification; final offer terms still need to be checked on the official
+institution or issuer page.
+
 Scoring support exists under `pdi.scoring` for canonical banking deals. It reads
 `config/banking_scoring.yaml`, returns component-level estimates for gross
 bonus, fees, cash lockup, hassle, risk/unclear terms, net value, score band,

@@ -27,6 +27,7 @@ from pdi.smoke import run_offline_banking_smoke
 from pdi.storage import (
     get_banking_deal,
     get_banking_run,
+    get_raw_snapshot,
     initialize_database,
     insert_status_event,
     list_banking_deal_source_links,
@@ -56,6 +57,19 @@ STATUS_VALUES = (
     "applied",
 )
 REVIEW_RECOMMENDATIONS = {"needs_more_info", "conflict_needs_review"}
+CRITICAL_EVIDENCE_FIELDS = (
+    "bonus_amount_cents",
+    "expires_at",
+    "application_deadline",
+    "direct_deposit_required",
+    "direct_deposit_minimum_cents",
+    "minimum_deposit_amount_cents",
+    "minimum_balance_required_cents",
+    "balance_hold_days",
+    "monthly_fee_cents",
+    "state_restrictions",
+    "new_customer_only",
+)
 CONFLICT_REASONS = {
     "candidate_official_preferred",
     "existing_official_preserved",
@@ -921,6 +935,7 @@ def _deal_detail(db_path: str, deal_id: int) -> dict[str, Any]:
     status_events = list_deal_status_events(db_path, deal_id=deal_id)
     source_urls = _source_urls(deal, source_links)
     terms = _normalized_terms(deal.get("terms") or {})
+    field_evidence = _field_evidence(db_path, source_links)
     return {
         "id": deal["id"],
         "title": deal["title"],
@@ -939,7 +954,12 @@ def _deal_detail(db_path: str, deal_id: int) -> dict[str, Any]:
         "application_deadline": deal.get("application_deadline"),
         "confidence_score": deal.get("confidence_score"),
         "missing_data_warnings": score.missing_data_warnings,
+        "missing_evidence_warnings": _missing_evidence_warnings(
+            _evidence_field_values(deal, terms),
+            field_evidence,
+        ),
         "evidence_references": [_source_link_payload(link) for link in source_links],
+        "field_evidence": field_evidence,
         "status_history": status_events,
         "change_events": change_events,
         "safety_note": (
@@ -1013,6 +1033,8 @@ def _source_urls(
 def _source_link_payload(link: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "id": link.get("id"),
+        "raw_snapshot_id": link.get("raw_snapshot_id"),
+        "candidate_id": link.get("candidate_id"),
         "source_name": link.get("source_name"),
         "source_url": link.get("source_url"),
         "source_authority": link.get("source_authority"),
@@ -1020,6 +1042,109 @@ def _source_link_payload(link: Mapping[str, Any]) -> dict[str, Any]:
         "confidence_score": link.get("confidence_score"),
         "evidence": _json_value(link.get("evidence_json")),
     }
+
+
+def _field_evidence(
+    db_path: str,
+    source_links: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    evidence_items: list[dict[str, Any]] = []
+    for link in source_links:
+        snapshot = None
+        raw_snapshot_id = link.get("raw_snapshot_id")
+        if raw_snapshot_id is not None:
+            snapshot = get_raw_snapshot(db_path, int(raw_snapshot_id))
+
+        evidence = _json_value(link.get("evidence_json")) or []
+        if not isinstance(evidence, list):
+            continue
+        for span in evidence:
+            if not isinstance(span, Mapping):
+                continue
+            field_name = span.get("field")
+            if field_name not in CRITICAL_EVIDENCE_FIELDS:
+                continue
+            evidence_items.append(
+                _field_evidence_item(
+                    field_name,
+                    span,
+                    link,
+                    snapshot=snapshot,
+                    raw_snapshot_id=raw_snapshot_id,
+                )
+            )
+            if field_name == "expires_at":
+                evidence_items.append(
+                    _field_evidence_item(
+                        "application_deadline",
+                        span,
+                        link,
+                        snapshot=snapshot,
+                        raw_snapshot_id=raw_snapshot_id,
+                    )
+                )
+    return sorted(
+        evidence_items,
+        key=lambda item: (
+            str(item.get("field") or ""),
+            int(item.get("raw_snapshot_id") or 0),
+            int(item.get("start") or 0),
+        ),
+    )
+
+
+def _field_evidence_item(
+    field_name: str,
+    span: Mapping[str, Any],
+    link: Mapping[str, Any],
+    *,
+    snapshot: Mapping[str, Any] | None,
+    raw_snapshot_id: Any,
+) -> dict[str, Any]:
+    return {
+        "field": field_name,
+        "excerpt": span.get("text"),
+        "start": span.get("start"),
+        "end": span.get("end"),
+        "source_name": link.get("source_name"),
+        "source_url": link.get("source_url"),
+        "source_authority": link.get("source_authority"),
+        "raw_snapshot_id": raw_snapshot_id,
+        "candidate_id": link.get("candidate_id"),
+        "content_hash": snapshot.get("content_hash") if snapshot else None,
+        "collector_name": snapshot.get("collector_name") if snapshot else None,
+        "retrieved_at": link.get("retrieved_at"),
+        "confidence_score": link.get("confidence_score"),
+    }
+
+
+def _evidence_field_values(
+    deal: Mapping[str, Any],
+    terms: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "bonus_amount_cents": deal.get("bonus_amount_cents"),
+        "expires_at": deal.get("expires_at"),
+        "application_deadline": deal.get("application_deadline"),
+        **{
+            field_name: terms.get(field_name)
+            for field_name in CRITICAL_EVIDENCE_FIELDS
+            if field_name not in {"bonus_amount_cents", "expires_at", "application_deadline"}
+        },
+    }
+
+
+def _missing_evidence_warnings(
+    field_values: Mapping[str, Any],
+    field_evidence: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    evidence_fields = {item.get("field") for item in field_evidence}
+    warnings = []
+    for field_name in CRITICAL_EVIDENCE_FIELDS:
+        value = field_values.get(field_name)
+        if value is not None and field_name not in evidence_fields:
+            warnings.append(f"{field_name} has value but no field-level evidence")
+    return warnings
 
 
 def _source_context(
@@ -1236,12 +1361,27 @@ def _print_detail(detail: Mapping[str, Any]) -> None:
     print("Missing data warnings:")
     for warning in detail["missing_data_warnings"] or ["none"]:
         print(f"  - {warning}")
+    print("Missing evidence warnings:")
+    for warning in detail["missing_evidence_warnings"] or ["none"]:
+        print(f"  - {warning}")
     print("Evidence references:")
     for item in detail["evidence_references"] or [{"source_name": "none"}]:
         print(
             "  - "
             f"{item.get('source_name')} "
             f"{item.get('source_url') or ''}".rstrip()
+        )
+    print("Field evidence:")
+    for item in detail["field_evidence"] or [{"field": "none"}]:
+        if item.get("field") == "none":
+            print("  - none")
+            continue
+        content_hash = item.get("content_hash") or "unknown"
+        excerpt = item.get("excerpt") or ""
+        print(
+            "  - "
+            f"{item.get('field')}: {excerpt!r} "
+            f"(snapshot {item.get('raw_snapshot_id')}, hash {content_hash[:12]})"
         )
     print("Status history:")
     for event in detail["status_history"]:

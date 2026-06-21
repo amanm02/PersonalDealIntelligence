@@ -173,3 +173,38 @@ def test_demo_corpus_supports_product_facing_searches(tmp_path):
     assert len(brokerage_rows) == 1
     assert brokerage_rows[0]["institution_name"] == "Harbor Demo Brokerage"
     assert brokerage_rows[0]["source_name"]
+
+
+def test_demo_corpus_show_exposes_field_level_evidence(tmp_path):
+    db_path = tmp_path / "pdi-demo.sqlite"
+    run_demo_flow(db_path)
+
+    deals = list_banking_deals(db_path)
+    checking_deal = next(
+        deal for deal in deals if deal["institution_name"] == "Northstar Demo Bank"
+    )
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "show",
+        str(checking_deal["id"]),
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    field_evidence = payload["field_evidence"]
+    evidence_fields = {item["field"] for item in field_evidence}
+    assert {"bonus_amount_cents", "direct_deposit_required"}.issubset(
+        evidence_fields
+    )
+    assert all(item["raw_snapshot_id"] for item in field_evidence)
+    assert all(item["content_hash"] for item in field_evidence)
+    assert payload["missing_evidence_warnings"] == []
+
+    text_result = run_cli(db_path, "banking", "show", str(checking_deal["id"]))
+    assert text_result.returncode == 0, text_result.stderr
+    assert "Field evidence:" in text_result.stdout
+    assert "bonus_amount_cents" in text_result.stdout
