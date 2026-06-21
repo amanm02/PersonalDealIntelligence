@@ -85,6 +85,21 @@ REVIEW_FIELDS = {
     "state_restrictions",
     "new_customer_only",
 }
+FIELD_EVIDENCE_FIELDS = {
+    "bonus_amount_cents",
+    "direct_deposit_required",
+    "direct_deposit_minimum_cents",
+    "minimum_deposit_amount_cents",
+    "minimum_balance_required_cents",
+    "balance_hold_days",
+    "expires_at",
+    "application_deadline",
+    "monthly_fee_cents",
+    "state_restrictions",
+    "new_customer_only",
+}
+EXTRACTION_METHOD = "rule_based_banking_extractor"
+EXTRACTION_VERSION = "1"
 
 
 @dataclass(frozen=True)
@@ -468,9 +483,46 @@ def _link_source(
             "source_authority": _candidate_authority(db_path, candidate),
             "retrieved_at": candidate.get("retrieved_at"),
             "confidence_score": candidate.get("confidence_score"),
-            "evidence": _json_list(candidate.get("evidence_spans_json")),
+            "evidence": _field_evidence_from_candidate(candidate),
         },
     )
+
+
+def _field_evidence_from_candidate(candidate: Mapping[str, Any]) -> list[dict[str, Any]]:
+    evidence: list[dict[str, Any]] = []
+    for span in _json_list(candidate.get("evidence_spans_json")):
+        if not isinstance(span, Mapping):
+            continue
+        field_name = span.get("field")
+        if not field_name or str(field_name) not in FIELD_EVIDENCE_FIELDS:
+            continue
+        enriched = dict(span)
+        enriched.setdefault("evidence_text", span.get("text"))
+        enriched.setdefault("excerpt", span.get("text"))
+        enriched.setdefault(
+            "extracted_value",
+            _normalized_json_value(_candidate_field_value(candidate, str(field_name))),
+        )
+        enriched.setdefault("raw_snapshot_id", candidate.get("raw_snapshot_id"))
+        enriched.setdefault("candidate_id", candidate.get("id"))
+        enriched.setdefault("confidence_score", candidate.get("confidence_score"))
+        enriched.setdefault("extraction_method", EXTRACTION_METHOD)
+        enriched.setdefault("extraction_version", EXTRACTION_VERSION)
+        evidence.append(enriched)
+    return evidence
+
+
+def _candidate_field_value(candidate: Mapping[str, Any], field_name: str) -> Any:
+    if field_name in {
+        "direct_deposit_required",
+        "new_customer_only",
+        "hard_pull_risk",
+        "soft_pull_only",
+    }:
+        return _int_to_bool(candidate.get(field_name))
+    if field_name == "state_restrictions":
+        return _json_list(candidate.get("state_restrictions_json"))
+    return candidate.get(field_name)
 
 
 def _candidate_authority(db_path: DbPath, candidate: Mapping[str, Any]) -> str:

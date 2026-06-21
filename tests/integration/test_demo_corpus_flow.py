@@ -10,6 +10,7 @@ from pdi.extractors import extract_and_persist_snapshot
 from pdi.scoring import persist_banking_deal_score, score_banking_deal
 from pdi.storage import (
     initialize_database,
+    list_field_evidence_links,
     list_banking_deal_candidates,
     list_banking_deals,
     list_deal_change_events,
@@ -208,3 +209,40 @@ def test_demo_corpus_show_exposes_field_level_evidence(tmp_path):
     assert text_result.returncode == 0, text_result.stderr
     assert "Field evidence:" in text_result.stdout
     assert "bonus_amount_cents" in text_result.stdout
+
+
+def test_demo_corpus_persists_deposit_and_brokerage_field_evidence(tmp_path):
+    db_path = tmp_path / "pdi-demo.sqlite"
+    run_demo_flow(db_path)
+
+    deals = list_banking_deals(db_path)
+    by_institution = {deal["institution_name"]: deal for deal in deals}
+
+    cases = {
+        "Northstar Demo Bank": {
+            "bonus_amount_cents",
+            "direct_deposit_required",
+            "direct_deposit_minimum_cents",
+        },
+        "Riverbend Demo Bank": {
+            "bonus_amount_cents",
+            "minimum_deposit_amount_cents",
+            "minimum_balance_required_cents",
+            "balance_hold_days",
+        },
+        "Harbor Demo Brokerage": {
+            "bonus_amount_cents",
+            "minimum_deposit_amount_cents",
+            "balance_hold_days",
+        },
+    }
+
+    for institution, expected_fields in cases.items():
+        deal_id = int(by_institution[institution]["id"])
+        evidence = list_field_evidence_links(db_path, deal_id=deal_id)
+        evidence_fields = {item["field"] for item in evidence}
+        assert expected_fields.issubset(evidence_fields)
+        assert all(item["candidate_id"] for item in evidence)
+        assert all(item["raw_snapshot_id"] for item in evidence)
+        assert all(item["source_link_id"] for item in evidence)
+        assert all(item["content_hash"] for item in evidence)

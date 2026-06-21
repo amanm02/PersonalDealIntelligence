@@ -232,7 +232,12 @@ Extractor identifies:
 
 Extraction must not guess. Unknown fields should remain null/unknown.
 Evidence spans, missing fields, extraction notes, and tiered bonus matches are
-stored with candidates for review and later dedupe/canonicalization.
+stored with candidates for review and later dedupe/canonicalization. During
+canonicalization, deposit and brokerage field evidence is normalized into
+`banking_field_evidence_links` with the canonical deal id, candidate id, raw
+snapshot id, field name, extracted value, excerpt/span offsets, confidence, and
+extraction method/version while preserving candidate and source-link JSON
+evidence for compatibility.
 Intro APR and category multipliers are supporting context unless the offer is
 explicitly about 0% APR or those multipliers are part of the signup offer terms.
 Issuer application restrictions should be captured as review notes, not hard
@@ -338,6 +343,8 @@ writes a local digest artifact for demo review.
 `show` includes terms, score explanation, source URLs, missing-data warnings,
 source-link references, field-level evidence excerpts for critical terms,
 snapshot ids/content hashes, missing-evidence warnings, and status history.
+Field evidence is stored in a normalized table and remains linked back to the
+candidate/source JSON evidence for auditability.
 Field-level evidence is derived from stored candidate evidence spans and
 canonical source links; it is not a substitute for manual verification on
 official institution or issuer pages.
