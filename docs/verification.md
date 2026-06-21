@@ -250,9 +250,8 @@ python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking find --query "checking
 python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking find --subcategory brokerage_bonus --min-bonus 500
 ```
 
-Issue #16 is expected to add a fresh-clone demo gate and may add additional
-copy/pasteable setup commands. The README, release checklist, and this file
-must be updated together when that happens.
+Issue #16 added the fresh-clone demo readiness gate. Keep the README, release
+checklist, and this file aligned whenever the demo path changes.
 
 ## Banking MVP readiness validation
 

@@ -358,9 +358,9 @@ source policy coverage, duplicates, conflicts, expired and low-value offers,
 ambiguous terms, non-deal content, and the main Banking MVP subcategories.
 
 The demo corpus is loaded through existing offline collectors and source policy
-validation. It does not add product-facing search, a fresh-clone demo gate, live
-fetching, browser automation, email account access, credentials, notifications,
-or banking actions.
+validation, and the fresh-clone demo gate uses it through local CLI commands. It
+does not add live fetching, browser automation, email account access,
+credentials, notifications, or banking actions.
 
 ### 9. Run history
 

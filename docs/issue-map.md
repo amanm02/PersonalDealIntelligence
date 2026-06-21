@@ -57,8 +57,8 @@ The expanded MVP uses two coordinated tracks:
 | 11 | #12 | Add local run history and dry-run command | #3, #4, #7, #9, #10, #11 | closed |
 | 12 | #14 | Add realistic demo fixture corpus and source seed pack | #2, #3, #4, #5 | closed |
 | 13 | #15 | Add product-facing banking deal find command | #2, #6, #7, #8, #14 | closed |
-| 14 | #16 | Add fresh-clone demo readiness gate | #2-#12, #14, #15 | open; PR #54 merged |
-| 15 | #17 | Add opt-in compliant public source pilot | #3, #4, #10, #12, #16 | open |
+| 14 | #16 | Add fresh-clone demo readiness gate | #2-#12, #14, #15 | closed; PR #54 verified |
+| 15 | #17 | Add opt-in compliant public source pilot | #3, #4, #10, #12, #16 | open; unblocked after #16 closure |
 | 16 | #18 | Sync issue map and roadmap after demo expansion | #1, after #14-#17 exist | closed |
 | 17 | #27 | Expand MVP scope to include credit card offers | #1 | closed |
 | 18 | #28 | Build comprehensive banking and credit card source universe with onboarding workflow | #3, #27 | open |
@@ -82,9 +82,9 @@ The expanded MVP uses two coordinated tracks:
 
 Current GitHub state should be verified before editing because batch examples in issue bodies can become stale.
 
-- Completed prerequisites: #27 / PR #51, product CI / PR #50, #15 / PR #53, #52 / PR #55, and PR #54 demo readiness implementation are merged.
-- Current exclusive AgentOps work: PR #56 hardens the workflow hygiene added by #52.
-- Next sequential work: verify and close #16 if PR #54 fully satisfies the issue; #17 opt-in public source pilot remains blocked until #16 is closed or explicitly unblocked.
+- Completed prerequisites: #27 / PR #51, product CI / PR #50, #15 / PR #53, #52 / PR #55, PR #54 demo readiness, and PR #56 AgentOps workflow hygiene are merged.
+- Current exclusive work: none known from the latest open-PR preflight.
+- Next sequential work: #17 opt-in public source pilot after #16 is closed by the demo readiness reconciliation PR.
 - Future work #28-#43 should be split or rewritten before implementation when it overlaps source policy, schema, taxonomy, evidence, scoring, CLI, workflow, or shared docs.
 - Use `docs/agentops/concurrency.md`, `docs/agentops/issue-hygiene.md`, and `docs/agentops/current-work-batches.md` before launching parallel agents.
 

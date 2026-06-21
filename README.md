@@ -85,8 +85,9 @@ The current roadmap continues past the core flow into offline demo readiness and
 - #28-#34 Track A research, collection, evidence, verification, freshness, and QA work
 - #35-#43 Track B deal intelligence, taxonomy, rules, credit-card model, conflict, service, and export work
 
-Commands for #14-#17 behavior should stay documented as planned or expected
-until the corresponding issue implements and validates them.
+Commands for open issues should stay documented as planned or expected until
+the corresponding issue implements and validates them. The offline demo
+readiness path for #16 is implemented and validated by the demo gate below.
 
 Post-MVP and deferred ideas live under `docs/roadmap/` so they do not pollute the active MVP scope:
 
@@ -325,8 +326,8 @@ part of local scheduling. Stale run-lock cleanup is not automatic yet; if a
 process is interrupted while running, inspect `banking_run_locks` manually and
 remove a stale local lock only after confirming no run is active.
 
-Planned demo-readiness work will add or document a fresh-clone demo gate. Until
-#16 is implemented, that gate is a roadmap item, not a current CLI guarantee.
+The fresh-clone demo gate is implemented by `scripts/check_banking_demo.py` and
+uses only local synthetic fixtures.
 
 ## Validation
 
@@ -481,5 +482,6 @@ canonical deals. Local run history and dry-run run orchestration are
 implemented. Product-facing local find/search is implemented for ranked review
 of stored banking deals. Credit-card acquisition offers are now MVP scope, with
 runtime support tracked in the dedicated Track A/B issues rather than
-implemented in this docs-only scope update. Fresh-clone demo readiness,
-built-in live collection, and external alert sending are not implemented.
+implemented in this docs-only scope update. Fresh-clone demo readiness is
+implemented and fixture-backed; built-in live collection and external alert
+sending are not implemented.
