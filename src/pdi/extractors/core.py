@@ -269,6 +269,7 @@ def _extract_institution_and_subcategory(
 
 def _extract_bonus(candidate: ExtractedDealCandidate, text: str) -> None:
     tier_matches = []
+    tier_spans = []
     for match in re.finditer(
         rf"{MONEY_PATTERN}\s+(?:bonus\s+)?(?:for|when you transfer|with)\s+{MONEY_PATTERN}",
         text,
@@ -282,6 +283,7 @@ def _extract_bonus(candidate: ExtractedDealCandidate, text: str) -> None:
                 "minimum_deposit_amount_cents": threshold_cents,
             }
         )
+        tier_spans.append((match, bonus_cents, threshold_cents))
         candidate.evidence_spans.append(_span("tiered_bonus", match, text))
 
     if tier_matches:
@@ -292,6 +294,13 @@ def _extract_bonus(candidate: ExtractedDealCandidate, text: str) -> None:
         candidate.minimum_deposit_amount_cents = min(
             tier["minimum_deposit_amount_cents"] for tier in tier_matches
         )
+        for match, bonus_cents, threshold_cents in tier_spans:
+            if bonus_cents == candidate.bonus_amount_cents:
+                candidate.evidence_spans.append(_span("bonus_amount_cents", match, text))
+            if threshold_cents == candidate.minimum_deposit_amount_cents:
+                candidate.evidence_spans.append(
+                    _span("minimum_deposit_amount_cents", match, text)
+                )
         candidate.raw_pattern_matches["tiered_bonus"] = [
             str(tier) for tier in tier_matches
         ]

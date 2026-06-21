@@ -375,6 +375,9 @@ Must validate:
 - raw snapshots link to extracted/canonical records
 - raw snapshot content hashes are derived from stored raw text
 - duplicate raw snapshot content hashes are queryable without deduping rows
+- field-level evidence links preserve deal, candidate, raw snapshot, source-link,
+  field, extracted value, excerpt, span, confidence, and extraction metadata
+- missing field evidence is detectable for populated canonical fields
 - status/change events can be recorded
 - partially extracted unknown fields remain null
 

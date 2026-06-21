@@ -16,6 +16,7 @@ from pdi.storage import (
     list_banking_deal_source_links,
     list_banking_deals,
     list_deal_change_events,
+    list_field_evidence_links,
 )
 
 
@@ -73,6 +74,18 @@ def candidate(db_path, **overrides):
                 "text": "$300",
                 "start": 10,
                 "end": 14,
+            },
+            {
+                "field": "direct_deposit_required",
+                "text": "direct deposit",
+                "start": 30,
+                "end": 44,
+            },
+            {
+                "field": "direct_deposit_minimum_cents",
+                "text": "$1,000 direct deposit",
+                "start": 24,
+                "end": 45,
             }
         ],
         "missing_fields": [],
@@ -117,6 +130,30 @@ def test_exact_duplicate_candidates_merge_into_one_canonical_deal(tmp_path):
         get_banking_deal_candidate(db_path, second_id)["canonicalization_status"]
         == "matched"
     )
+
+
+def test_canonical_source_links_preserve_field_evidence_values(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    candidate_id = candidate(db_path)
+
+    result = canonicalize_candidate(db_path, candidate_id)
+
+    assert result.action == "created"
+    evidence = list_field_evidence_links(db_path, deal_id=result.deal_id)
+    by_field = {item["field"]: item for item in evidence}
+
+    assert by_field["bonus_amount_cents"]["extracted_value"] == 30000
+    assert by_field["direct_deposit_required"]["extracted_value"] is True
+    assert by_field["direct_deposit_minimum_cents"]["extracted_value"] == 100000
+    assert by_field["bonus_amount_cents"]["candidate_id"] == candidate_id
+    assert by_field["bonus_amount_cents"]["raw_snapshot_id"]
+    assert by_field["bonus_amount_cents"]["evidence_text"] == "$300"
+    assert by_field["bonus_amount_cents"]["confidence_score"] == 0.82
+    assert by_field["bonus_amount_cents"]["extraction_method"] == (
+        "rule_based_banking_extractor"
+    )
+    assert by_field["bonus_amount_cents"]["content_hash"]
 
 
 def test_same_deal_from_two_sources_links_to_one_canonical_deal(tmp_path):
