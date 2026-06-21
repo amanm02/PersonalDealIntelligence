@@ -18,13 +18,27 @@ from pdi.alerts import (
 )
 from pdi.public_pilot import (
     NO_ENABLED_PUBLIC_PILOT_MESSAGE,
-    list_public_pilot_sources,
     validate_public_pilot_sources,
 )
 from pdi.qa_benchmark import BENCHMARK_CATEGORIES, run_banking_qa_benchmark
 from pdi.runs import run_banking_workflow_once
 from pdi.scoring import BankingScore, score_banking_deal
 from pdi.smoke import run_offline_banking_smoke
+from pdi.sources import (
+    ALLOWED_COMPLIANCE_STATUSES,
+    ALLOWED_SOURCE_CLASSES,
+    ALLOWED_SOURCE_GROUPS,
+    ALLOWED_SOURCE_TYPES,
+    ALLOWED_SUBCATEGORIES,
+    ALLOWED_TRUST_TIERS,
+    SourcePolicyError,
+    build_source_scaffold,
+    filter_source_policies,
+    load_source_onboarding_reviews,
+    load_source_policies,
+    render_source_scaffold_yaml,
+    source_policy_to_dict,
+)
 from pdi.storage import (
     get_banking_deal,
     get_banking_run,
@@ -229,9 +243,10 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     sources_list_parser.add_argument(
         "--group",
-        choices=("core", "demo", "public-pilot"),
+        choices=sorted(ALLOWED_SOURCE_GROUPS),
         help="Limit output to one source group.",
     )
+    _add_source_filters(sources_list_parser)
     _add_output_format(sources_list_parser)
     sources_list_parser.set_defaults(handler=_handle_sources_list)
 
@@ -246,6 +261,99 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _add_output_format(sources_validate_parser)
     sources_validate_parser.set_defaults(handler=_handle_sources_validate)
+
+    sources_show_parser = sources_subparsers.add_parser(
+        "show",
+        help="Show one banking source policy entry.",
+    )
+    sources_show_parser.add_argument("source_id")
+    sources_show_parser.add_argument(
+        "--config",
+        default="config/banking_sources.yaml",
+        help="Path to source policy YAML.",
+    )
+    _add_output_format(sources_show_parser)
+    sources_show_parser.set_defaults(handler=_handle_sources_show)
+
+    sources_onboarding_parser = sources_subparsers.add_parser(
+        "onboarding-check",
+        help="Report missing source onboarding fields and review blockers.",
+    )
+    sources_onboarding_parser.add_argument(
+        "--config",
+        default="config/banking_sources.yaml",
+        help="Path to source policy YAML.",
+    )
+    sources_onboarding_parser.add_argument(
+        "--review-required",
+        action="store_true",
+        help="Show only sources that still need policy review.",
+    )
+    sources_onboarding_parser.add_argument(
+        "--group",
+        choices=sorted(ALLOWED_SOURCE_GROUPS),
+        help="Limit output to one source group.",
+    )
+    _add_source_filters(sources_onboarding_parser)
+    _add_output_format(sources_onboarding_parser)
+    sources_onboarding_parser.set_defaults(handler=_handle_sources_onboarding_check)
+
+    sources_scaffold_parser = sources_subparsers.add_parser(
+        "scaffold",
+        help="Print a disabled source policy YAML scaffold.",
+    )
+    sources_scaffold_parser.add_argument("--id", dest="source_id", required=True)
+    sources_scaffold_parser.add_argument("--name", required=True)
+    sources_scaffold_parser.add_argument("--publisher", dest="publisher_name", required=True)
+    sources_scaffold_parser.add_argument("--url", required=True)
+    sources_scaffold_parser.add_argument(
+        "--source-type",
+        choices=sorted(ALLOWED_SOURCE_TYPES),
+        required=True,
+    )
+    sources_scaffold_parser.add_argument(
+        "--source-class",
+        choices=sorted(ALLOWED_SOURCE_CLASSES),
+        required=True,
+    )
+    sources_scaffold_parser.add_argument(
+        "--subcategory",
+        action="append",
+        choices=sorted(ALLOWED_SUBCATEGORIES),
+        required=True,
+        help="Banking subcategory covered by the source. Repeat for multiple.",
+    )
+    sources_scaffold_parser.add_argument(
+        "--trust-tier",
+        choices=sorted(ALLOWED_TRUST_TIERS),
+        help="Trust tier. Defaults from source class.",
+    )
+    sources_scaffold_parser.add_argument(
+        "--group",
+        choices=sorted(ALLOWED_SOURCE_GROUPS),
+        default="core",
+        help="Source group for the scaffold.",
+    )
+    sources_scaffold_parser.add_argument(
+        "--fixture-only",
+        action="store_true",
+        help="Mark the source as fixture-enabled while keeping it disabled.",
+    )
+    sources_scaffold_parser.add_argument(
+        "--disabled",
+        action="store_true",
+        default=True,
+        help="Keep enabled false in the scaffold. This is the default.",
+    )
+    sources_scaffold_parser.add_argument(
+        "--coverage-purpose",
+        help="Optional reviewed coverage purpose text.",
+    )
+    sources_scaffold_parser.add_argument(
+        "--last-reviewed-at",
+        help="Review date in YYYY-MM-DD format. Defaults to today.",
+    )
+    sources_scaffold_parser.set_defaults(handler=_handle_sources_scaffold)
 
     run_parser = banking_subparsers.add_parser(
         "run",
@@ -469,6 +577,20 @@ def _add_search_filters(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--needs-review", action="store_true")
 
 
+def _add_source_filters(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--category", choices=("banking",))
+    parser.add_argument("--subcategory", choices=sorted(ALLOWED_SUBCATEGORIES))
+    parser.add_argument("--source-type", choices=sorted(ALLOWED_SOURCE_TYPES))
+    parser.add_argument("--source-class", choices=sorted(ALLOWED_SOURCE_CLASSES))
+    parser.add_argument("--trust-tier", choices=sorted(ALLOWED_TRUST_TIERS))
+    parser.add_argument("--enabled", choices=("true", "false"))
+    parser.add_argument("--official", choices=("true", "false"))
+    parser.add_argument("--deposit", choices=("true", "false"))
+    parser.add_argument("--brokerage", choices=("true", "false"))
+    parser.add_argument("--credit-card", choices=("true", "false"))
+    parser.add_argument("--compliance-status", choices=sorted(ALLOWED_COMPLIANCE_STATUSES))
+
+
 def _handle_list(args: argparse.Namespace) -> int:
     deals = _filtered_deals(
         args.db,
@@ -589,7 +711,23 @@ def _handle_digest(args: argparse.Namespace) -> int:
 
 
 def _handle_sources_list(args: argparse.Namespace) -> int:
-    sources = list_public_pilot_sources(args.config, source_group=args.group)
+    policies = load_source_policies(args.config)
+    policies = filter_source_policies(
+        policies,
+        source_group=args.group,
+        category=args.category,
+        subcategory=args.subcategory,
+        source_type=args.source_type,
+        source_class=args.source_class,
+        trust_tier=args.trust_tier,
+        enabled=_optional_cli_bool(args.enabled),
+        official=_optional_cli_bool(args.official),
+        deposit=_optional_cli_bool(args.deposit),
+        brokerage=_optional_cli_bool(args.brokerage),
+        credit_card=_optional_cli_bool(args.credit_card),
+        compliance_status=args.compliance_status,
+    )
+    sources = [source_policy_to_dict(policy) for policy in policies]
     if args.format == "json":
         _print_json(sources)
     else:
@@ -636,6 +774,160 @@ def _handle_sources_validate(args: argparse.Namespace) -> int:
             f"{result['enabled_public_pilot_source_count']} enabled."
         )
     return 0
+
+
+def _handle_sources_show(args: argparse.Namespace) -> int:
+    policies = load_source_policies(args.config)
+    policy = next(
+        (candidate for candidate in policies if candidate.source_id == args.source_id),
+        None,
+    )
+    if policy is None:
+        raise ValueError(f"Source id {args.source_id} does not exist.")
+
+    payload = source_policy_to_dict(policy)
+    reviews = {
+        review.source_id: review.to_dict()
+        for review in load_source_onboarding_reviews(args.config)
+    }
+    payload["onboarding_review"] = reviews.get(args.source_id)
+    if args.format == "json":
+        _print_json(payload)
+    else:
+        _print_table(
+            [{"field": key, "value": value} for key, value in payload.items()],
+            empty_message="No source detail.",
+        )
+    return 0
+
+
+def _handle_sources_onboarding_check(args: argparse.Namespace) -> int:
+    reviews = [
+        review.to_dict() for review in load_source_onboarding_reviews(args.config)
+    ]
+    reviews = _filter_source_review_payloads(reviews, args)
+    if args.review_required:
+        reviews = [review for review in reviews if review["review_required"]]
+
+    if args.format == "json":
+        _print_json(
+            {
+                "config_path": args.config,
+                "source_count": len(reviews),
+                "review_required_count": sum(
+                    1 for review in reviews if review["review_required"]
+                ),
+                "invalid_count": sum(
+                    1
+                    for review in reviews
+                    if review["onboarding_status"] == "invalid"
+                ),
+                "sources": reviews,
+            }
+        )
+    else:
+        columns = [
+            "source_id",
+            "source_group",
+            "source_class",
+            "trust_tier",
+            "subcategory_scope",
+            "official_source",
+            "deposit_account_source",
+            "brokerage_source",
+            "credit_card_source",
+            "enabled",
+            "fixture_enabled",
+            "compliance_status",
+            "safe_default",
+            "live_collection_enabled",
+            "onboarding_status",
+            "missing_policy_fields",
+            "review_blockers",
+        ]
+        _print_table(
+            [{column: review.get(column) for column in columns} for review in reviews],
+            empty_message="No source onboarding records.",
+        )
+    return 0
+
+
+def _handle_sources_scaffold(args: argparse.Namespace) -> int:
+    try:
+        scaffold = build_source_scaffold(
+            source_id=args.source_id,
+            name=args.name,
+            publisher_name=args.publisher_name,
+            url=args.url,
+            source_type=args.source_type,
+            source_class=args.source_class,
+            subcategories=args.subcategory,
+            trust_tier=args.trust_tier,
+            source_group=args.group,
+            fixture_only=args.fixture_only,
+            disabled=args.disabled,
+            coverage_purpose=args.coverage_purpose,
+            last_reviewed_at=args.last_reviewed_at,
+        )
+    except SourcePolicyError as error:
+        for message in error.errors:
+            print(f"ERROR: {message}")
+        return 1
+
+    print(render_source_scaffold_yaml(scaffold), end="")
+    return 0
+
+
+def _optional_cli_bool(value: str | None) -> bool | None:
+    if value is None:
+        return None
+    return value == "true"
+
+
+def _filter_source_review_payloads(
+    reviews: list[dict[str, Any]],
+    args: argparse.Namespace,
+) -> list[dict[str, Any]]:
+    filters: list[Callable[[Mapping[str, Any]], bool]] = []
+    if getattr(args, "group", None):
+        filters.append(lambda review: review.get("source_group") == args.group)
+    if getattr(args, "source_type", None):
+        filters.append(lambda review: review.get("source_type") == args.source_type)
+    if getattr(args, "source_class", None):
+        filters.append(lambda review: review.get("source_class") == args.source_class)
+    if getattr(args, "trust_tier", None):
+        filters.append(lambda review: review.get("trust_tier") == args.trust_tier)
+    if getattr(args, "category", None):
+        filters.append(lambda review: args.category in review.get("category_scope", []))
+    if getattr(args, "subcategory", None):
+        filters.append(
+            lambda review: args.subcategory in review.get("subcategory_scope", [])
+        )
+    if getattr(args, "enabled", None):
+        enabled = _optional_cli_bool(args.enabled)
+        filters.append(lambda review: review.get("enabled") is enabled)
+    if getattr(args, "official", None):
+        official = _optional_cli_bool(args.official)
+        filters.append(lambda review: review.get("official_source") is official)
+    if getattr(args, "deposit", None):
+        deposit = _optional_cli_bool(args.deposit)
+        filters.append(lambda review: review.get("deposit_account_source") is deposit)
+    if getattr(args, "brokerage", None):
+        brokerage = _optional_cli_bool(args.brokerage)
+        filters.append(lambda review: review.get("brokerage_source") is brokerage)
+    if getattr(args, "credit_card", None):
+        credit_card = _optional_cli_bool(args.credit_card)
+        filters.append(
+            lambda review: review.get("credit_card_source") is credit_card
+        )
+    if getattr(args, "compliance_status", None):
+        filters.append(
+            lambda review: review.get("compliance_status") == args.compliance_status
+        )
+
+    for item_filter in filters:
+        reviews = [review for review in reviews if item_filter(review)]
+    return reviews
 
 
 def _handle_run(args: argparse.Namespace) -> int:

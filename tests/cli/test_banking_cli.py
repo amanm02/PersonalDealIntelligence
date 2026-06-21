@@ -6,6 +6,8 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 
+import yaml
+
 from pdi.storage import (
     acquire_banking_run_lock,
     initialize_database,
@@ -613,6 +615,120 @@ def test_sources_list_and_validate_show_public_pilot_metadata(tmp_path):
     assert payload["status"] == "valid"
     assert payload["public_pilot_source_count"] == 1
     assert payload["enabled_public_pilot_source_count"] == 0
+
+
+def test_sources_list_filters_by_trust_tier_and_credit_card_flag(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "sources",
+        "list",
+        "--trust-tier",
+        "official",
+        "--credit-card",
+        "true",
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 0, result.stderr
+    sources = json.loads(result.stdout)
+    assert {source["source_id"] for source in sources} == {
+        "seed-issuer-credit-card-detail",
+        "seed-issuer-credit-card-terms",
+    }
+    assert all(source["official_source"] is True for source in sources)
+
+
+def test_sources_show_includes_onboarding_review(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "sources",
+        "show",
+        "seed-issuer-credit-card-detail",
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["source_id"] == "seed-issuer-credit-card-detail"
+    assert payload["enabled"] is False
+    assert payload["onboarding_review"]["safe_default"] is True
+    assert payload["onboarding_review"]["onboarding_status"] == "review_required"
+    assert (
+        "source policy pending review before collection"
+        in payload["onboarding_review"]["review_blockers"]
+    )
+
+
+def test_sources_onboarding_check_filters_review_required_sources(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "sources",
+        "onboarding-check",
+        "--review-required",
+        "--credit-card",
+        "true",
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["review_required_count"] == 4
+    assert payload["invalid_count"] == 0
+    assert {source["source_id"] for source in payload["sources"]} == {
+        "seed-issuer-credit-card-detail",
+        "seed-issuer-credit-card-terms",
+        "seed-third-party-card-offers-rss",
+        "seed-user-card-newsletter-export",
+    }
+    assert all(source["live_collection_enabled"] is False for source in payload["sources"])
+
+
+def test_sources_scaffold_prints_disabled_yaml_without_writing_config(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "sources",
+        "scaffold",
+        "--id",
+        "seed-new-card-source",
+        "--name",
+        "Seed New Card Source",
+        "--publisher",
+        "Example Issuer",
+        "--url",
+        "https://example.test/card",
+        "--source-type",
+        "official_promo_page",
+        "--source-class",
+        "official",
+        "--subcategory",
+        "credit_card_signup_bonus",
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = yaml.safe_load(result.stdout)
+    source = payload["sources"][0]
+    assert source["source_id"] == "seed-new-card-source"
+    assert source["enabled"] is False
+    assert source["fixture_enabled"] is False
+    assert source["allow_scrape"] is False
+    assert source["requires_login"] is False
+    assert source["compliance_status"] == "pending_review"
+    assert "password" not in result.stdout
 
 
 def test_public_pilot_run_requires_dry_run_or_live_confirmation(tmp_path):

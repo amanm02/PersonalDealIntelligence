@@ -190,6 +190,16 @@ Validate the source registry with:
 python3 -m pdi.sources validate --config config/banking_sources.yaml
 python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking sources validate
 python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking sources list
+python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking sources show seed-issuer-credit-card-detail
+python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking sources onboarding-check --review-required
+python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking sources scaffold \
+  --id seed-new-card-source \
+  --name "Seed New Card Source" \
+  --publisher "Example Issuer" \
+  --url "https://example.test/card" \
+  --source-type official_promo_page \
+  --source-class official \
+  --subcategory credit_card_signup_bonus
 python3 -m pytest tests/sources tests/cli
 ```
 
@@ -197,6 +207,9 @@ The source registry should include source class, trust tier, official-source
 status, deposit/brokerage/credit-card coverage flags, fixture enablement, source
 priority, region scope, compliance notes, and safe disabled or fixture-only
 defaults for new source-universe placeholders.
+Source onboarding checks should surface missing policy fields, pending review
+status, and live-collection blockers. Source scaffolds must print disabled or
+fixture-only YAML and must not edit `config/banking_sources.yaml` directly.
 
 Validate the reusable offline demo source seed pack with:
 

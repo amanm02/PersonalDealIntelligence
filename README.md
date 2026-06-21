@@ -165,6 +165,7 @@ Validate banking source policies:
 python3 -m pdi.sources validate --config config/banking_sources.yaml
 python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking sources list
 python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking sources validate
+python3 -m pdi --db /tmp/pdi-public-pilot.sqlite banking sources onboarding-check
 ```
 
 Validate the reusable offline demo source pack:
@@ -192,6 +193,31 @@ collection. New source onboarding should start in disabled or fixture-only mode,
 use the appropriate trust tier (`official`, `trusted_third_party`, `community`,
 `user_provided`, or `disabled`), and be reviewed before any live collection is
 enabled.
+
+Review and onboard sources with the config-first source CLI:
+
+```bash
+python3 -m pdi --db /tmp/pdi-sources.sqlite banking sources list --credit-card true --enabled false
+python3 -m pdi --db /tmp/pdi-sources.sqlite banking sources show seed-issuer-credit-card-detail
+python3 -m pdi --db /tmp/pdi-sources.sqlite banking sources onboarding-check --review-required
+python3 -m pdi --db /tmp/pdi-sources.sqlite banking sources scaffold \
+  --id seed-new-card-source \
+  --name "Seed New Card Source" \
+  --publisher "Example Issuer" \
+  --url "https://example.test/card" \
+  --source-type official_promo_page \
+  --source-class official \
+  --subcategory credit_card_signup_bonus
+```
+
+`scaffold` prints a YAML source record to stdout and does not edit
+`config/banking_sources.yaml`. The scaffold keeps `enabled: false`, disables
+scraping, marks compliance as `pending_review`, and avoids credential,
+private-session, application, form-submission, and financial-action fields. Add
+the rendered record to config only after reviewing the source category,
+subcategories, trust tier, official-source flag, robots and terms notes, rate
+limits, and collection method. Keep new sources disabled or fixture-only until a
+future issue explicitly approves live collection.
 
 The `public-pilot` source group is an opt-in skeleton for reviewed public
 sources. The checked-in public-pilot RSS placeholder is disabled by default.

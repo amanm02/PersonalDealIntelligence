@@ -107,6 +107,22 @@ ALLOWED_SUBCATEGORIES = {
     "credit_card_signup_bonus",
 }
 
+DEPOSIT_SUBCATEGORIES = {
+    "checking_bonus",
+    "savings_bonus",
+    "checking_savings_bundle",
+    "money_market_bonus",
+    "cd_bonus",
+}
+
+POLICY_NOTE_FIELDS = (
+    "coverage_purpose",
+    "robots_policy_notes",
+    "terms_policy_notes",
+    "rate_limit_notes",
+    "notes",
+)
+
 FORBIDDEN_FIELD_FRAGMENTS = {
     "bot_protection_evasion",
     "bot-protection-evasion",
@@ -170,12 +186,403 @@ class SourcePolicyError(ValueError):
         super().__init__("\n".join(errors))
 
 
+@dataclass(frozen=True)
+class SourceOnboardingReview:
+    """Review status for one source policy record."""
+
+    source_id: str
+    source_group: str | None
+    name: str | None
+    source_type: str | None
+    source_class: str | None
+    category_scope: tuple[str, ...]
+    subcategory_scope: tuple[str, ...]
+    trust_tier: str | None
+    official_source: bool | None
+    deposit_account_source: bool | None
+    brokerage_source: bool | None
+    credit_card_source: bool | None
+    enabled: bool | None
+    fixture_enabled: bool | None
+    compliance_status: str | None
+    missing_policy_fields: tuple[str, ...]
+    validation_errors: tuple[str, ...]
+    review_blockers: tuple[str, ...]
+
+    @property
+    def live_collection_enabled(self) -> bool:
+        return self.enabled is True
+
+    @property
+    def safe_default(self) -> bool:
+        return self.enabled is not True or self.fixture_enabled is True
+
+    @property
+    def review_required(self) -> bool:
+        return bool(self.missing_policy_fields or self.validation_errors or self.review_blockers)
+
+    @property
+    def onboarding_status(self) -> str:
+        if self.missing_policy_fields or self.validation_errors:
+            return "invalid"
+        if self.review_blockers:
+            return "review_required"
+        return "ready"
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a stable JSON/table-friendly review payload."""
+
+        return {
+            "source_id": self.source_id,
+            "source_group": self.source_group,
+            "name": self.name,
+            "source_type": self.source_type,
+            "source_class": self.source_class,
+            "category_scope": list(self.category_scope),
+            "subcategory_scope": list(self.subcategory_scope),
+            "trust_tier": self.trust_tier,
+            "official_source": self.official_source,
+            "deposit_account_source": self.deposit_account_source,
+            "brokerage_source": self.brokerage_source,
+            "credit_card_source": self.credit_card_source,
+            "enabled": self.enabled,
+            "fixture_enabled": self.fixture_enabled,
+            "compliance_status": self.compliance_status,
+            "missing_policy_fields": list(self.missing_policy_fields),
+            "validation_errors": list(self.validation_errors),
+            "review_blockers": list(self.review_blockers),
+            "safe_default": self.safe_default,
+            "live_collection_enabled": self.live_collection_enabled,
+            "review_required": self.review_required,
+            "onboarding_status": self.onboarding_status,
+        }
+
+
 def load_source_policies(config_path: str | Path) -> list[SourcePolicy]:
     """Load and validate source policies from a YAML config file."""
 
     path = Path(config_path)
     raw_config = yaml.safe_load(path.read_text(encoding="utf-8"))
     return validate_source_config(raw_config)
+
+
+def load_raw_source_config(config_path: str | Path) -> Mapping[str, Any]:
+    """Load source policy YAML without validating it."""
+
+    path = Path(config_path)
+    raw_config = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(raw_config, Mapping):
+        raise SourcePolicyError(["source config must be a mapping with a sources list"])
+    return raw_config
+
+
+def review_source_config(raw_config: Any) -> list[SourceOnboardingReview]:
+    """Return onboarding review rows even when some source records are invalid."""
+
+    errors: list[str] = []
+    if not isinstance(raw_config, Mapping):
+        raise SourcePolicyError(["source config must be a mapping with a sources list"])
+
+    unknown_top_level = set(raw_config) - {"sources"}
+    for field in sorted(unknown_top_level):
+        errors.append(f"unknown top-level field: {field}")
+
+    raw_sources = raw_config.get("sources")
+    if not isinstance(raw_sources, list):
+        errors.append("sources must be a list")
+        raise SourcePolicyError(errors)
+
+    reviews: list[SourceOnboardingReview] = []
+    for index, raw_source in enumerate(raw_sources):
+        label = _source_label(index, raw_source)
+        if not isinstance(raw_source, Mapping):
+            reviews.append(
+                SourceOnboardingReview(
+                    source_id=f"sources[{index}]",
+                    source_group=None,
+                    name=None,
+                    source_type=None,
+                    source_class=None,
+                    category_scope=(),
+                    subcategory_scope=(),
+                    trust_tier=None,
+                    official_source=None,
+                    deposit_account_source=None,
+                    brokerage_source=None,
+                    credit_card_source=None,
+                    enabled=None,
+                    fixture_enabled=None,
+                    compliance_status=None,
+                    missing_policy_fields=tuple(sorted(REQUIRED_FIELDS)),
+                    validation_errors=("source record must be a mapping",),
+                    review_blockers=(),
+                )
+            )
+            continue
+
+        missing = tuple(sorted(REQUIRED_FIELDS - set(raw_source)))
+        source_errors = tuple(_validate_source_mapping(raw_source, label))
+        reviews.append(
+            SourceOnboardingReview(
+                source_id=str(raw_source.get("source_id") or f"sources[{index}]"),
+                source_group=_optional_text(raw_source.get("source_group")),
+                name=_optional_text(raw_source.get("name")),
+                source_type=_optional_text(raw_source.get("source_type")),
+                source_class=_optional_text(raw_source.get("source_class")),
+                category_scope=_optional_string_tuple(raw_source.get("category_scope")),
+                subcategory_scope=_optional_string_tuple(
+                    raw_source.get("subcategory_scope")
+                ),
+                trust_tier=_optional_text(raw_source.get("trust_tier")),
+                official_source=_optional_bool(raw_source.get("official_source")),
+                deposit_account_source=_optional_bool(
+                    raw_source.get("deposit_account_source")
+                ),
+                brokerage_source=_optional_bool(raw_source.get("brokerage_source")),
+                credit_card_source=_optional_bool(raw_source.get("credit_card_source")),
+                enabled=_optional_bool(raw_source.get("enabled")),
+                fixture_enabled=_optional_bool(raw_source.get("fixture_enabled")),
+                compliance_status=_optional_text(raw_source.get("compliance_status")),
+                missing_policy_fields=missing,
+                validation_errors=source_errors,
+                review_blockers=tuple(_review_blockers(raw_source)),
+            )
+        )
+    return reviews
+
+
+def load_source_onboarding_reviews(
+    config_path: str | Path,
+) -> list[SourceOnboardingReview]:
+    """Load source config and return onboarding review rows."""
+
+    return review_source_config(load_raw_source_config(config_path))
+
+
+def filter_source_policies(
+    policies: list[SourcePolicy],
+    *,
+    source_group: str | None = None,
+    category: str | None = None,
+    subcategory: str | None = None,
+    source_type: str | None = None,
+    source_class: str | None = None,
+    trust_tier: str | None = None,
+    enabled: bool | None = None,
+    official: bool | None = None,
+    deposit: bool | None = None,
+    brokerage: bool | None = None,
+    credit_card: bool | None = None,
+    compliance_status: str | None = None,
+) -> list[SourcePolicy]:
+    """Filter source policies for source review CLI commands."""
+
+    filtered = policies
+    if source_group is not None:
+        filtered = [policy for policy in filtered if policy.source_group == source_group]
+    if category is not None:
+        filtered = [policy for policy in filtered if category in policy.category_scope]
+    if subcategory is not None:
+        filtered = [
+            policy for policy in filtered if subcategory in policy.subcategory_scope
+        ]
+    if source_type is not None:
+        filtered = [policy for policy in filtered if policy.source_type == source_type]
+    if source_class is not None:
+        filtered = [policy for policy in filtered if policy.source_class == source_class]
+    if trust_tier is not None:
+        filtered = [policy for policy in filtered if policy.trust_tier == trust_tier]
+    if enabled is not None:
+        filtered = [policy for policy in filtered if policy.enabled is enabled]
+    if official is not None:
+        filtered = [
+            policy for policy in filtered if policy.official_source is official
+        ]
+    if deposit is not None:
+        filtered = [
+            policy for policy in filtered if policy.deposit_account_source is deposit
+        ]
+    if brokerage is not None:
+        filtered = [policy for policy in filtered if policy.brokerage_source is brokerage]
+    if credit_card is not None:
+        filtered = [
+            policy for policy in filtered if policy.credit_card_source is credit_card
+        ]
+    if compliance_status is not None:
+        filtered = [
+            policy
+            for policy in filtered
+            if policy.compliance_status == compliance_status
+        ]
+    return filtered
+
+
+def source_policy_to_dict(policy: SourcePolicy) -> dict[str, Any]:
+    """Return a stable JSON/table-friendly source policy payload."""
+
+    blocked_reason = source_blocked_reason(policy)
+    return {
+        "source_id": policy.source_id,
+        "source_group": policy.source_group,
+        "publisher_name": policy.publisher_name,
+        "name": policy.name,
+        "url": policy.url,
+        "source_type": policy.source_type,
+        "source_class": policy.source_class,
+        "category_scope": list(policy.category_scope),
+        "subcategory_scope": list(policy.subcategory_scope),
+        "coverage_purpose": policy.coverage_purpose,
+        "trust_tier": policy.trust_tier,
+        "official_source": policy.official_source,
+        "deposit_account_source": policy.deposit_account_source,
+        "brokerage_source": policy.brokerage_source,
+        "credit_card_source": policy.credit_card_source,
+        "fixture_enabled": policy.fixture_enabled,
+        "source_priority": policy.source_priority,
+        "region_scope": list(policy.region_scope),
+        "enabled": policy.enabled,
+        "collection_method": policy.collection_method,
+        "max_frequency_hours": policy.max_frequency_hours,
+        "requires_login": policy.requires_login,
+        "allow_scrape": policy.allow_scrape,
+        "allow_api": policy.allow_api,
+        "allow_rss": policy.allow_rss,
+        "allow_email_parse": policy.allow_email_parse,
+        "robots_policy_notes": policy.robots_policy_notes,
+        "terms_policy_notes": policy.terms_policy_notes,
+        "rate_limit_notes": policy.rate_limit_notes,
+        "compliance_status": policy.compliance_status,
+        "last_reviewed_at": policy.last_reviewed_at.isoformat(),
+        "notes": policy.notes,
+        "safety_state": "ready" if blocked_reason is None else "blocked",
+        "blocked_reason": blocked_reason,
+    }
+
+
+def source_blocked_reason(policy: SourcePolicy) -> str | None:
+    """Return the highest-priority reason a source is not collection-ready."""
+
+    if not policy.enabled:
+        return "disabled"
+    if policy.requires_login:
+        return "requires_login"
+    if policy.compliance_status != "approved":
+        return "compliance_status_not_approved"
+    if policy.source_class == "disabled" or policy.source_type == "disabled":
+        return "disabled"
+    return None
+
+
+def build_source_scaffold(
+    *,
+    source_id: str,
+    name: str,
+    publisher_name: str,
+    url: str,
+    source_type: str,
+    source_class: str,
+    subcategories: list[str],
+    trust_tier: str | None = None,
+    source_group: str = "core",
+    fixture_only: bool = False,
+    disabled: bool = True,
+    coverage_purpose: str | None = None,
+    region_scope: list[str] | None = None,
+    last_reviewed_at: str | None = None,
+) -> dict[str, list[dict[str, Any]]]:
+    """Build a safe source YAML scaffold without writing it to config."""
+
+    if not SOURCE_ID_PATTERN.fullmatch(source_id):
+        raise SourcePolicyError(
+            ["source_id must use lowercase letters, numbers, and hyphens"]
+        )
+    if source_group not in ALLOWED_SOURCE_GROUPS:
+        raise SourcePolicyError([f"unsupported source_group: {source_group}"])
+    if source_type not in ALLOWED_SOURCE_TYPES:
+        raise SourcePolicyError([f"unsupported source_type: {source_type}"])
+    if source_class not in ALLOWED_SOURCE_CLASSES:
+        raise SourcePolicyError([f"unsupported source_class: {source_class}"])
+    if not subcategories:
+        raise SourcePolicyError(["at least one --subcategory is required"])
+    unsupported_subcategories = sorted(set(subcategories) - ALLOWED_SUBCATEGORIES)
+    if unsupported_subcategories:
+        raise SourcePolicyError(
+            [
+                "unsupported subcategory: " + ", ".join(unsupported_subcategories)
+            ]
+        )
+
+    resolved_trust_tier = trust_tier or _default_trust_tier(source_class)
+    if resolved_trust_tier not in ALLOWED_TRUST_TIERS:
+        raise SourcePolicyError([f"unsupported trust_tier: {resolved_trust_tier}"])
+    if source_class == "official" and resolved_trust_tier != "official":
+        raise SourcePolicyError(
+            ["official source_class requires trust_tier official"]
+        )
+
+    collection_method = _default_collection_method(source_type, fixture_only)
+    output_collection_method = (
+        "disabled" if source_class == "disabled" else collection_method
+    )
+    source_is_disabled = disabled or source_class == "disabled" or source_type == "disabled"
+    allow_rss = collection_method == "rss_feed"
+    allow_email_parse = collection_method == "email_export"
+    allow_api = collection_method == "api"
+    product_flags = _product_flags(subcategories)
+    review_date = last_reviewed_at or date.today().isoformat()
+    try:
+        _parse_review_date(review_date)
+    except ValueError as error:
+        raise SourcePolicyError(["last_reviewed_at must be an ISO date"]) from error
+    record = {
+        "source_id": source_id,
+        "source_group": source_group,
+        "publisher_name": publisher_name,
+        "name": name,
+        "url": url,
+        "source_type": "disabled" if source_class == "disabled" else source_type,
+        "source_class": source_class,
+        "category_scope": ["banking"],
+        "subcategory_scope": subcategories,
+        "coverage_purpose": coverage_purpose
+        or "New source scaffold for policy review before collection.",
+        "trust_tier": resolved_trust_tier,
+        "official_source": source_class == "official",
+        "deposit_account_source": product_flags["deposit_account_source"],
+        "brokerage_source": product_flags["brokerage_source"],
+        "credit_card_source": product_flags["credit_card_source"],
+        "fixture_enabled": fixture_only,
+        "source_priority": 0,
+        "region_scope": region_scope or ["US"],
+        "enabled": False,
+        "collection_method": output_collection_method,
+        "max_frequency_hours": (
+            0
+            if source_is_disabled
+            and output_collection_method in {"manual_only", "disabled"}
+            else 24
+        ),
+        "requires_login": False,
+        "allow_scrape": False,
+        "allow_api": allow_api,
+        "allow_rss": allow_rss,
+        "allow_email_parse": allow_email_parse,
+        "robots_policy_notes": "Review robots policy before any automated collection.",
+        "terms_policy_notes": (
+            "Pending source policy review; keep disabled until terms are reviewed."
+        ),
+        "rate_limit_notes": "No scheduled requests while disabled.",
+        "compliance_status": "disabled" if source_class == "disabled" else "pending_review",
+        "last_reviewed_at": review_date,
+        "notes": "Scaffold only; verify policy notes before enabling any collection.",
+    }
+    return {"sources": [record]}
+
+
+def render_source_scaffold_yaml(scaffold: Mapping[str, Any]) -> str:
+    """Render source scaffold YAML in the same style as checked-in config."""
+
+    return yaml.safe_dump(scaffold, sort_keys=False)
 
 
 def validate_source_config(raw_config: Any) -> list[SourcePolicy]:
@@ -388,14 +795,7 @@ def _validate_source_universe_rules(
         errors.append(f"{label}: disabled source_class cannot be enabled")
 
     subcategories = set(source["subcategory_scope"])
-    deposit_subcategories = {
-        "checking_bonus",
-        "savings_bonus",
-        "checking_savings_bundle",
-        "money_market_bonus",
-        "cd_bonus",
-    }
-    if subcategories & deposit_subcategories and not source["deposit_account_source"]:
+    if subcategories & DEPOSIT_SUBCATEGORIES and not source["deposit_account_source"]:
         errors.append(
             f"{label}: deposit subcategories require deposit_account_source true"
         )
@@ -582,6 +982,82 @@ def _parse_review_date(value: Any) -> date:
     if not isinstance(value, str):
         raise ValueError("expected ISO date string")
     return date.fromisoformat(value)
+
+
+def _optional_text(value: Any) -> str | None:
+    if isinstance(value, str):
+        return value
+    return None
+
+
+def _optional_bool(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    return None
+
+
+def _optional_string_tuple(value: Any) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return ()
+    return tuple(item for item in value if isinstance(item, str))
+
+
+def _review_blockers(source: Mapping[str, Any]) -> list[str]:
+    blockers: list[str] = []
+    for field in POLICY_NOTE_FIELDS:
+        value = source.get(field)
+        if not isinstance(value, str) or not value.strip():
+            blockers.append(f"{field} needs review notes")
+
+    if source.get("enabled") is True:
+        if source.get("compliance_status") != "approved":
+            blockers.append("enabled source must be compliance approved")
+        if source.get("requires_login") is True:
+            blockers.append("enabled source cannot require login")
+        if source.get("allow_scrape") is True:
+            blockers.append("scrape permission requires separate live-fetch review")
+    elif source.get("compliance_status") == "pending_review":
+        blockers.append("source policy pending review before collection")
+
+    if source.get("enabled") is False and source.get("fixture_enabled") is not True:
+        compliance_status = source.get("compliance_status")
+        if compliance_status == "approved":
+            blockers.append("disabled non-fixture source marked approved; confirm review")
+
+    return blockers
+
+
+def _default_trust_tier(source_class: str) -> str:
+    if source_class == "official":
+        return "official"
+    if source_class == "third_party":
+        return "community"
+    if source_class == "manual_import":
+        return "user_provided"
+    return "disabled"
+
+
+def _default_collection_method(source_type: str, fixture_only: bool) -> str:
+    if source_type == "rss_feed":
+        return "rss_feed"
+    if source_type == "newsletter_email":
+        return "email_export"
+    if source_type == "api":
+        return "api"
+    if source_type == "disabled":
+        return "disabled"
+    if fixture_only:
+        return "manual_only"
+    return "manual_only"
+
+
+def _product_flags(subcategories: list[str]) -> dict[str, bool]:
+    subcategory_set = set(subcategories)
+    return {
+        "deposit_account_source": bool(subcategory_set & DEPOSIT_SUBCATEGORIES),
+        "brokerage_source": "brokerage_bonus" in subcategory_set,
+        "credit_card_source": "credit_card_signup_bonus" in subcategory_set,
+    }
 
 
 def _is_forbidden_field(field: str) -> bool:

@@ -4,7 +4,10 @@ import pytest
 
 from pdi.sources import (
     SourcePolicyError,
+    build_source_scaffold,
     load_source_policies,
+    render_source_scaffold_yaml,
+    review_source_config,
     validate_source_config,
 )
 
@@ -330,3 +333,70 @@ def test_non_banking_scope_fails_validation():
         validate_source_config(config_for(source))
 
     assert "unsupported category_scope entry: travel" in str(error.value)
+
+
+def test_onboarding_review_reports_missing_policy_fields():
+    source = base_source(compliance_status="pending_review", enabled=False)
+    del source["terms_policy_notes"]
+
+    reviews = review_source_config(config_for(source))
+
+    assert len(reviews) == 1
+    assert reviews[0].source_id == "test-rss-source"
+    assert reviews[0].onboarding_status == "invalid"
+    assert reviews[0].review_required is True
+    assert reviews[0].safe_default is True
+    assert "terms_policy_notes" in reviews[0].missing_policy_fields
+    assert "missing required field: terms_policy_notes" in "\n".join(
+        reviews[0].validation_errors
+    )
+
+
+def test_onboarding_review_marks_pending_sources_for_review():
+    reviews = review_source_config(
+        config_for(base_source(compliance_status="pending_review", enabled=False))
+    )
+
+    assert reviews[0].onboarding_status == "review_required"
+    assert reviews[0].live_collection_enabled is False
+    assert reviews[0].review_blockers == (
+        "source policy pending review before collection",
+    )
+
+
+def test_source_scaffold_defaults_to_disabled_safe_policy():
+    scaffold = build_source_scaffold(
+        source_id="seed-new-card-source",
+        name="Seed New Card Source",
+        publisher_name="Example Issuer",
+        url="https://example.test/card",
+        source_type="official_promo_page",
+        source_class="official",
+        subcategories=["credit_card_signup_bonus"],
+        last_reviewed_at="2026-06-21",
+    )
+
+    source = scaffold["sources"][0]
+    assert source["enabled"] is False
+    assert source["fixture_enabled"] is False
+    assert source["allow_scrape"] is False
+    assert source["requires_login"] is False
+    assert source["compliance_status"] == "pending_review"
+    assert source["credit_card_source"] is True
+    assert source["official_source"] is True
+    assert "password" not in render_source_scaffold_yaml(scaffold)
+
+
+def test_source_scaffold_rejects_invalid_source_id():
+    with pytest.raises(SourcePolicyError) as error:
+        build_source_scaffold(
+            source_id="Bad Source",
+            name="Bad Source",
+            publisher_name="Example Publisher",
+            url="https://example.test/bad",
+            source_type="rss_feed",
+            source_class="third_party",
+            subcategories=["checking_bonus"],
+        )
+
+    assert "source_id must use lowercase letters" in str(error.value)
