@@ -171,6 +171,8 @@ Validate the reusable offline demo source pack:
 
 ```bash
 python3 -m pdi.sources validate --config config/banking_sources.demo.yaml
+python3 -m pdi --db /tmp/pdi-demo-qa.sqlite banking qa-benchmark --reset-db
+python3 -m pdi --db /tmp/pdi-demo-qa.sqlite banking qa-benchmark --reset-db --json
 ```
 
 `config/banking_sources.yaml` is the source-policy authority for future
@@ -218,7 +220,11 @@ style text, RSS/deal-blog fixture content, newsletter export text, manual pasted
 notes, duplicate/conflicting mentions, low-value and expired offers, ambiguous
 terms, and non-deal content. The demo pack does not fetch websites, use browser
 automation, connect email accounts, send notifications, or perform banking
-actions.
+actions. `pdi banking qa-benchmark` runs the same reusable demo corpus through
+offline collection, extraction, dedupe, scoring, and QA checks for expected
+deals, duplicate merges, surfaced conflicts, non-deal suppression, score sanity,
+and fixture coverage. Credit-card runtime coverage is reported as pending until
+that product path exists.
 
 Collector support exists under `pdi.collectors` for manual text, manual URL
 records, RSS/Atom fixture content, newsletter/email export text, and
@@ -313,6 +319,10 @@ python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking smoke-test \
   --digest-output /tmp/pdi-banking-smoke-digest.md \
   --as-of 2026-06-18 \
   --reset-db
+
+python3 -m pdi --db /tmp/pdi-demo-qa.sqlite banking qa-benchmark \
+  --reset-db \
+  --json
 ```
 
 Use `--format json` when a structured smoke summary is needed. The smoke command
@@ -320,6 +330,9 @@ loads local fixture text, creates raw snapshots, extracts candidates,
 canonicalizes duplicate/conflicting deals, scores canonical deals, writes a
 local markdown digest, and prints summary counts. It does not fetch websites,
 connect email accounts, send external messages, or automate banking actions.
+The QA benchmark is also local-only and fails when expected demo deals, duplicate
+handling, conflict surfacing, non-deal suppression, or score sanity checks
+regress.
 
 After the smoke flow seeds a local database, these searches should return
 checking, savings, and brokerage examples from the synthetic corpus:
@@ -461,6 +474,7 @@ For offline smoke flow changes, run:
 python3 -m pytest tests/integration
 python3 -m pytest tests/cli
 python3 -m pytest tests/alerts
+python3 -m pdi --db /tmp/pdi-demo-qa.sqlite banking qa-benchmark --reset-db --json
 python3 -m pytest
 ```
 

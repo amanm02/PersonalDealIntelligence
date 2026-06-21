@@ -400,6 +400,12 @@ validation, and the fresh-clone demo gate uses it through local CLI commands. It
 does not add live fetching, browser automation, email account access,
 credentials, notifications, or banking actions.
 
+The local QA benchmark is exposed through `python3 -m pdi banking qa-benchmark`.
+It reuses the demo corpus to check expected deal coverage, duplicate merging,
+conflict surfacing, non-deal suppression, score sanity, and edge-case fixture
+coverage. It is deterministic and offline-only. Credit-card runtime coverage is
+reported as pending until the credit-card extraction/scoring path exists.
+
 ### 8c. Opt-in public-pilot sources
 
 Purpose: prove the public-source collection shape without enabling broad live
