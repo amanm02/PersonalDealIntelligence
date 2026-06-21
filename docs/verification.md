@@ -382,6 +382,11 @@ Must validate:
 - raw snapshots link to extracted/canonical records
 - raw snapshot content hashes are derived from stored raw text
 - duplicate raw snapshot content hashes are queryable without deduping rows
+- `banking_deal_candidates` is the canonical extracted pre-dedupe candidate
+  table; helpers preserve unknown terms as nulls, deterministic JSON evidence,
+  rejected filters, pending filters, canonicalization status filters, and raw
+  snapshot foreign-key integrity
+- existing candidate rows migrate cleanly from older local database versions
 - stored raw snapshots can be re-extracted offline without live collection
 - re-extraction dry-run reports deterministic candidate comparisons without
   writing new candidate rows
