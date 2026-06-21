@@ -56,11 +56,11 @@ The expanded MVP uses two coordinated tracks:
 | 10 | #11 | Harden documentation, tests, and release checklist | #1-#10 | closed |
 | 11 | #12 | Add local run history and dry-run command | #3, #4, #7, #9, #10, #11 | closed |
 | 12 | #14 | Add realistic demo fixture corpus and source seed pack | #2, #3, #4, #5 | closed |
-| 13 | #15 | Add product-facing banking deal find command | #2, #6, #7, #8, #14 | in review |
-| 14 | #16 | Add fresh-clone demo readiness gate | #2-#12, #14, #15 | open |
+| 13 | #15 | Add product-facing banking deal find command | #2, #6, #7, #8, #14 | closed |
+| 14 | #16 | Add fresh-clone demo readiness gate | #2-#12, #14, #15 | open; PR #54 in review |
 | 15 | #17 | Add opt-in compliant public source pilot | #3, #4, #10, #12, #16 | open |
 | 16 | #18 | Sync issue map and roadmap after demo expansion | #1, after #14-#17 exist | closed |
-| 17 | #27 | Expand MVP scope to include credit card offers | #1 | in review |
+| 17 | #27 | Expand MVP scope to include credit card offers | #1 | closed |
 | 18 | #28 | Build comprehensive banking and credit card source universe with onboarding workflow | #3, #27 | open |
 | 19 | #29 | Add compliant live fetcher hardening, retry rules, rate limits, and source health tracking | #3, #4, #28 | open |
 | 20 | #30 | Add evidence capture with raw snapshots, content hashes, and source-term links | #2, #4, #5, #29 if live metadata is reused | open |
@@ -77,6 +77,16 @@ The expanded MVP uses two coordinated tracks:
 | 31 | #41 | Add conflict resolution policy and reviewer override audit log | #6, #30, #32, #35, #40 | open |
 | 32 | #42 | Add query and service layer for future dashboard/API consumption | #2, #6, #7, #8, #35, #36 | open |
 | 33 | #43 | Add data export, import, backup, and restore workflow | #2, #35, #41 if available | open |
+
+## Current work and concurrency
+
+Current GitHub state should be verified before editing because batch examples in issue bodies can become stale.
+
+- Completed prerequisites: #27 / PR #51, product CI / PR #50, and #15 / PR #53 are merged.
+- Current exclusive AgentOps work: #52 adds the concurrency operating model and hygiene checks.
+- Next sequential work: #16 demo readiness is open with PR #54 in review; #17 opt-in public source pilot remains blocked until #16 is merged and verified.
+- Future work #28-#43 should be split or rewritten before implementation when it overlaps source policy, schema, taxonomy, evidence, scoring, CLI, workflow, or shared docs.
+- Use `docs/agentops/concurrency.md`, `docs/agentops/issue-hygiene.md`, and `docs/agentops/current-work-batches.md` before launching parallel agents.
 
 ## Dependency notes
 

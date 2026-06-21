@@ -1,9 +1,14 @@
-.PHONY: agentops-pr agentops-weekly agentops-monthly hooks-smoke mcp-smoke test agentops-test
+.PHONY: agentops-pr workflow-hygiene agentops-weekly agentops-monthly hooks-smoke mcp-smoke test agentops-test
 
 test:
 	python3 -m pytest
 
-agentops-pr:
+workflow-hygiene:
+	python3 tools/agentops/check_pr_template.py
+	python3 tools/agentops/check_issue_map_freshness.py
+	python3 tools/agentops/check_context_budget.py
+
+agentops-pr: workflow-hygiene
 	python3 -m tools.agentops.audit_docs
 	python3 -m tools.agentops.audit_memory
 	python3 -m tools.agentops.audit_structure
