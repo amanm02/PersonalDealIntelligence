@@ -21,6 +21,7 @@ from pdi.public_pilot import (
     list_public_pilot_sources,
     validate_public_pilot_sources,
 )
+from pdi.qa_benchmark import BENCHMARK_CATEGORIES, run_banking_qa_benchmark
 from pdi.runs import run_banking_workflow_once
 from pdi.scoring import BankingScore, score_banking_deal
 from pdi.smoke import run_offline_banking_smoke
@@ -394,6 +395,45 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     smoke_parser.set_defaults(handler=_handle_smoke_test)
 
+    qa_parser = banking_subparsers.add_parser(
+        "qa-benchmark",
+        help="Run the offline Banking MVP demo QA benchmark.",
+    )
+    qa_parser.add_argument(
+        "--category",
+        choices=BENCHMARK_CATEGORIES,
+        default="all",
+        help="Benchmark scope.",
+    )
+    qa_parser.add_argument(
+        "--demo-dir",
+        default="examples/demo_banking",
+        help="Directory containing demo banking fixtures.",
+    )
+    qa_parser.add_argument(
+        "--source-config",
+        default="config/banking_sources.demo.yaml",
+        help="Path to demo banking source config.",
+    )
+    qa_parser.add_argument("--as-of", default=DEFAULT_DEMO_AS_OF)
+    qa_parser.add_argument(
+        "--reset-db",
+        action="store_true",
+        help="Replace the target QA benchmark database if it already exists.",
+    )
+    qa_parser.add_argument(
+        "--format",
+        choices=("table", "json"),
+        default=DEFAULT_OUTPUT_FORMAT,
+        help="Output format.",
+    )
+    qa_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Shortcut for --format json.",
+    )
+    qa_parser.set_defaults(handler=_handle_qa_benchmark)
+
     return parser
 
 
@@ -725,6 +765,23 @@ def _handle_smoke_test(args: argparse.Namespace) -> int:
             empty_message="No smoke summary generated.",
         )
     return 0
+
+
+def _handle_qa_benchmark(args: argparse.Namespace) -> int:
+    summary = run_banking_qa_benchmark(
+        args.db,
+        category=args.category,
+        demo_dir=args.demo_dir,
+        source_config=args.source_config,
+        as_of=_parse_cli_date(args.as_of),
+        reset_db=args.reset_db,
+    )
+    if args.format == "json" or args.json:
+        _print_json(summary)
+    else:
+        print("Offline banking QA benchmark complete.")
+        _print_qa_benchmark_summary(summary)
+    return 1 if summary["verification_status"] == "fail" else 0
 
 
 def _filtered_deals(
@@ -1437,6 +1494,39 @@ def _print_run_detail(run: Mapping[str, Any]) -> None:
             print(f"  - {key}: {_display_value(value)}")
     else:
         print(f"  - {_display_value(metadata)}")
+
+
+def _print_qa_benchmark_summary(summary: Mapping[str, Any]) -> None:
+    rows = [
+        {"metric": "verification_status", "value": summary["verification_status"]},
+        {"metric": "category", "value": summary["category"]},
+        {"metric": "offline_only", "value": summary["offline_only"]},
+    ]
+    rows.extend(
+        {"metric": key, "value": value}
+        for key, value in summary["summary"].items()
+    )
+    _print_table(rows, empty_message="No QA benchmark summary generated.")
+
+    print("Sections:")
+    section_rows = []
+    for name, section in summary["sections"].items():
+        section_rows.append(
+            {
+                "section": name,
+                "status": section["status"],
+                "found": section.get("expected_deals_found", "n/a"),
+                "missed": ", ".join(section.get("expected_deals_missed") or [])
+                or "none",
+                "failures": ", ".join(section.get("failures") or []) or "none",
+            }
+        )
+    _print_table(section_rows, empty_message="No QA benchmark sections generated.")
+
+    if summary["failures"]:
+        print("Failures:")
+        for failure in summary["failures"]:
+            print(f"  - {failure}")
 
 
 def _print_table(

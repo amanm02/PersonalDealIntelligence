@@ -261,16 +261,25 @@ search behavior with:
 ```bash
 python3 -m pdi.sources validate --config config/banking_sources.demo.yaml
 python3 -m pytest tests/collectors/test_demo_corpus.py tests/integration/test_demo_corpus_flow.py
+python3 -m pytest tests/integration/test_qa_benchmark.py
 python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking smoke-test \
   --digest-output /tmp/pdi-banking-smoke-digest.md \
   --as-of 2026-06-18 \
   --reset-db
+python3 -m pdi --db /tmp/pdi-demo-qa.sqlite banking qa-benchmark --reset-db
+python3 -m pdi --db /tmp/pdi-demo-qa.sqlite banking qa-benchmark --reset-db --json
 python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking find --query "checking bonus"
 python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking find --subcategory brokerage_bonus --min-bonus 500
 ```
 
 Issue #16 added the fresh-clone demo readiness gate. Keep the README, release
 checklist, and this file aligned whenever the demo path changes.
+
+The QA benchmark is deterministic and offline-only. It validates the reusable
+demo corpus for expected deal coverage, duplicate merging, conflict surfacing,
+non-deal suppression, score sanity, expired and low-value handling, ambiguous
+terms, and fixture edge-case coverage. Credit-card runtime coverage is reported
+as pending until that product path exists.
 
 ## Banking MVP readiness validation
 
@@ -294,6 +303,7 @@ python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking smoke-test \
   --digest-output /tmp/pdi-banking-smoke-digest.md \
   --as-of 2026-06-18 \
   --reset-db
+python3 -m pdi --db /tmp/pdi-demo-qa.sqlite banking qa-benchmark --reset-db --json
 ```
 
 ## Expected future quality checks
@@ -455,6 +465,9 @@ Must validate:
 - `pdi banking show <deal_id>` displays terms, evidence/source references,
   missing-data warnings, and status
 - `pdi banking digest --demo` writes a local artifact
+- `pdi banking qa-benchmark --reset-db` reports pass/fail coverage for expected
+  demo deals, duplicate/conflict behavior, non-deal suppression, score sanity,
+  and local fixture edge cases
 - the demo path is deterministic across reset runs
 - no live network, external notification send, credential, personal identifier,
   or financial-action step is required
