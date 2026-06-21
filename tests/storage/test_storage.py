@@ -1,3 +1,5 @@
+import hashlib
+import json
 import os
 import sqlite3
 import subprocess
@@ -11,6 +13,7 @@ from pdi.storage import (
     acquire_banking_run_lock,
     get_banking_deal,
     get_banking_run,
+    get_raw_snapshot,
     initialize_database,
     insert_banking_deal,
     insert_banking_run,
@@ -19,6 +22,7 @@ from pdi.storage import (
     insert_status_event,
     list_banking_deals,
     list_banking_runs,
+    list_raw_snapshots_by_content_hash,
     load_seed_fixture,
     release_banking_run_lock,
     update_banking_run,
@@ -69,6 +73,132 @@ def test_migrations_are_idempotent(tmp_path):
         assert connection.execute(
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0] == 5
+
+
+def test_raw_snapshot_content_hash_is_stable_and_content_derived(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    raw_text = "Mock Bank offers a fictional $300 checking bonus."
+
+    first_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_name": "Mock Hash Source",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "raw_text": raw_text,
+            "collector_name": "fixture",
+        },
+    )
+    second_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_name": "Mock Hash Source",
+            "retrieved_at": "2026-06-17T12:05:00+00:00",
+            "raw_text": raw_text,
+            "collector_name": "fixture",
+        },
+    )
+    changed_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_name": "Mock Hash Source",
+            "retrieved_at": "2026-06-17T12:10:00+00:00",
+            "raw_text": raw_text + " Updated terms.",
+            "collector_name": "fixture",
+        },
+    )
+
+    expected_hash = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
+    first = get_raw_snapshot(db_path, first_id)
+    second = get_raw_snapshot(db_path, second_id)
+    changed = get_raw_snapshot(db_path, changed_id)
+
+    assert first["content_hash"] == expected_hash
+    assert len(first["content_hash"]) == 64
+    assert second["content_hash"] == first["content_hash"]
+    assert changed["content_hash"] != first["content_hash"]
+
+
+def test_raw_snapshot_metadata_round_trips_and_duplicate_hashes_are_queryable(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    source_id = insert_source_record(
+        db_path,
+        {
+            "source_name": "Mock Metadata Source",
+            "source_url": "manual://metadata",
+            "source_type": "manual_url",
+            "collection_method": "manual_text",
+            "enabled": True,
+            "max_frequency": "manual_only",
+            "compliance_notes": "Fictional test source.",
+        },
+    )
+    raw_text = "Mock Bank offers a fictional $300 checking bonus."
+    content_hash = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
+
+    first_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_record_id": source_id,
+            "source_url": "manual://metadata",
+            "source_name": "Mock Metadata Source",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "content_hash": content_hash,
+            "raw_text": raw_text,
+            "raw_html_path": "/tmp/mock-metadata.html",
+            "raw_payload_json": {"fixture_id": "metadata", "nested": {"b": 2}},
+            "http_status": 200,
+            "collector_name": "manual_text",
+        },
+    )
+    second_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_record_id": source_id,
+            "source_url": "manual://metadata-copy",
+            "source_name": "Mock Metadata Source Copy",
+            "retrieved_at": "2026-06-17T12:05:00+00:00",
+            "raw_text": raw_text,
+            "raw_payload_json": {"fixture_id": "metadata-copy"},
+            "collector_name": "manual_text",
+        },
+    )
+
+    first = get_raw_snapshot(db_path, first_id)
+    duplicates = list_raw_snapshots_by_content_hash(db_path, content_hash)
+
+    assert first["source_record_id"] == source_id
+    assert first["source_url"] == "manual://metadata"
+    assert first["source_name"] == "Mock Metadata Source"
+    assert first["retrieved_at"] == "2026-06-17T12:00:00+00:00"
+    assert first["raw_text"] == raw_text
+    assert first["raw_html_path"] == "/tmp/mock-metadata.html"
+    assert json.loads(first["raw_payload_json"]) == {
+        "fixture_id": "metadata",
+        "nested": {"b": 2},
+    }
+    assert first["http_status"] == 200
+    assert first["collector_name"] == "manual_text"
+    assert [snapshot["id"] for snapshot in duplicates] == [first_id, second_id]
+    assert {snapshot["content_hash"] for snapshot in duplicates} == {content_hash}
+
+
+def test_raw_snapshot_rejects_mismatched_supplied_content_hash(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+
+    with pytest.raises(ValueError, match="content_hash must match raw_text"):
+        insert_raw_snapshot(
+            db_path,
+            {
+                "source_name": "Mock Hash Source",
+                "retrieved_at": "2026-06-17T12:00:00+00:00",
+                "content_hash": "0" * 64,
+                "raw_text": "A different raw snapshot body.",
+                "collector_name": "fixture",
+            },
+        )
 
 
 def test_insert_and_query_partial_deal_with_raw_snapshot_link(tmp_path):

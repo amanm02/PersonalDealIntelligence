@@ -184,6 +184,12 @@ Raw snapshots should include:
 - HTTP status if relevant
 - collector name
 
+The stored `content_hash` is a SHA-256 hash of the stored raw text. Storage
+computes it when omitted and rejects supplied hashes that do not match the raw
+text, so duplicate snapshot content remains queryable while source metadata can
+still differ by row. A separate snapshot hash is not currently stored because
+metadata changes are provenance, not raw-content identity.
+
 Raw snapshots allow re-extraction when extractor logic improves.
 
 ### 4. Banking extractor
