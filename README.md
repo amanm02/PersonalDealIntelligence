@@ -114,6 +114,44 @@ source .venv/bin/activate
 python3 -m pip install -e '.[dev]'
 ```
 
+## Banking MVP demo
+
+Run the fresh-clone demo readiness gate with local synthetic fixtures only:
+
+```bash
+python3 scripts/check_banking_demo.py
+```
+
+The script validates this copy/pasteable path:
+
+```bash
+python3 -m pdi --db /tmp/pdi-banking-demo.sqlite banking demo \
+  --reset \
+  --seed fixtures \
+  --digest-output /tmp/pdi-banking-demo-digest.md \
+  --as-of 2026-06-18
+
+python3 -m pdi --db /tmp/pdi-banking-demo.sqlite banking find \
+  --query "checking bonus"
+
+python3 -m pdi --db /tmp/pdi-banking-demo.sqlite banking find \
+  --subcategory brokerage_bonus \
+  --min-bonus 500
+
+python3 -m pdi --db /tmp/pdi-banking-demo.sqlite banking show <deal_id>
+
+python3 -m pdi --db /tmp/pdi-banking-demo.sqlite banking digest \
+  --demo \
+  --output /tmp/pdi-banking-demo-digest.md \
+  --as-of 2026-06-18
+```
+
+The demo command loads offline fixture text, creates raw snapshots, extracts and
+canonicalizes banking deals, scores them, and writes a local digest. `find` is
+an alias for the ranked local search command. The demo does not fetch websites,
+connect email accounts, require credentials, send external notifications, or
+automate financial actions.
+
 Initialize a local database with fictional mock banking deals:
 
 ```bash
@@ -206,6 +244,7 @@ python3 -m pdi --db data/pdi.sqlite banking search --institution "Example Bank"
 python3 -m pdi --db data/pdi.sqlite banking score <deal_id>
 python3 -m pdi --db data/pdi.sqlite banking digest
 python3 -m pdi --db data/pdi.sqlite banking digest --format json --output data/digests/banking_digest.json
+python3 -m pdi --db data/pdi.sqlite banking demo --reset --seed fixtures
 ```
 
 Search results are ranked by score, estimated net value, bonus amount, and deal
@@ -223,6 +262,12 @@ not contain credentials or highly sensitive personal identifiers.
 Run the full offline Banking MVP smoke flow with synthetic fixtures only:
 
 ```bash
+python3 -m pdi --db /tmp/pdi-banking-demo.sqlite banking demo \
+  --reset \
+  --seed fixtures \
+  --digest-output /tmp/pdi-banking-demo-digest.md \
+  --as-of 2026-06-18
+
 python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking smoke-test \
   --digest-output /tmp/pdi-banking-smoke-digest.md \
   --as-of 2026-06-18 \
