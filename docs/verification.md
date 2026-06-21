@@ -192,24 +192,26 @@ rm -f /tmp/pdi-banking-run-execute.sqlite /tmp/pdi-banking-run-execute-digest.md
 python3 -m pdi --db /tmp/pdi-banking-run-execute.sqlite banking run --execute --digest-output /tmp/pdi-banking-run-execute-digest.md --as-of 2026-06-18 --format json
 ```
 
-## Planned demo readiness validation
+## Demo search validation
 
-Issues #14, #15, and #16 are expected to add a realistic offline demo corpus,
-product-facing banking deal find/search behavior, and a fresh-clone demo gate.
-Issue #14 adds the reusable local corpus and source seed pack only. Until #15
-and #16 implement and validate the remaining commands, treat those examples as
-planned validation shape, not current CLI guarantees:
+Issues #14 and #15 add a realistic offline demo corpus and product-facing
+banking deal find/search behavior. Validate the reusable local corpus and local
+search behavior with:
 
 ```bash
 python3 -m pdi.sources validate --config config/banking_sources.demo.yaml
-python3 -m pdi --db /tmp/pdi-banking-demo.sqlite banking find --query "checking bonus"
-python3 -m pdi --db /tmp/pdi-banking-demo.sqlite banking find --subcategory brokerage_bonus --min-bonus 500
-python3 -m pdi --db /tmp/pdi-banking-demo.sqlite banking digest --output /tmp/pdi-banking-demo-digest.md
-python3 scripts/check_banking_demo.py
+python3 -m pytest tests/collectors/test_demo_corpus.py tests/integration/test_demo_corpus_flow.py
+python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking smoke-test \
+  --digest-output /tmp/pdi-banking-smoke-digest.md \
+  --as-of 2026-06-18 \
+  --reset-db
+python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking find --query "checking bonus"
+python3 -m pdi --db /tmp/pdi-banking-smoke.sqlite banking find --subcategory brokerage_bonus --min-bonus 500
 ```
 
-Any final implementation may choose equivalent command names, but the README,
-release checklist, and this file must be updated together when that happens.
+Issue #16 is expected to add a fresh-clone demo gate and may add additional
+copy/pasteable setup commands. The README, release checklist, and this file
+must be updated together when that happens.
 
 ## Banking MVP readiness validation
 
@@ -351,6 +353,9 @@ Must validate when implemented:
 - status updates create events
 - review-needed surfaces conflicts/missing data
 - expiring filter works
+- search/find free-text and structured filters work
+- search/find results are ranked by score, net value, bonus amount, and deal id
+- search/find JSON includes match reason and source fields
 
 ### Digest
 

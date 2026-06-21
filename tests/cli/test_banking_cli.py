@@ -207,6 +207,186 @@ def test_expiring_filter_works(tmp_path):
     assert [row["id"] for row in rows] == [soon_id]
 
 
+def test_search_free_text_matches_terms_and_source_context(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    deal_id = seed_deal(
+        db_path,
+        terms={
+            "direct_deposit_required": True,
+            "monthly_fee_cents": 0,
+            "monthly_fee_waiver_terms": "waived direct deposit",
+        },
+        source_name="Demo Checking Source",
+    )
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "search",
+        "--query",
+        "waived direct",
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 0, result.stderr
+    rows = json.loads(result.stdout)
+    assert [row["id"] for row in rows] == [deal_id]
+    assert rows[0]["match_reason"] == "matched query 'waived direct'."
+    assert rows[0]["source_name"] == "Demo Checking Source"
+
+
+def test_search_structured_filters_work(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    seed_deal(db_path, canonical_key="checking")
+    savings_id = seed_deal(
+        db_path,
+        canonical_key="savings",
+        title="Fixture Bank $500 Savings Bonus",
+        subcategory="savings_bonus",
+        bonus_amount_cents=50000,
+        status="watching",
+    )
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "search",
+        "--institution",
+        "Fixture",
+        "--subcategory",
+        "savings_bonus",
+        "--min-bonus",
+        "400",
+        "--min-net-value",
+        "450",
+        "--score-band",
+        "high",
+        "--recommended-action",
+        "review_now",
+        "--status",
+        "watching",
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 0, result.stderr
+    rows = json.loads(result.stdout)
+    assert [row["id"] for row in rows] == [savings_id]
+    assert rows[0]["bonus_amount_cents"] >= 40000
+    assert rows[0]["estimated_net_value_cents"] >= 45000
+    assert "subcategory savings_bonus" in rows[0]["match_reason"]
+
+
+def test_search_expiring_and_needs_review_filters_work(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    seed_deal(db_path, canonical_key="complete", expires_at=_days_from_now(40))
+    review_id = seed_deal(
+        db_path,
+        canonical_key="review",
+        title="Review Needed Checking Bonus",
+        expires_at=_days_from_now(7),
+        terms={
+            "direct_deposit_required": None,
+            "monthly_fee_cents": 0,
+            "terms_json": {"missing_fields": ["direct_deposit_required"]},
+        },
+    )
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "search",
+        "--expiring-days",
+        "14",
+        "--needs-review",
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 0, result.stderr
+    rows = json.loads(result.stdout)
+    assert [row["id"] for row in rows] == [review_id]
+    assert rows[0]["needs_review"] is True
+    assert "expires within 14 days" in rows[0]["match_reason"]
+
+
+def test_search_results_are_ranked_by_score_net_value_bonus_and_id(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    lower_id = seed_deal(
+        db_path,
+        canonical_key="lower",
+        title="Lower Value Checking Bonus",
+        bonus_amount_cents=30000,
+    )
+    higher_id = seed_deal(
+        db_path,
+        canonical_key="higher",
+        title="Higher Value Checking Bonus",
+        bonus_amount_cents=80000,
+    )
+
+    result = run_cli(db_path, "banking", "search", "--format", "json")
+
+    assert result.returncode == 0, result.stderr
+    rows = json.loads(result.stdout)
+    assert [row["id"] for row in rows] == [higher_id, lower_id]
+    assert rows[0]["score_0_to_100"] >= rows[1]["score_0_to_100"]
+    assert rows[0]["estimated_net_value_cents"] > rows[1]["estimated_net_value_cents"]
+
+
+def test_search_json_output_includes_match_reason_and_source_fields(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    deal_id = seed_deal(
+        db_path,
+        source_name="Fixture Source Label",
+        source_url="https://example.test/search-source",
+    )
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "search",
+        "--query",
+        "checking",
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 0, result.stderr
+    rows = json.loads(result.stdout)
+    assert rows[0]["id"] == deal_id
+    assert rows[0]["match_reason"] == "matched query 'checking'."
+    assert rows[0]["source_name"] == "Fixture Source Label"
+    assert rows[0]["source_url"] == "https://example.test/search-source"
+
+
+def test_find_alias_matches_search_shape(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    deal_id = seed_deal(db_path)
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "find",
+        "--query",
+        "checking",
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 0, result.stderr
+    rows = json.loads(result.stdout)
+    assert [row["id"] for row in rows] == [deal_id]
+    assert {"match_reason", "source_name", "source_url"}.issubset(rows[0])
+
+
 def test_json_output_works(tmp_path):
     db_path = tmp_path / "pdi.sqlite"
     initialize_database(db_path)

@@ -1,3 +1,7 @@
+import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 from pdi.demo_corpus import persist_demo_snapshots
@@ -15,6 +19,19 @@ from pdi.storage import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEMO_DIR = REPO_ROOT / "examples" / "demo_banking"
 DEMO_CONFIG = REPO_ROOT / "config" / "banking_sources.demo.yaml"
+
+
+def run_cli(db_path, *args):
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(REPO_ROOT / "src")
+    return subprocess.run(
+        [sys.executable, "-m", "pdi", "--db", str(db_path), *args],
+        cwd=REPO_ROOT,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
 
 
 def run_demo_flow(db_path):
@@ -104,3 +121,55 @@ def test_demo_corpus_supports_low_value_expired_and_ambiguous_follow_on_cases(tm
     assert prairie["bonus_amount_cents"] is None
     assert prairie["expires_at"] is None
     assert lakeside["bonus_amount_cents"] == 2500
+
+
+def test_demo_corpus_supports_product_facing_searches(tmp_path):
+    db_path = tmp_path / "pdi-demo.sqlite"
+    run_demo_flow(db_path)
+
+    checking = run_cli(
+        db_path,
+        "banking",
+        "find",
+        "--query",
+        "checking bonus",
+        "--format",
+        "json",
+    )
+    assert checking.returncode == 0, checking.stderr
+    checking_rows = json.loads(checking.stdout)
+    assert any(row["subcategory"] == "checking_bonus" for row in checking_rows)
+    assert all("match_reason" in row for row in checking_rows)
+
+    savings = run_cli(
+        db_path,
+        "banking",
+        "search",
+        "--query",
+        "savings",
+        "--subcategory",
+        "savings_bonus",
+        "--format",
+        "json",
+    )
+    assert savings.returncode == 0, savings.stderr
+    savings_rows = json.loads(savings.stdout)
+    assert savings_rows
+    assert {row["subcategory"] for row in savings_rows} == {"savings_bonus"}
+
+    brokerage = run_cli(
+        db_path,
+        "banking",
+        "find",
+        "--subcategory",
+        "brokerage_bonus",
+        "--min-bonus",
+        "500",
+        "--format",
+        "json",
+    )
+    assert brokerage.returncode == 0, brokerage.stderr
+    brokerage_rows = json.loads(brokerage.stdout)
+    assert len(brokerage_rows) == 1
+    assert brokerage_rows[0]["institution_name"] == "Harbor Demo Brokerage"
+    assert brokerage_rows[0]["source_name"]

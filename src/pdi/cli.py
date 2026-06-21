@@ -130,11 +130,19 @@ def _build_parser() -> argparse.ArgumentParser:
 
     search_parser = banking_subparsers.add_parser(
         "search",
-        help="Search deals by institution.",
+        help="Search ranked local banking deals.",
     )
-    search_parser.add_argument("--institution", required=True)
+    _add_search_filters(search_parser)
     _add_output_format(search_parser)
     search_parser.set_defaults(handler=_handle_search)
+
+    find_parser = banking_subparsers.add_parser(
+        "find",
+        help="Alias for ranked local banking deal search.",
+    )
+    _add_search_filters(find_parser)
+    _add_output_format(find_parser)
+    find_parser.set_defaults(handler=_handle_search)
 
     score_parser = banking_subparsers.add_parser(
         "score",
@@ -286,6 +294,19 @@ def _add_list_filters(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--needs-review", action="store_true")
 
 
+def _add_search_filters(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--query", help="Free-text query.")
+    parser.add_argument("--institution")
+    parser.add_argument("--subcategory")
+    parser.add_argument("--min-bonus", type=_money_arg)
+    parser.add_argument("--min-net-value", type=_money_arg)
+    parser.add_argument("--score-band")
+    parser.add_argument("--recommended-action")
+    parser.add_argument("--status", choices=STATUS_VALUES)
+    parser.add_argument("--expiring-days", type=int)
+    parser.add_argument("--needs-review", action="store_true")
+
+
 def _handle_list(args: argparse.Namespace) -> int:
     deals = _filtered_deals(
         args.db,
@@ -341,8 +362,20 @@ def _handle_expiring(args: argparse.Namespace) -> int:
 
 
 def _handle_search(args: argparse.Namespace) -> int:
-    deals = _filtered_deals(args.db, institution=args.institution)
-    _print_deal_list(deals, args.format)
+    deals = _search_deals(
+        args.db,
+        query=args.query,
+        institution=args.institution,
+        subcategory=args.subcategory,
+        min_bonus=args.min_bonus,
+        min_net_value=args.min_net_value,
+        score_band=args.score_band,
+        recommended_action=args.recommended_action,
+        status=args.status,
+        expiring_days=args.expiring_days,
+        needs_review=args.needs_review,
+    )
+    _print_search_results(deals, args.format)
     return 0
 
 
@@ -513,6 +546,140 @@ def _summary_record(db_path: str, deal: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _search_deals(
+    db_path: str,
+    *,
+    query: str | None = None,
+    institution: str | None = None,
+    subcategory: str | None = None,
+    min_bonus: int | None = None,
+    min_net_value: int | None = None,
+    score_band: str | None = None,
+    recommended_action: str | None = None,
+    status: str | None = None,
+    expiring_days: int | None = None,
+    needs_review: bool = False,
+) -> list[dict[str, Any]]:
+    rows = list_banking_deals(
+        db_path,
+        status=status,
+        subcategory=subcategory,
+    )
+    records = [_search_record(db_path, row) for row in rows]
+    query_tokens = _query_tokens(query)
+
+    filters: list[Callable[[Mapping[str, Any]], bool]] = []
+    if query_tokens:
+        filters.append(lambda deal: _matches_query(deal, query_tokens))
+    if institution:
+        institution_filter = institution.lower()
+        filters.append(
+            lambda deal: institution_filter
+            in str(deal.get("institution_name") or "").lower()
+        )
+    if min_bonus is not None:
+        filters.append(lambda deal: int(deal.get("bonus_amount_cents") or 0) >= min_bonus)
+    if min_net_value is not None:
+        filters.append(
+            lambda deal: int(deal.get("estimated_net_value_cents") or 0)
+            >= min_net_value
+        )
+    if score_band:
+        filters.append(lambda deal: deal.get("score_band") == score_band)
+    if recommended_action:
+        filters.append(
+            lambda deal: deal.get("recommended_action") == recommended_action
+        )
+    if expiring_days is not None:
+        filters.append(
+            lambda deal: _expires_within(deal.get("expires_at"), expiring_days)
+        )
+    if needs_review:
+        filters.append(lambda deal: bool(deal.get("needs_review")))
+
+    for item_filter in filters:
+        records = [record for record in records if item_filter(record)]
+
+    for record in records:
+        record["match_reason"] = _match_reason(
+            query_tokens=query_tokens,
+            institution=institution,
+            subcategory=subcategory,
+            min_bonus=min_bonus,
+            min_net_value=min_net_value,
+            score_band=score_band,
+            recommended_action=recommended_action,
+            status=status,
+            expiring_days=expiring_days,
+            needs_review=needs_review,
+        )
+
+    ranked = sorted(
+        records,
+        key=lambda deal: (
+            -int(deal.get("score_0_to_100") or 0),
+            -int(deal.get("estimated_net_value_cents") or 0),
+            -int(deal.get("bonus_amount_cents") or 0),
+            int(deal["id"]),
+        ),
+    )
+    return [_public_search_record(record) for record in ranked]
+
+
+def _search_record(db_path: str, deal: Mapping[str, Any]) -> dict[str, Any]:
+    deal_id = int(deal["id"])
+    detail = _deal_detail(db_path, deal_id)
+    score = detail["score"]
+    source_context = _source_context(deal, detail["source_links"])
+    return {
+        "id": deal_id,
+        "title": detail["title"],
+        "institution_name": detail["institution_name"],
+        "subcategory": detail["subcategory"],
+        "status": detail["status"],
+        "bonus_amount_cents": detail.get("bonus_amount_cents"),
+        "estimated_net_value_cents": detail.get("estimated_net_value_cents"),
+        "score_0_to_100": score["score_0_to_100"],
+        "score_band": score["score_band"],
+        "recommended_action": score["recommended_action"],
+        "expires_at": detail.get("expires_at"),
+        "application_deadline": detail.get("application_deadline"),
+        "needs_review": _needs_review(
+            deal,
+            score_banking_deal(db_path, deal_id),
+            detail["change_events"],
+        ),
+        "match_reason": "ranked by score and estimated net value",
+        "source_name": source_context["source_name"],
+        "source_url": source_context["source_url"],
+        "source_context": source_context,
+        "requirements": detail["requirements"],
+        "restrictions": detail["restrictions"],
+        "missing_data_warnings": detail["missing_data_warnings"],
+    }
+
+
+def _public_search_record(record: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "id": record["id"],
+        "title": record["title"],
+        "institution_name": record["institution_name"],
+        "subcategory": record["subcategory"],
+        "status": record["status"],
+        "bonus_amount_cents": record.get("bonus_amount_cents"),
+        "estimated_net_value_cents": record.get("estimated_net_value_cents"),
+        "score_0_to_100": record["score_0_to_100"],
+        "score_band": record["score_band"],
+        "recommended_action": record["recommended_action"],
+        "expires_at": record.get("expires_at"),
+        "application_deadline": record.get("application_deadline"),
+        "needs_review": record["needs_review"],
+        "match_reason": record["match_reason"],
+        "source_name": record.get("source_name"),
+        "source_url": record.get("source_url"),
+    }
+
+
 def _deal_detail(db_path: str, deal_id: int) -> dict[str, Any]:
     deal = get_banking_deal(db_path, deal_id)
     if deal is None:
@@ -625,6 +792,24 @@ def _source_link_payload(link: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _source_context(
+    deal: Mapping[str, Any],
+    source_links: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    if source_links:
+        first = source_links[0]
+        return {
+            "source_name": first.get("source_name"),
+            "source_url": first.get("source_url"),
+            "source_authority": first.get("source_authority"),
+        }
+    return {
+        "source_name": deal.get("source_name"),
+        "source_url": deal.get("source_url"),
+        "source_authority": "unknown",
+    }
+
+
 def _needs_review(
     deal: Mapping[str, Any],
     score: BankingScore,
@@ -660,6 +845,87 @@ def _expires_within(value: Any, days: int) -> bool:
     return 0 <= days_until <= days
 
 
+def _query_tokens(query: str | None) -> list[str]:
+    if not query:
+        return []
+    return [token.lower() for token in query.split() if token.strip()]
+
+
+def _matches_query(deal: Mapping[str, Any], tokens: Sequence[str]) -> bool:
+    haystack = _search_text(deal)
+    return all(token in haystack for token in tokens)
+
+
+def _search_text(deal: Mapping[str, Any]) -> str:
+    values = [
+        deal.get("title"),
+        deal.get("institution_name"),
+        deal.get("subcategory"),
+        deal.get("source_name"),
+        deal.get("source_url"),
+        deal.get("requirements"),
+        deal.get("restrictions"),
+        deal.get("missing_data_warnings"),
+    ]
+    return " ".join(_flatten_search_values(values)).lower()
+
+
+def _flatten_search_values(values: Any) -> list[str]:
+    if values is None:
+        return []
+    if isinstance(values, Mapping):
+        flattened: list[str] = []
+        for key, value in values.items():
+            flattened.append(str(key))
+            flattened.extend(_flatten_search_values(value))
+        return flattened
+    if isinstance(values, (list, tuple, set)):
+        flattened = []
+        for value in values:
+            flattened.extend(_flatten_search_values(value))
+        return flattened
+    return [str(values)]
+
+
+def _match_reason(
+    *,
+    query_tokens: Sequence[str],
+    institution: str | None,
+    subcategory: str | None,
+    min_bonus: int | None,
+    min_net_value: int | None,
+    score_band: str | None,
+    recommended_action: str | None,
+    status: str | None,
+    expiring_days: int | None,
+    needs_review: bool,
+) -> str:
+    reasons: list[str] = []
+    if query_tokens:
+        reasons.append(f"matched query '{' '.join(query_tokens)}'")
+    if institution:
+        reasons.append(f"institution contains '{institution}'")
+    if subcategory:
+        reasons.append(f"subcategory {subcategory}")
+    if min_bonus is not None:
+        reasons.append(f"bonus at least {_money(min_bonus)}")
+    if min_net_value is not None:
+        reasons.append(f"net value at least {_money(min_net_value)}")
+    if score_band:
+        reasons.append(f"score band {score_band}")
+    if recommended_action:
+        reasons.append(f"recommended action {recommended_action}")
+    if status:
+        reasons.append(f"status {status}")
+    if expiring_days is not None:
+        reasons.append(f"expires within {expiring_days} days")
+    if needs_review:
+        reasons.append("needs review")
+    if not reasons:
+        reasons.append("ranked by score and estimated net value")
+    return "; ".join(reasons) + "."
+
+
 def _print_deal_list(deals: list[dict[str, Any]], output_format: str) -> None:
     if output_format == "json":
         _print_json(deals)
@@ -678,6 +944,30 @@ def _print_deal_list(deals: list[dict[str, Any]], output_format: str) -> None:
             "action": deal["recommended_action"],
             "expires": deal.get("expires_at") or "unknown",
             "review": "yes" if deal["needs_review"] else "no",
+        }
+        for deal in deals
+    ]
+    _print_table(rows, empty_message="No banking deals matched.")
+
+
+def _print_search_results(deals: list[dict[str, Any]], output_format: str) -> None:
+    if output_format == "json":
+        _print_json(deals)
+        return
+
+    rows = [
+        {
+            "id": deal["id"],
+            "institution": deal["institution_name"],
+            "subcategory": deal["subcategory"],
+            "bonus": _money(deal.get("bonus_amount_cents")),
+            "net": _money(deal.get("estimated_net_value_cents")),
+            "score": deal["score_0_to_100"],
+            "band": deal["score_band"],
+            "action": deal["recommended_action"],
+            "review": "yes" if deal["needs_review"] else "no",
+            "source": deal.get("source_name") or deal.get("source_url") or "unknown",
+            "reason": deal["match_reason"],
         }
         for deal in deals
     ]
@@ -865,6 +1155,19 @@ def _json_value(value: Any) -> Any:
         except json.JSONDecodeError:
             return value
     return value
+
+
+def _money_arg(value: str) -> int:
+    raw = value.strip().replace("$", "").replace(",", "")
+    try:
+        amount = float(raw)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(
+            f"expected dollar amount, got {value!r}"
+        ) from error
+    if amount < 0:
+        raise argparse.ArgumentTypeError("amount must be non-negative")
+    return int(round(amount * 100))
 
 
 def _run_record_payload(run: Mapping[str, Any]) -> dict[str, Any]:
