@@ -13,14 +13,9 @@ jobs:
     runs-on: [self-hosted, macOS, ARM64]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - name: Confirm runner Python
+        run: python3 --version
       - name: Install dev dependencies
         run: python3 -m pip install -e '.[dev]'
-      - name: Run AgentOps PR checks
-        run: make agentops-pr
-      - name: Run hook smoke checks
-        run: make hooks-smoke
-      - name: Run MCP smoke checks
-        run: make mcp-smoke
+      - name: Run AgentOps test suite
+        run: make agentops-test

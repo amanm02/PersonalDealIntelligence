@@ -22,15 +22,23 @@ Keep prompts compact. Point to source-of-truth files instead of embedding long c
 ```text
 Work on GitHub issue #<ISSUE_NUMBER>.
 
+Preflight:
+- Run `python3 -m tools.agentops.check_work_state --advisory` before editing.
+- Confirm issue state, dependencies, owned files, and blocked files.
+- Stop if the issue is closed, blocked, needs rewrite, stale in `docs/issue-map.md`, or already covered by an open PR.
+
 Read in order:
 1. AGENTS.md
 2. docs/issue-map.md
 3. docs/verification.md
 4. docs/architecture/banking-mvp.md
 5. docs/decisions.md
-6. The issue body
-7. Any linked implementation plan
-8. Only the files needed for the task
+6. MEMORY.md
+7. docs/agentops/README.md
+8. docs/agentops/issue-hygiene.md
+9. The issue body
+10. Any linked implementation plan
+11. Only the files needed for the task
 
 Implement the smallest safe change that satisfies the issue acceptance criteria.
 Do not expand scope.
@@ -175,49 +183,98 @@ Use deterministic tests.
 Validation must prove config changes affect scores predictably.
 ```
 
-## Prompt: concurrency planning
+## Prompt: current-state preflight
 
 ```text
-Plan safe parallel work for GitHub issue #<ISSUE_NUMBER>.
+Run a current-state preflight for <BRANCH_OR_WORKTREE>.
 
-Read AGENTS.md, docs/issue-map.md, docs/agentops/concurrency.md, docs/agentops/issue-hygiene.md, and docs/agentops/current-work-batches.md.
-Verify current GitHub issue and PR state before trusting old issue text.
-
-Return dependencies, owned files, blocked files, safe concurrent issues, unsafe overlaps, validation gates, and merge order.
-Do not edit files.
+Scope: inspect repository state only; do not edit files, fetch remote data only if explicitly approved, and do not change branches.
+Read order: AGENTS.md, docs/verification.md, docs/issue-map.md, docs/agentops/README.md, then only files needed to explain the current state.
+Required commands: pwd; git branch --show-current; git status --short; git log --oneline -5; git diff --stat; git diff --check.
+Stop conditions: stop if the worktree is not the requested path, the branch is unexpected, uncommitted edits are unrelated or unexplained, or required source-of-truth docs are missing.
+Final response format: Summary, Current state, Validation commands/results, Risks / follow-ups.
 ```
 
-## Prompt: issue rewrite
+## Prompt: Verification-only review
 
 ```text
-Rewrite GitHub issue #<ISSUE_NUMBER> for safe Codex implementation.
+Run a verification-only review for PR #<PR_NUMBER> or issue #<ISSUE_NUMBER>.
 
-Read docs/agentops/issue-hygiene.md and docs/agentops/concurrency.md.
-Keep the issue scoped to one PR.
-Add dependencies, owned files, blocked files, validation commands, stop conditions, concurrency label guidance, and PR body requirements.
-Do not add product behavior beyond the original issue intent.
+Scope: verify the existing changes; do not edit files, rework scope, or implement missing features.
+Read order: AGENTS.md, docs/verification.md, linked issue, PR diff or local diff, and only touched files needed to judge validation.
+Required commands: git status --short; git diff --stat; git diff --check; then the smallest relevant commands from docs/verification.md.
+Stop conditions: stop if the checkout is dirty with unrelated edits, the linked issue or PR diff is unavailable, validation would require live network not requested by the issue, or failures are unrelated to the reviewed changes.
+Final response format: Summary, Files reviewed, Validation commands/results, Risks / follow-ups.
 ```
 
-## Prompt: issue verification
+## Prompt: issue audit/rewrite
 
 ```text
-Verify GitHub issue #<ISSUE_NUMBER> before implementation.
+Audit and rewrite GitHub issue #<ISSUE_NUMBER> for implementation readiness.
 
-Read AGENTS.md, docs/issue-map.md, docs/verification.md, docs/agentops/issue-hygiene.md, and the issue body.
-Check dependency state, duplicate open PRs, owned/blocked file clarity, validation commands, safety boundaries, and stale roadmap references.
-
-Return pass/fail with exact blockers and recommended rewrite or close action.
-Do not edit files.
+Scope: improve the issue body only; do not edit product code, tests, docs outside the issue body, or create an implementation plan unless requested.
+Read order: AGENTS.md, docs/issue-map.md, docs/verification.md, docs/architecture/banking-mvp.md, docs/decisions.md, current issue body.
+Required commands: git status --short; rg -n "#<ISSUE_NUMBER>|<KEY_TERMS>" docs README.md AGENTS.md MEMORY.md.
+Stop conditions: stop if the issue conflicts with Banking MVP scope, duplicates active work, needs product decisions not present in docs/decisions.md, or acceptance criteria cannot be made testable.
+Final response format: Summary, Rewritten issue body, Validation commands/results, Risks / follow-ups.
 ```
 
-## Prompt: batch verification
+## Prompt: Next-issue selection
 
 ```text
-Verify the current work batch.
+Select the next GitHub issue to work on.
 
-Read docs/agentops/concurrency.md, docs/agentops/current-work-batches.md, docs/issue-map.md, and open GitHub PR/issue state.
-Confirm each batch item has dependencies, owned files, blocked files, validation gates, concurrency safety, and merge order.
+Scope: recommend only; do not edit files, assign issues, create branches, or start implementation.
+Read order: AGENTS.md, docs/issue-map.md, docs/verification.md, docs/agentops/README.md, open issues, open PRs, recent merged PRs if overlap is possible.
+Required commands: git status --short; gh issue list --state open --limit 100; gh pr list --state open --limit 100; python3 -m tools.agentops.recommend_next_issue --github.
+Stop conditions: stop if GitHub access is unavailable, issue-map status appears stale, open PRs already cover the top candidate, dependencies are unclear, or the issue list may be truncated.
+Final response format: Summary, Recommended next issue, Evidence, Validation commands/results, Risks / follow-ups.
+```
 
-Return the safe schedule, exclusive work, stale entries, and required validation.
-Do not edit files.
+## Prompt: Concurrency planning
+
+```text
+Create a concurrency plan for a bounded AgentOps or implementation batch.
+
+Scope: plan parallel work only; do not edit files, create branches, or assign ownership outside the requested batch.
+Read order: AGENTS.md, docs/issue-map.md, docs/verification.md, docs/agentops/README.md, target issue bodies, open PRs, changed-file summaries for related branches.
+Required commands: git status --short; gh issue list --state open --limit 100; gh pr list --state open --limit 100; git diff --stat origin/main...HEAD when local branch context exists.
+Stop conditions: stop if two agents need the same owned file, merge order is ambiguous, a prerequisite PR is not merged, the issue list may be truncated, or the batch would touch product behavior without explicit issue scope.
+Final response format: Summary, Agent lanes, Owned files, Merge order, Validation commands/results, Risks / follow-ups.
+```
+
+## Prompt: CI failure triage
+
+```text
+Triage CI failures for PR #<PR_NUMBER>.
+
+Scope: classify failures and propose the smallest next action; do not edit files unless separately asked to fix.
+Read order: AGENTS.md, docs/verification.md, PR checks, failing job logs, PR diff, linked issue, runner docs if the failure is AgentOps runner-related.
+Required commands: git status --short; gh pr checks <PR_NUMBER>; gh run view <RUN_ID> --log-failed; reproduce the failing local command when it is offline and deterministic.
+Stop conditions: stop if logs are unavailable, the failure requires credentials or live services, the failure is from unrelated main breakage, or runner/toolcache symptoms make product fixes unsafe.
+Final response format: Summary, Failure classification, Evidence, Validation commands/results, Risks / follow-ups.
+```
+
+## Prompt: worktree/branch hygiene review
+
+```text
+Review worktree and branch hygiene before starting or merging work.
+
+Scope: inspect branches, worktrees, and local diffs only; do not delete worktrees, reset branches, or switch branches without explicit approval.
+Read order: AGENTS.md, docs/verification.md, docs/agentops/README.md, docs/issue-map.md, then branch-specific issue or PR context if known.
+Required commands: pwd; git worktree list; git branch --show-current; git status --short; git branch -vv; git diff --stat; git diff --check.
+Stop conditions: stop if the active directory is not the requested worktree, the branch tracks the wrong remote, unowned edits are present, or branch purpose cannot be mapped to an issue/PR.
+Final response format: Summary, Hygiene findings, Validation commands/results, Risks / follow-ups.
+```
+
+## Prompt: AgentOps audit follow-up
+
+```text
+Implement a small AgentOps audit follow-up for issue #<ISSUE_NUMBER>.
+
+Scope: AgentOps docs/tooling only; do not change product behavior, banking logic, fixtures, or unrelated workflow files.
+Read order: AGENTS.md, docs/issue-map.md, docs/verification.md, MEMORY.md, docs/agentops/README.md, issue body, linked audit or implementation plan, then only owned files.
+Required commands: git status --short before editing; after editing run git status --short; git diff --stat; git diff --check; plus any targeted offline check named by docs/verification.md or the issue.
+Stop conditions: stop if requested files are owned by another active agent, the change would duplicate an open PR, the issue requires product scope, or validation would need live credentials.
+Final response format: Summary, Files changed, Validation commands/results, Risks / follow-ups.
 ```

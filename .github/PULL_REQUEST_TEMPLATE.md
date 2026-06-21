@@ -8,20 +8,38 @@
 
 ## Dependency status
 
+- [ ] Independent; can merge in any order.
+- [ ] Depends on issue/PR:
+- [ ] Must merge before issue/PR:
+
+## Owned files
+
+Files intentionally changed by this PR:
+
 -
+
+## Blocked files
+
+Files intentionally avoided because another agent/PR owns them:
+
+-
+
+## Concurrency risk
+
+- [ ] Low; no expected overlap with active work.
+- [ ] Medium/high; overlap details and reviewer guidance:
+
+## Merge gate
+
+- [ ] Ready to review
+- [ ] Needs remediation
+- [ ] Blocked by dependency
+- [ ] Blocked by conflict
+- [ ] Safe to merge after checks pass
 
 ## Files changed
 
 -
-
-## Owned files
-
--
-
-## Blocked files touched?
-
-- [ ] No
-- [ ] Yes; explain:
 
 ## Docs update
 
@@ -37,25 +55,49 @@
 - [ ] I checked for stale or duplicate docs.
 - [ ] I kept the diff small and reviewable.
 
-## Verification checklist
+## Validation commands and exact results
 
+Paste each command run and its exact result. Use `not run` with a reason when a check is intentionally skipped.
+
+```text
+git status --short
+
+git diff --stat
+
+git diff --check
+
+python3 -m pytest
+```
+
+## CI status
+
+### Product CI status
+
+- [ ] Passing:
+- [ ] Pending:
+- [ ] Failing:
+- [ ] Not applicable:
+
+### AgentOps CI status
+
+- [ ] Passing:
+- [ ] Pending:
+- [ ] Failing:
+- [ ] Not applicable:
+
+## Runner / infrastructure caveats
+
+- [ ] None.
+- [ ] Self-hosted runner/toolcache/network caveat:
+
+## Suggested verification checklist
+
+- [ ] `make agentops-test`
 - [ ] `make agentops-pr`
 - [ ] `make hooks-smoke`
 - [ ] `make mcp-smoke`
 - [ ] `make test`
 - [ ] Other repo-specific checks from `docs/verification.md` if applicable.
-
-## Validation commands and results
-
--
-
-## Concurrency risk notes
-
--
-
-## Safety / non-goals
-
--
 
 ## Risks / follow-ups
 

@@ -4,7 +4,9 @@ This model keeps parallel Codex work safe for Personal Deal Intelligence. It is 
 
 ## Parallelism
 
-- Run at most two product implementation agents plus one AgentOps/docs agent at a time.
+- Run at most three implementation agents at a time when owned files do not overlap.
+- Run at most five read-only audit or review agents at a time.
+- Keep total active subagents at six or fewer.
 - Run only one agent at a time for schema, migrations, CLI command shape, source policy, workflows, roadmap, or shared documentation.
 - Treat any issue labeled `concurrency:exclusive`, `blocked`, or `needs-rewrite` as exclusive until the issue body states otherwise.
 
@@ -35,7 +37,9 @@ If two issues need the same shared file, merge the dependency first or rewrite t
 
 - Branch names use `codex/issue-<number>-<short-slug>`.
 - Worktree names use `.worktrees/issue-<number>-<short-slug>` when a nested worktree is needed.
-- Start from latest `origin/main` unless the issue explicitly depends on another branch.
+- Start from latest `origin/main` only after dependencies have landed.
+- If dependency work has not landed, stack intentionally on the dependency branch and target the dependency branch in the PR.
+- Name the base PR or branch in the PR body for every stacked change.
 - Do not carry uncommitted work from another branch into a new issue branch.
 
 ## Dependencies And Merge Order
@@ -56,6 +60,14 @@ Before starting a batch:
 - Run the narrow validation for each issue and the shared gate for the batch.
 
 Before merging a batch, rerun `make agentops-pr`, `git diff --check`, and the product checks documented in `docs/verification.md` when product files changed.
+
+Use these merge-gate states in PR reviews and batch reports:
+
+- `Ready to review`: scope, metadata, docs, and local validation are complete.
+- `Needs remediation`: implementation or validation is incomplete but unblocked.
+- `Blocked by dependency`: prerequisite issue, PR, branch, or decision is not ready.
+- `Blocked by conflict`: owned files, base branch, or merge order conflicts with active work.
+- `Safe to merge after checks pass`: reviewer found no scope/metadata blocker, pending CI is the only remaining gate.
 
 ## Rollback
 
