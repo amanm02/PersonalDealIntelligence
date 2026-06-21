@@ -64,9 +64,19 @@ python3 -m pip install -e '.[dev]'
 
 If the implementation chooses another package manager, update this file and README together.
 
-## GitHub Actions runner
+## Test validation
 
-AgentOps GitHub Actions use an organization-level self-hosted runner from the `amanm02` organization:
+Current test command:
+
+```bash
+python3 -m pytest
+```
+
+Current narrower storage command:
+
+```bash
+python3 -m pytest tests/storage
+```
 
 Current narrower source policy command:
 
@@ -116,7 +126,29 @@ Current narrower offline integration command:
 python3 -m pytest tests/integration
 ```
 
-The organization runner must be made available to `amanm02/PersonalDealIntelligence` through organization runner access settings and must have all three labels. See `docs/agentops/github-actions-runners.md`.
+Current demo readiness command:
+
+```bash
+python3 scripts/check_banking_demo.py
+```
+
+Expected narrower commands as future modules are added will be listed here when
+those modules exist.
+
+## Storage initialization validation
+
+Validate database initialization and fictional fixture loading with:
+
+```bash
+python3 -m pdi.storage init --db /tmp/pdi-issue2.sqlite --seed-fixture examples/banking_deals.json
+```
+
+## GitHub Actions runner
+
+AgentOps GitHub Actions use an organization-level self-hosted runner from the
+`amanm02` organization. The organization runner must be made available to
+`amanm02/PersonalDealIntelligence` through organization runner access settings
+and must have all three labels. See `docs/agentops/github-actions-runners.md`.
 
 ## Source policy validation
 
@@ -250,6 +282,9 @@ Must validate when implemented:
 - status updates create events
 - review-needed surfaces conflicts/missing data
 - expiring filter works
+- search free-text and structured filters work
+- search results are ranked by score/net value
+- search JSON includes match reason and source fields
 
 ### Digest
 
@@ -276,6 +311,22 @@ Must validate:
 - markdown digest artifact is generated locally
 - no live network, browser automation, external messages, email account access,
   or banking actions are required
+
+### Demo readiness
+
+Must validate:
+
+- fresh setup instructions are copy/pasteable
+- `pdi banking demo --reset --seed fixtures` initializes a clean local database
+- `pdi banking find` returns ranked checking, savings, and brokerage demo deals
+- find results include score/net value context, match reason, review indicator,
+  and source label or URL
+- `pdi banking show <deal_id>` displays terms, evidence/source references,
+  missing-data warnings, and status
+- `pdi banking digest --demo` writes a local artifact
+- the demo path is deterministic across reset runs
+- no live network, external notification send, credential, personal identifier,
+  or financial-action step is required
 
 ### Run history
 

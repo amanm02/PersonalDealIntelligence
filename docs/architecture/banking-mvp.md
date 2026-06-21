@@ -243,13 +243,25 @@ pdi --db data/pdi.sqlite banking show <deal_id>
 pdi --db data/pdi.sqlite banking update-status <deal_id> <status>
 pdi --db data/pdi.sqlite banking review-needed
 pdi --db data/pdi.sqlite banking expiring --days 14
+pdi --db data/pdi.sqlite banking search --query "checking bonus direct deposit"
+pdi --db data/pdi.sqlite banking find --query "checking bonus direct deposit"
+pdi --db data/pdi.sqlite banking search --subcategory checking_bonus --min-bonus 300
+pdi --db data/pdi.sqlite banking search --recommended-action review_now
+pdi --db data/pdi.sqlite banking search --expiring-days 14
 pdi --db data/pdi.sqlite banking search --institution <name>
 pdi --db data/pdi.sqlite banking score <deal_id>
+pdi --db data/pdi.sqlite banking demo --reset --seed fixtures
 ```
 
 The list-style commands support terminal table output by default and JSON with
 `--format json`. `list` supports filters for status, institution, subcategory,
 score band, recommended action, expiration window, and needs-review state.
+`search` and its `find` alias return ranked local results with match reasons,
+source labels, score, estimated net value, review indicators, and filters for
+query text, institution, subcategory, bonus/net thresholds, score band,
+recommended action, status, expiration window, and needs-review state. `demo`
+seeds the local synthetic fixture corpus through the offline smoke flow and
+writes a local digest artifact for demo review.
 `show` includes terms, score explanation, source URLs, missing-data warnings,
 evidence links when available, and status history.
 

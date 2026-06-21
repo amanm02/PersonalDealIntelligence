@@ -7,6 +7,7 @@ import json
 import sqlite3
 from dataclasses import replace
 from datetime import date
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
@@ -30,6 +31,10 @@ from pdi.storage import (
 
 DEFAULT_DB_PATH = Path("data/pdi.sqlite")
 DEFAULT_OUTPUT_FORMAT = "table"
+DEFAULT_DEMO_FIXTURE_DIR = "examples/offline_smoke"
+DEFAULT_DEMO_DIGEST_OUTPUT = "data/digests/banking_demo_digest.md"
+DEFAULT_DEMO_JSON_DIGEST_OUTPUT = "data/digests/banking_demo_digest.json"
+DEFAULT_DEMO_AS_OF = "2026-06-18"
 STATUS_VALUES = (
     "new",
     "needs_review",
@@ -126,11 +131,15 @@ def _build_parser() -> argparse.ArgumentParser:
 
     search_parser = banking_subparsers.add_parser(
         "search",
-        help="Search deals by institution.",
+        help="Search and rank local banking deals.",
     )
-    search_parser.add_argument("--institution", required=True)
-    _add_output_format(search_parser)
-    search_parser.set_defaults(handler=_handle_search)
+    _add_search_filters(search_parser)
+
+    find_parser = banking_subparsers.add_parser(
+        "find",
+        help="Find and rank local banking deals.",
+    )
+    _add_search_filters(find_parser)
 
     score_parser = banking_subparsers.add_parser(
         "score",
@@ -167,7 +176,53 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Exercise notification hooks without external sends.",
     )
+    digest_parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Use deterministic local-only demo digest defaults.",
+    )
     digest_parser.set_defaults(handler=_handle_digest)
+
+    demo_parser = banking_subparsers.add_parser(
+        "demo",
+        help="Seed the local Banking MVP demo from offline fixtures.",
+    )
+    demo_parser.add_argument(
+        "--seed",
+        choices=("fixtures",),
+        default="fixtures",
+        help="Demo seed source.",
+    )
+    demo_parser.add_argument(
+        "--fixture-dir",
+        default=DEFAULT_DEMO_FIXTURE_DIR,
+        help="Directory containing demo fixture text.",
+    )
+    demo_parser.add_argument(
+        "--digest-output",
+        default=DEFAULT_DEMO_DIGEST_OUTPUT,
+        help="Markdown digest artifact path.",
+    )
+    demo_parser.add_argument(
+        "--alert-config",
+        default="config/banking_alerts.yaml",
+        help="Path to banking alert config.",
+    )
+    demo_parser.add_argument("--as-of", default=DEFAULT_DEMO_AS_OF)
+    demo_parser.add_argument(
+        "--reset",
+        "--reset-db",
+        dest="reset",
+        action="store_true",
+        help="Replace the target demo database if it already exists.",
+    )
+    demo_parser.add_argument(
+        "--format",
+        choices=("table", "json"),
+        default=DEFAULT_OUTPUT_FORMAT,
+        help="Output format.",
+    )
+    demo_parser.set_defaults(handler=_handle_demo)
 
     smoke_parser = banking_subparsers.add_parser(
         "smoke-test",
@@ -222,6 +277,30 @@ def _add_list_filters(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--recommended-action")
     parser.add_argument("--expires-within-days", type=int)
     parser.add_argument("--needs-review", action="store_true")
+
+
+def _add_search_filters(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--query", help="Free-text query.")
+    parser.add_argument("--institution")
+    parser.add_argument("--subcategory")
+    parser.add_argument("--min-bonus")
+    parser.add_argument("--min-net-value")
+    parser.add_argument("--score-band")
+    parser.add_argument("--recommended-action")
+    parser.add_argument("--status", choices=STATUS_VALUES)
+    parser.add_argument(
+        "--expiring-days",
+        type=int,
+        dest="expires_within_days",
+    )
+    parser.add_argument(
+        "--expires-within-days",
+        type=int,
+        dest="expires_within_days",
+    )
+    parser.add_argument("--needs-review", action="store_true")
+    _add_output_format(parser)
+    parser.set_defaults(handler=_handle_search)
 
 
 def _handle_list(args: argparse.Namespace) -> int:
@@ -279,8 +358,23 @@ def _handle_expiring(args: argparse.Namespace) -> int:
 
 
 def _handle_search(args: argparse.Namespace) -> int:
-    deals = _filtered_deals(args.db, institution=args.institution)
-    _print_deal_list(deals, args.format)
+    deals = _search_deals(
+        args.db,
+        query=args.query,
+        institution=args.institution,
+        subcategory=args.subcategory,
+        min_bonus_cents=_dollars_to_cents(args.min_bonus, "--min-bonus"),
+        min_net_value_cents=_dollars_to_cents(
+            args.min_net_value,
+            "--min-net-value",
+        ),
+        score_band=args.score_band,
+        recommended_action=args.recommended_action,
+        status=args.status,
+        expires_within_days=args.expires_within_days,
+        needs_review=args.needs_review,
+    )
+    _print_search_results(deals, args.format)
     return 0
 
 
@@ -296,27 +390,62 @@ def _handle_score(args: argparse.Namespace) -> int:
 
 def _handle_digest(args: argparse.Namespace) -> int:
     config = load_alert_config(args.config)
-    as_of = _parse_cli_date(args.as_of) if args.as_of else None
+    as_of_value = args.as_of or (DEFAULT_DEMO_AS_OF if args.demo else None)
+    as_of = _parse_cli_date(as_of_value) if as_of_value else None
     digest = generate_banking_digest(args.db, config=config, as_of=as_of)
     notification_results = dispatch_notifications(
         digest,
         config,
-        dry_run=args.dry_run_notifications,
+        dry_run=args.dry_run_notifications or args.demo,
     )
     digest = replace(digest, notification_results=notification_results)
     output_path = args.output or (
-        config.default_json_output_path
-        if args.format == "json"
-        else config.default_markdown_output_path
+        (
+            DEFAULT_DEMO_JSON_DIGEST_OUTPUT
+            if args.format == "json"
+            else DEFAULT_DEMO_DIGEST_OUTPUT
+        )
+        if args.demo
+        else (
+            config.default_json_output_path
+            if args.format == "json"
+            else config.default_markdown_output_path
+        )
     )
     written_path = write_digest_artifact(
         digest,
         output_path,
         output_format=args.format,
-        minimum_hours_between_digests=config.minimum_hours_between_digests,
-        force=args.force,
+        minimum_hours_between_digests=(
+            0 if args.demo else config.minimum_hours_between_digests
+        ),
+        force=args.force or args.demo,
     )
     print(f"Generated banking digest at {written_path} ({args.format}).")
+    return 0
+
+
+def _handle_demo(args: argparse.Namespace) -> int:
+    _ = args.seed
+    summary = run_offline_banking_smoke(
+        args.db,
+        fixture_dir=args.fixture_dir,
+        digest_output=args.digest_output,
+        alert_config_path=args.alert_config,
+        as_of=_parse_cli_date(args.as_of),
+        reset_db=args.reset,
+    )
+    if args.format == "json":
+        _print_json(summary.to_dict())
+    else:
+        print("Banking MVP demo data ready.")
+        _print_table(
+            [
+                {"metric": key, "value": value}
+                for key, value in summary.to_dict().items()
+            ],
+            empty_message="No demo summary generated.",
+        )
     return 0
 
 
@@ -386,6 +515,91 @@ def _filtered_deals(
     return deals
 
 
+def _search_deals(
+    db_path: str,
+    *,
+    query: str | None = None,
+    status: str | None = None,
+    institution: str | None = None,
+    subcategory: str | None = None,
+    min_bonus_cents: int | None = None,
+    min_net_value_cents: int | None = None,
+    score_band: str | None = None,
+    recommended_action: str | None = None,
+    expires_within_days: int | None = None,
+    needs_review: bool = False,
+) -> list[dict[str, Any]]:
+    rows = list_banking_deals(
+        db_path,
+        status=status,
+        subcategory=subcategory,
+    )
+    results = [_search_record(db_path, row) for row in rows]
+    query_tokens = _query_tokens(query)
+
+    filters: list[Callable[[Mapping[str, Any]], bool]] = []
+    if query_tokens:
+        filters.append(lambda deal: _matches_query(deal, query_tokens))
+    if institution:
+        institution_filter = institution.lower()
+        filters.append(
+            lambda deal: institution_filter
+            in str(deal.get("institution_name") or "").lower()
+        )
+    if min_bonus_cents is not None:
+        filters.append(
+            lambda deal: (deal.get("bonus_amount_cents") or 0) >= min_bonus_cents
+        )
+    if min_net_value_cents is not None:
+        filters.append(
+            lambda deal: (
+                deal.get("estimated_net_value_cents") or 0
+            )
+            >= min_net_value_cents
+        )
+    if score_band:
+        filters.append(lambda deal: deal.get("score_band") == score_band)
+    if recommended_action:
+        filters.append(
+            lambda deal: deal.get("recommended_action") == recommended_action
+        )
+    if expires_within_days is not None:
+        filters.append(
+            lambda deal: _expires_within(deal.get("expires_at"), expires_within_days)
+        )
+    if needs_review:
+        filters.append(lambda deal: bool(deal.get("needs_review")))
+
+    for item_filter in filters:
+        results = [deal for deal in results if item_filter(deal)]
+
+    for result in results:
+        result["match_reason"] = _match_reason(
+            result,
+            query_tokens=query_tokens,
+            institution=institution,
+            subcategory=subcategory,
+            min_bonus_cents=min_bonus_cents,
+            min_net_value_cents=min_net_value_cents,
+            score_band=score_band,
+            recommended_action=recommended_action,
+            status=status,
+            expires_within_days=expires_within_days,
+            needs_review=needs_review,
+        )
+
+    sorted_results = sorted(
+        results,
+        key=lambda deal: (
+            -int(deal.get("score_0_to_100") or 0),
+            -int(deal.get("estimated_net_value_cents") or 0),
+            -int(deal.get("bonus_amount_cents") or 0),
+            int(deal["id"]),
+        ),
+    )
+    return [_public_search_record(result) for result in sorted_results]
+
+
 def _summary_record(db_path: str, deal: Mapping[str, Any]) -> dict[str, Any]:
     score = score_banking_deal(db_path, int(deal["id"]))
     change_events = list_deal_change_events(db_path, deal_id=int(deal["id"]))
@@ -404,6 +618,50 @@ def _summary_record(db_path: str, deal: Mapping[str, Any]) -> dict[str, Any]:
         "expires_at": deal.get("expires_at"),
         "needs_review": needs_review,
     }
+
+
+def _search_record(db_path: str, deal: Mapping[str, Any]) -> dict[str, Any]:
+    deal_id = int(deal["id"])
+    detail = get_banking_deal(db_path, deal_id) or dict(deal)
+    score = score_banking_deal(db_path, deal_id)
+    source_links = list_banking_deal_source_links(db_path, deal_id=deal_id)
+    change_events = list_deal_change_events(db_path, deal_id=deal_id)
+    terms = _normalized_terms(detail.get("terms") or {})
+    review_indicator = _review_indicator(detail, score, change_events)
+    source_name, source_url = _primary_source(detail, source_links)
+    source_names = _source_names(detail, source_links)
+    source_urls = _source_urls(detail, source_links)
+    return {
+        "id": deal_id,
+        "title": detail["title"],
+        "institution_name": detail["institution_name"],
+        "subcategory": detail["subcategory"],
+        "status": detail["status"],
+        "bonus_amount_cents": detail.get("bonus_amount_cents"),
+        "estimated_net_value_cents": score.estimated_net_value,
+        "score_0_to_100": score.score_0_to_100,
+        "score_band": score.score_band,
+        "recommended_action": score.recommended_action,
+        "expires_at": detail.get("expires_at"),
+        "application_deadline": detail.get("application_deadline"),
+        "needs_review": review_indicator != "none",
+        "review_indicator": review_indicator,
+        "missing_data_warnings": score.missing_data_warnings,
+        "source_name": source_name,
+        "source_url": source_url,
+        "source_names": source_names,
+        "source_urls": source_urls,
+        "terms": terms,
+        "match_reason": "Ranked by score and estimated net value.",
+    }
+
+
+def _public_search_record(record: Mapping[str, Any]) -> dict[str, Any]:
+    result = dict(record)
+    result.pop("source_names", None)
+    result.pop("source_urls", None)
+    result.pop("terms", None)
+    return result
 
 
 def _deal_detail(db_path: str, deal_id: int) -> dict[str, Any]:
@@ -506,6 +764,39 @@ def _source_urls(
     return urls
 
 
+def _source_names(
+    deal: Mapping[str, Any],
+    source_links: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    names = []
+    values = [
+        deal.get("source_name"),
+        *[link.get("source_name") for link in source_links],
+    ]
+    for value in values:
+        if value and value not in names:
+            names.append(str(value))
+    return names
+
+
+def _primary_source(
+    deal: Mapping[str, Any],
+    source_links: Sequence[Mapping[str, Any]],
+) -> tuple[str | None, str | None]:
+    for link in source_links:
+        if link.get("source_name") or link.get("source_url"):
+            return (
+                str(link["source_name"]) if link.get("source_name") else None,
+                str(link["source_url"]) if link.get("source_url") else None,
+            )
+    source_name = deal.get("source_name")
+    source_url = deal.get("source_url")
+    return (
+        str(source_name) if source_name else None,
+        str(source_url) if source_url else None,
+    )
+
+
 def _source_link_payload(link: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "id": link.get("id"),
@@ -531,6 +822,22 @@ def _needs_review(
     )
 
 
+def _review_indicator(
+    deal: Mapping[str, Any],
+    score: BankingScore,
+    change_events: Sequence[Mapping[str, Any]],
+) -> str:
+    if _has_conflict(change_events):
+        return "conflict"
+    if score.missing_data_warnings:
+        return "missing_data"
+    if deal.get("status") == "needs_review":
+        return "needs_review"
+    if score.recommended_action in REVIEW_RECOMMENDATIONS:
+        return score.recommended_action
+    return "none"
+
+
 def _has_conflict(change_events: Sequence[Mapping[str, Any]]) -> bool:
     for event in change_events:
         changed = _json_value(event.get("changed_fields_json"))
@@ -553,6 +860,102 @@ def _expires_within(value: Any, days: int) -> bool:
     return 0 <= days_until <= days
 
 
+def _query_tokens(query: str | None) -> list[str]:
+    if not query:
+        return []
+    return [token.lower() for token in query.split() if token.strip()]
+
+
+def _matches_query(deal: Mapping[str, Any], tokens: Sequence[str]) -> bool:
+    haystack = _search_text(deal)
+    return all(token in haystack for token in tokens)
+
+
+def _search_text(deal: Mapping[str, Any]) -> str:
+    values = [
+        deal.get("title"),
+        deal.get("institution_name"),
+        deal.get("subcategory"),
+        deal.get("source_name"),
+        deal.get("source_url"),
+        deal.get("source_names"),
+        deal.get("source_urls"),
+        deal.get("terms"),
+    ]
+    return " ".join(_flatten_search_values(values)).lower()
+
+
+def _flatten_search_values(values: Any) -> list[str]:
+    if values is None:
+        return []
+    if isinstance(values, Mapping):
+        flattened: list[str] = []
+        for key, value in values.items():
+            flattened.append(str(key))
+            flattened.extend(_flatten_search_values(value))
+        return flattened
+    if isinstance(values, list | tuple | set):
+        flattened = []
+        for value in values:
+            flattened.extend(_flatten_search_values(value))
+        return flattened
+    return [str(values)]
+
+
+def _match_reason(
+    deal: Mapping[str, Any],
+    *,
+    query_tokens: Sequence[str],
+    institution: str | None,
+    subcategory: str | None,
+    min_bonus_cents: int | None,
+    min_net_value_cents: int | None,
+    score_band: str | None,
+    recommended_action: str | None,
+    status: str | None,
+    expires_within_days: int | None,
+    needs_review: bool,
+) -> str:
+    reasons = []
+    if query_tokens:
+        reasons.append(f"matched query '{' '.join(query_tokens)}'")
+    if institution:
+        reasons.append(f"matched institution '{institution}'")
+    if subcategory:
+        reasons.append(f"matched subcategory {subcategory}")
+    if min_bonus_cents is not None:
+        reasons.append(f"bonus at least {_money(min_bonus_cents)}")
+    if min_net_value_cents is not None:
+        reasons.append(f"net value at least {_money(min_net_value_cents)}")
+    if score_band:
+        reasons.append(f"score band {score_band}")
+    if recommended_action:
+        reasons.append(f"recommended action {recommended_action}")
+    if status:
+        reasons.append(f"status {status}")
+    if expires_within_days is not None:
+        reasons.append(f"expires within {expires_within_days} days")
+    if needs_review:
+        reasons.append(f"review indicator {deal.get('review_indicator')}")
+    if not reasons:
+        reasons.append("ranked by score and estimated net value")
+    return "; ".join(reasons) + "."
+
+
+def _dollars_to_cents(value: str | None, option_name: str) -> int | None:
+    if value is None:
+        return None
+    try:
+        amount = Decimal(value)
+    except InvalidOperation as error:
+        raise ValueError(
+            f"{option_name} must be a dollar amount: {value}"
+        ) from error
+    if amount < 0:
+        raise ValueError(f"{option_name} must be non-negative")
+    return int(amount * 100)
+
+
 def _print_deal_list(deals: list[dict[str, Any]], output_format: str) -> None:
     if output_format == "json":
         _print_json(deals)
@@ -571,6 +974,33 @@ def _print_deal_list(deals: list[dict[str, Any]], output_format: str) -> None:
             "action": deal["recommended_action"],
             "expires": deal.get("expires_at") or "unknown",
             "review": "yes" if deal["needs_review"] else "no",
+        }
+        for deal in deals
+    ]
+    _print_table(rows, empty_message="No banking deals matched.")
+
+
+def _print_search_results(deals: list[dict[str, Any]], output_format: str) -> None:
+    if output_format == "json":
+        _print_json(deals)
+        return
+
+    rows = [
+        {
+            "id": deal["id"],
+            "institution": deal["institution_name"],
+            "subcategory": deal["subcategory"],
+            "bonus": _money(deal.get("bonus_amount_cents")),
+            "net": _money(deal.get("estimated_net_value_cents")),
+            "score": deal["score_0_to_100"],
+            "band": deal["score_band"],
+            "action": deal["recommended_action"],
+            "expires": deal.get("expires_at") or "unknown",
+            "review": deal["review_indicator"],
+            "source": (
+                deal.get("source_name") or deal.get("source_url") or "unknown"
+            ),
+            "reason": deal["match_reason"],
         }
         for deal in deals
     ]

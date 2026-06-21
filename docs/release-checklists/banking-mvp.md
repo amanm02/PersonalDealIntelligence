@@ -103,7 +103,18 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 - [ ] Review-needed deals appear.
 - [ ] Digest includes deal IDs for CLI follow-up.
 
-## 11. Run history and dry-run
+## 11. Demo readiness
+
+- [ ] `python3 scripts/check_banking_demo.py` passes from a fresh setup.
+- [ ] `pdi banking demo --reset --seed fixtures` initializes local demo data.
+- [ ] `pdi banking find` returns ranked checking, savings, and brokerage deals.
+- [ ] Find results include score/net value, match reason, review indicator, and source label or URL.
+- [ ] `pdi banking show <deal_id>` displays terms, evidence/source references, missing-data warnings, and status.
+- [ ] `pdi banking digest --demo` writes a local digest artifact.
+- [ ] Demo output is deterministic across reset runs.
+- [ ] Demo commands do not require internet access, credentials, sensitive personal data, external notification sends, or financial actions.
+
+## 12. Run history and dry-run
 
 - [ ] Dry-run command works.
 - [ ] One-shot run command works.
@@ -112,7 +123,7 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 - [ ] Recent runs can be listed.
 - [ ] One run can be inspected.
 
-## 12. Safety and privacy review
+## 13. Safety and privacy review
 
 - [ ] No private auth material is collected.
 - [ ] Highly sensitive personal identifiers stay out of project storage.
@@ -122,7 +133,7 @@ Use this checklist before treating the Banking MVP as usable for personal deal t
 - [ ] Source access workarounds are not part of the implementation.
 - [ ] Docs state that final terms must be verified on official institution pages.
 
-## 13. Validation commands
+## 14. Validation commands
 
 Before release, run the full validation suite listed in `docs/verification.md`.
 
@@ -137,7 +148,7 @@ mypy .
 
 Only run commands that are configured in the repo.
 
-## 14. Known limitations to document
+## 15. Known limitations to document
 
 - [ ] Extraction is imperfect and may miss nuanced terms.
 - [ ] Scoring is based on configurable assumptions, not financial advice.

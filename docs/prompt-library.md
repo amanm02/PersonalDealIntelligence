@@ -19,23 +19,38 @@ Keep prompts compact. Point to source-of-truth files instead of embedding long c
 ## Prompt: implement a GitHub issue
 
 ```text
-Work on GitHub issue #<ISSUE_NUMBER>.
+Work on GitHub issue #<ISSUE_NUMBER> in amanm02/PersonalDealIntelligence.
 
-Read in order:
-1. AGENTS.md
-2. docs/issue-map.md
-3. docs/verification.md
-4. docs/architecture/banking-mvp.md
-5. docs/decisions.md
-6. The issue body
-7. Any linked implementation plan
-8. Only the files needed for the task
+Start conditions:
+- Start from latest origin/main.
+- Confirm working tree is clean.
+- Create branch: codex/issue-<ISSUE_NUMBER>-<short-slug>.
+- Read AGENTS.md, the issue body, and only the relevant sections of docs/verification.md.
+- Read architecture/decisions/config/schema docs only if this issue touches those areas.
 
-Implement the smallest safe change that satisfies the issue acceptance criteria.
-Do not expand scope.
-Do not add deferred categories.
-Run the relevant validation from docs/verification.md.
-Final response must include Summary, Files changed, Validation, and Risks / follow-ups.
+Task:
+- Implement the smallest safe change satisfying the issue acceptance criteria.
+- Do not implement dependency issues.
+- Do not expand product scope.
+- Do not add live network behavior unless the issue explicitly requires it and tests remain disabled/offline by default.
+- Preserve local-first SQLite/Python conventions.
+
+Before editing:
+- Identify owned files.
+- Identify likely tests.
+- Confirm whether dependencies are already implemented.
+- Stop and report if dependency work is missing, scope conflicts with docs, or implementation would require unsafe source access.
+
+Validation:
+- Run targeted tests for changed code.
+- Run broader validation from docs/verification.md when touching core flow, CLI, schema, source policy, scoring, digest, or docs.
+- Report exact commands and results.
+
+Completion:
+- Commit changes.
+- Push branch.
+- Open PR against main.
+- PR body must include linked issue, summary, files changed, validation, risks/follow-ups.
 ```
 
 ## Prompt: create an implementation plan
@@ -43,54 +58,94 @@ Final response must include Summary, Files changed, Validation, and Risks / foll
 ```text
 Create an implementation plan for GitHub issue #<ISSUE_NUMBER>.
 
-Read AGENTS.md, docs/issue-map.md, docs/verification.md, docs/architecture/banking-mvp.md, docs/decisions.md, and the issue body.
 Do not edit production code.
-Create or update a plan in docs/implementation-plans/active/.
 
-The plan must include:
-- problem
-- current state
-- desired state
-- proposed changes
-- files to edit
-- tests
-- validation commands
-- rollback
-- open questions
-- checklist
+Read:
+- AGENTS.md
+- issue body
+- relevant docs/verification.md section
+- relevant source files/tests only
 
-Keep the plan scoped to the issue.
+Write docs/implementation-plans/active/issue-<ISSUE_NUMBER>.md with:
+
+1. Objective
+2. Current state evidence
+3. Dependencies and blockers
+4. Scope boundaries / non-goals
+5. Owned files
+6. Files to inspect but avoid editing unless necessary
+7. Proposed data/API/CLI changes
+8. Tests to add/update
+9. Validation commands
+10. Docs updates
+11. Rollback plan
+12. Stop conditions
+13. Implementation checklist
+
+Stop conditions:
+- dependency issue not implemented;
+- docs conflict with issue;
+- required schema decision missing;
+- live-source behavior is ambiguous;
+- expected files overlap with an active PR.
 ```
 
 ## Prompt: review a pull request
 
 ```text
-Review PR #<PR_NUMBER> for correctness, scope control, safety boundaries, duplication, and validation quality.
+Verify PR #<PR_NUMBER> / issue #<ISSUE_NUMBER>.
 
-Read AGENTS.md, docs/issue-map.md, docs/verification.md, docs/architecture/banking-mvp.md, the PR diff, linked issue, and any linked implementation plan.
-Compare against recently closed PRs if overlap is possible.
+Do not edit files.
 
-Return findings grouped as:
+Read:
+- AGENTS.md
+- issue body
+- PR diff
+- relevant docs/verification.md section
+- changed tests and changed source files
+
+Check:
+- Scope matches issue.
+- No dependency issue was reimplemented.
+- Docs changed when behavior changed.
+- Tests cover acceptance criteria.
+- Offline-default behavior is preserved.
+- Safety/source-policy boundaries are intact.
+- Validation commands were actually run and reported.
+
+Return:
+- Pass/fail verdict
 - Blockers
 - Non-blocking issues
-- Validation gaps
-- Safety/compliance concerns
-- Suggested follow-ups
-
-Do not make edits.
+- Missing validation
+- Regression risks
+- Recommended merge/hold decision
 ```
 
 ## Prompt: fix failing CI or validation
 
 ```text
-Fix the failing checks for PR #<PR_NUMBER> or issue #<ISSUE_NUMBER>.
+Clean up PR #<PR_NUMBER> without expanding scope.
 
-Read AGENTS.md and docs/verification.md first.
-Inspect the failing job logs or local validation output first.
-Reproduce the failing command locally if possible.
-Make the smallest safe fix.
-Run the failing command again and report the exact validation result.
-Do not expand scope beyond the failure.
+Read:
+- AGENTS.md
+- PR diff
+- linked issue
+- failed review comments or validation output
+
+Tasks:
+- Remove unrelated changes.
+- Fix failing validation.
+- Update docs only for changed behavior.
+- Keep branch based on latest main unless the PR is intentionally stacked.
+- Run the previously failing checks plus relevant targeted tests.
+
+Stop if:
+- fix requires changing issue scope;
+- dependency issue is missing;
+- unrelated tests fail and cannot be attributed to this PR.
+
+Return Summary, Files changed, Validation, Risks/follow-ups.
 ```
 
 ## Prompt: audit Banking MVP readiness
