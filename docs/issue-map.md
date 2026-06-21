@@ -59,7 +59,7 @@ The expanded MVP uses two coordinated tracks:
 | 12 | #14 | Add realistic demo fixture corpus and source seed pack | #2, #3, #4, #5 | closed |
 | 13 | #15 | Add product-facing banking deal find command | #2, #6, #7, #8, #14 | closed |
 | 14 | #16 | Add fresh-clone demo readiness gate | #2-#12, #14, #15 | closed; PR #54 verified |
-| 15 | #17 | Add opt-in compliant public source pilot | #3, #4, #10, #12, #16 | open |
+| 15 | #17 | Add opt-in compliant public source pilot | #3, #4, #10, #12, #16 | closed; PR #58 verified |
 | 16 | #18 | Sync issue map and roadmap after demo expansion | #1, after #14-#17 exist | closed |
 | 17 | #27 | Expand MVP scope to include credit card offers | #1 | closed |
 | 18 | #28 | Build comprehensive banking and credit card source universe with onboarding workflow | #3, #27 | open |
@@ -83,9 +83,9 @@ The expanded MVP uses two coordinated tracks:
 
 Current GitHub state should be verified before editing because batch examples in issue bodies can become stale.
 
-- Completed prerequisites: #27 / PR #51, product CI / PR #50, #15 / PR #53, #52 / PR #55, PR #54 demo readiness, and PR #56 AgentOps workflow hygiene are merged.
+- Completed prerequisites: #27 / PR #51, product CI / PR #50, #15 / PR #53, #52 / PR #55, PR #54 demo readiness, PR #56 AgentOps workflow hygiene, and #17 / PR #58 opt-in public source pilot are merged.
 - Current exclusive work: none known from the latest open-PR preflight.
-- Next sequential work: #17 opt-in public source pilot after #16 is closed by the demo readiness reconciliation PR.
+- Next sequential work: rewrite or split #28, #30, and #34 before implementation; only a narrowed #28A source-universe/config expansion should proceed after ownership and validation are explicit.
 - Future work #28-#43 should be split or rewritten before implementation when it overlaps source policy, schema, taxonomy, evidence, scoring, CLI, workflow, or shared docs.
 - Use `docs/agentops/concurrency.md`, `docs/agentops/issue-hygiene.md`, and `docs/agentops/current-work-batches.md` before launching parallel agents.
 
