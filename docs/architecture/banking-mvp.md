@@ -190,7 +190,12 @@ text, so duplicate snapshot content remains queryable while source metadata can
 still differ by row. A separate snapshot hash is not currently stored because
 metadata changes are provenance, not raw-content identity.
 
-Raw snapshots allow re-extraction when extractor logic improves.
+Raw snapshots allow offline re-extraction when extractor logic improves.
+`python3 -m pdi banking reextract --snapshot <id> --dry-run --format json`
+and `--all` reprocess stored snapshot text only. Dry-run reports candidate
+differences without writes. Write mode persists new pre-dedupe candidate rows
+and preserves canonical deal values, statuses, source links, and reviewed terms;
+later canonicalization or conflict policy must be explicit.
 
 ### 4. Banking extractor
 
@@ -238,6 +243,12 @@ canonicalization, deposit and brokerage field evidence is normalized into
 snapshot id, field name, extracted value, excerpt/span offsets, confidence, and
 extraction method/version while preserving candidate and source-link JSON
 evidence for compatibility.
+
+Re-extraction uses the same deterministic extractor against already stored raw
+snapshots. It compares the newest existing candidate for a snapshot with the
+fresh candidate output across extraction fields and reports changed values in a
+stable order. Re-extraction does not fetch sources, canonicalize candidates, or
+mutate reviewed canonical deal data.
 Intro APR and category multipliers are supporting context unless the offer is
 explicitly about 0% APR or those multipliers are part of the signup offer terms.
 Issuer application restrictions should be captured as review notes, not hard

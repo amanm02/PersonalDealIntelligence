@@ -26,6 +26,7 @@ from pdi.storage import (
     list_banking_runs,
     list_field_evidence_links,
     list_missing_field_evidence,
+    list_raw_snapshots,
     list_raw_snapshots_by_content_hash,
     load_seed_fixture,
     release_banking_run_lock,
@@ -172,6 +173,7 @@ def test_raw_snapshot_metadata_round_trips_and_duplicate_hashes_are_queryable(tm
 
     first = get_raw_snapshot(db_path, first_id)
     duplicates = list_raw_snapshots_by_content_hash(db_path, content_hash)
+    snapshots = list_raw_snapshots(db_path)
 
     assert first["source_record_id"] == source_id
     assert first["source_url"] == "manual://metadata"
@@ -187,6 +189,7 @@ def test_raw_snapshot_metadata_round_trips_and_duplicate_hashes_are_queryable(tm
     assert first["collector_name"] == "manual_text"
     assert [snapshot["id"] for snapshot in duplicates] == [first_id, second_id]
     assert {snapshot["content_hash"] for snapshot in duplicates} == {content_hash}
+    assert [snapshot["id"] for snapshot in snapshots] == [first_id, second_id]
 
 
 def test_raw_snapshot_rejects_mismatched_supplied_content_hash(tmp_path):
