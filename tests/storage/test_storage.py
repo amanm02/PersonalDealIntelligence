@@ -71,7 +71,7 @@ def test_initializes_database_from_scratch(tmp_path):
         }.issubset(table_names)
         assert connection.execute(
             "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0] == 7
+        ).fetchone()[0] == 8
 
 
 def test_migrations_are_idempotent(tmp_path):
@@ -83,7 +83,7 @@ def test_migrations_are_idempotent(tmp_path):
     with sqlite3.connect(db_path) as connection:
         assert connection.execute(
             "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0] == 7
+        ).fetchone()[0] == 8
 
 
 def test_raw_snapshot_content_hash_is_stable_and_content_derived(tmp_path):
@@ -246,9 +246,29 @@ def test_candidate_schema_is_hardened_on_fresh_database(tmp_path):
     assert "raw_pattern_matches_json" in columns
     assert "canonical_deal_id" in columns
     assert "canonicalization_status" in columns
+    assert "issuer_name" in columns
+    assert "card_name" in columns
+    assert "product_family" in columns
+    assert "customer_type" in columns
+    assert "card_network" in columns
+    assert "offer_currency" in columns
+    assert "headline_bonus_amount_json" in columns
+    assert "headline_bonus_value_cents" in columns
+    assert "minimum_spend_cents" in columns
+    assert "spend_window_days" in columns
+    assert "annual_fee_cents" in columns
+    assert "first_year_annual_fee_waived" in columns
+    assert "statement_credit_amount_cents" in columns
+    assert "statement_credit_requirements" in columns
+    assert "bonus_payout_timing" in columns
+    assert "targeted" in columns
+    assert "eligibility_restriction_notes_json" in columns
+    assert "source_confidence" in columns
     assert "idx_banking_deal_candidates_raw_snapshot_id" in indexes
     assert "idx_banking_deal_candidates_rejected" in indexes
     assert "idx_banking_deal_candidates_canonicalization_status" in indexes
+    assert "idx_banking_deal_candidates_card_name" in indexes
+    assert "idx_banking_deal_candidates_offer_currency" in indexes
     assert any(
         row[2] == "raw_deal_snapshots"
         and row[3] == "raw_snapshot_id"
@@ -330,6 +350,146 @@ def test_candidate_insert_retrieve_preserves_nulls_and_deterministic_json(tmp_pa
     assert row["raw_pattern_matches_json"] == (
         '{"bonus_amount": ["$300"], "minimum_deposit": ["$1,000"]}'
     )
+
+
+def test_credit_card_candidate_fields_round_trip_from_storage(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    snapshot_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_url": "manual://card-candidate",
+            "source_name": "Card Candidate Source",
+            "retrieved_at": "2026-06-21T12:00:00+00:00",
+            "raw_text": "Mock card issuer offers a fictional card bonus.",
+            "collector_name": "fixture",
+        },
+    )
+
+    candidate_id = insert_banking_deal_candidate(
+        db_path,
+        {
+            "raw_snapshot_id": snapshot_id,
+            "title": "Example Card $200 Cash Bonus",
+            "institution_name": "Example Issuer",
+            "issuer_name": "Example Issuer",
+            "card_name": "Example Cash Card",
+            "product_family": "Cash",
+            "customer_type": "personal",
+            "card_network": "Visa",
+            "subcategory": "credit_card_signup_bonus",
+            "bonus_amount_cents": 20000,
+            "offer_currency": "cash",
+            "headline_bonus_amount": 200,
+            "headline_bonus_value_cents": 20000,
+            "minimum_spend_cents": 100000,
+            "spend_window_days": 90,
+            "annual_fee_cents": 0,
+            "first_year_annual_fee_waived": False,
+            "statement_credit_amount_cents": None,
+            "statement_credit_requirements": None,
+            "bonus_payout_timing": "8 weeks after qualifying spend",
+            "targeted": True,
+            "eligibility_restriction_notes": ["Invitation code required."],
+            "source_confidence": 0.84,
+            "source_name": "Card Candidate Source",
+            "retrieved_at": "2026-06-21T12:00:00+00:00",
+            "evidence_spans": [
+                {
+                    "field": "headline_bonus_amount",
+                    "text": "$200",
+                    "start": 0,
+                    "end": 4,
+                }
+            ],
+            "missing_fields": ["bonus_payout_timing"],
+            "confidence_score": 0.84,
+        },
+    )
+
+    row = get_banking_deal_candidate(db_path, candidate_id)
+
+    assert row["issuer_name"] == "Example Issuer"
+    assert row["card_name"] == "Example Cash Card"
+    assert row["product_family"] == "Cash"
+    assert row["customer_type"] == "personal"
+    assert row["card_network"] == "Visa"
+    assert row["offer_currency"] == "cash"
+    assert row["headline_bonus_amount_json"] == "200"
+    assert row["headline_bonus_value_cents"] == 20000
+    assert row["minimum_spend_cents"] == 100000
+    assert row["spend_window_days"] == 90
+    assert row["annual_fee_cents"] == 0
+    assert row["first_year_annual_fee_waived"] == 0
+    assert row["bonus_payout_timing"] == "8 weeks after qualifying spend"
+    assert row["targeted"] == 1
+    assert row["eligibility_restriction_notes_json"] == (
+        '["Invitation code required."]'
+    )
+    assert row["source_confidence"] == 0.84
+
+
+def test_existing_candidate_rows_gain_credit_card_columns(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    _initialize_through_migration(db_path, "007")
+    with sqlite3.connect(db_path) as connection:
+        snapshot_id = connection.execute(
+            """
+            INSERT INTO raw_deal_snapshots (
+              source_url,
+              source_name,
+              retrieved_at,
+              content_hash,
+              raw_text,
+              collector_name
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "manual://legacy-credit-card",
+                "Legacy Credit Card Source",
+                "2026-06-21T12:00:00+00:00",
+                hashlib.sha256(b"legacy credit card text").hexdigest(),
+                "legacy credit card text",
+                "fixture",
+            ),
+        ).lastrowid
+        candidate_id = connection.execute(
+            """
+            INSERT INTO banking_deal_candidates (
+              raw_snapshot_id,
+              title,
+              institution_name,
+              category,
+              subcategory,
+              currency,
+              source_name,
+              retrieved_at,
+              rejected
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                snapshot_id,
+                "Legacy Card Candidate",
+                "Legacy Issuer",
+                "banking",
+                "credit_card_signup_bonus",
+                "USD",
+                "Legacy Credit Card Source",
+                "2026-06-21T12:00:00+00:00",
+                0,
+            ),
+        ).lastrowid
+        connection.commit()
+
+    initialize_database(db_path)
+    row = get_banking_deal_candidate(db_path, candidate_id)
+
+    assert row["subcategory"] == "credit_card_signup_bonus"
+    assert row["issuer_name"] is None
+    assert row["card_name"] is None
+    assert row["offer_currency"] is None
 
 
 def test_candidate_lifecycle_filters_rejected_and_canonicalization_status(tmp_path):
