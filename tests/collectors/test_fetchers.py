@@ -1,4 +1,6 @@
 import socket
+import ssl
+import urllib.error
 from datetime import date
 
 from pdi.fetchers import SafeFetchResult, safe_fetch_public_source
@@ -120,6 +122,27 @@ def test_safe_fetch_timeout_fails_closed_deterministically():
     assert result.ok is False
     assert result.error_type == "timeout"
     assert result.error_message == "public-pilot fetch timed out"
+    assert "secret" not in str(result.to_metadata())
+
+
+def test_safe_fetch_tls_certificate_error_is_explainable_without_secret_leak():
+    source_policy = policy()
+
+    def certificate_error_fetcher(request, timeout):
+        raise urllib.error.URLError(
+            ssl.SSLCertVerificationError(
+                1,
+                "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: "
+                "unable to get local issuer certificate token=secret",
+            )
+        )
+
+    result = safe_fetch_public_source(source_policy, urlopen=certificate_error_fetcher)
+
+    assert result.ok is False
+    assert result.error_type == "tls_certificate_error"
+    assert result.error_message == "public-pilot TLS certificate verification failed"
+    assert result.final_url == "https://example.test/feed.xml"
     assert "secret" not in str(result.to_metadata())
 
 
