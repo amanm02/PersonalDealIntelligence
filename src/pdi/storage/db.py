@@ -406,11 +406,15 @@ def insert_banking_deal_source_link(
               source_name,
               source_url,
               source_authority,
+              link_type,
+              trust_tier,
+              official_source,
               retrieved_at,
               confidence_score,
-              evidence_json
+              evidence_json,
+              notes
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 data["deal_id"],
@@ -419,9 +423,13 @@ def insert_banking_deal_source_link(
                 data["source_name"],
                 data.get("source_url"),
                 data.get("source_authority", "unknown"),
+                data.get("link_type", "candidate_source"),
+                data.get("trust_tier"),
+                _bool_to_int(data.get("official_source")),
                 data.get("retrieved_at"),
                 data.get("confidence_score"),
                 _json_text(data.get("evidence")),
+                data.get("notes"),
             ),
         )
         source_link_id = _source_link_id(connection, data)
@@ -901,6 +909,7 @@ def list_banking_deal_source_links(
     db_path: DbPath,
     *,
     deal_id: int | None = None,
+    candidate_id: int | None = None,
 ) -> list[dict[str, Any]]:
     """List source evidence links for canonical banking deals."""
 
@@ -909,6 +918,9 @@ def list_banking_deal_source_links(
     if deal_id is not None:
         clauses.append("deal_id = ?")
         values.append(deal_id)
+    if candidate_id is not None:
+        clauses.append("candidate_id = ?")
+        values.append(candidate_id)
 
     query = "SELECT * FROM banking_deal_source_links"
     if clauses:
