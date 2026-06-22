@@ -168,7 +168,16 @@ python3 -m pytest tests/cli
 Current narrower alert digest command:
 
 ```bash
+python3 -m pdi.alerts validate --config config/banking_alerts.yaml
 python3 -m pytest tests/alerts
+```
+
+Current narrower credit-card CLI and digest display command:
+
+```bash
+python3 -m pdi.alerts validate --config config/banking_alerts.yaml
+python3 -m pytest tests/cli tests/alerts tests/integration
+python3 scripts/check_banking_demo.py
 ```
 
 Current narrower offline integration command:
@@ -503,8 +512,8 @@ Must validate:
 - `pdi banking find` returns ranked checking, savings, and brokerage demo deals
 - find results include score/net value context, match reason, needs-review
   state, and source label or URL
-- `pdi banking show <deal_id>` displays terms, evidence/source references,
-  missing-data warnings, and status
+- `pdi banking show <deal_id>` displays terms, credit-card acquisition terms
+  when present, evidence/source references, missing-data warnings, and status
 - `pdi banking digest --demo` writes a local artifact
 - `pdi banking qa-benchmark --reset-db` reports pass/fail coverage for expected
   demo deals, duplicate/conflict behavior, non-deal suppression, score sanity,

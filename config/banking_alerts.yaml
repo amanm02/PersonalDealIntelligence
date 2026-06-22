@@ -17,6 +17,7 @@ enabled_subcategories:
   - brokerage_bonus
   - money_market_bonus
   - cd_bonus
+  - credit_card_signup_bonus
 minimum_hours_between_digests: 12
 default_outputs:
   markdown_path: data/digests/banking_digest.md
