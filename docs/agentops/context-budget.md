@@ -6,6 +6,7 @@ Agents perform better when repository context is layered and selective.
 
 - `AGENTS.md` is a map, not a manual.
 - Detailed guidance belongs in focused docs.
+- Sequential-chain prompt budgets live in `docs/agentops/context-budgeting.md`.
 - Do not duplicate instructions across files.
 - Split large documents by workflow or owner.
 - Prefer registries, indexes, and checklists over long prose.

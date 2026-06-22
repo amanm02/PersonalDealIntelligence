@@ -40,6 +40,11 @@ Run work
 - `concurrency.md`
 - `issue-hygiene.md`
 - `current-work-batches.md`
+- `sequential-chain-workflow.md`
+- `subagent-playbook.md`
+- `context-budgeting.md`
+- `chain-retrospective.md`
+- `templates/`
 - `stale-knowledge-log.md`
 - `hook-registry.md`
 - `mcp-registry.md`

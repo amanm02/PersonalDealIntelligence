@@ -106,6 +106,17 @@ Use `python3 -m tools.agentops.check_pr_body --body-file <path>` before PR
 creation, or `--github-pr <number>` for an existing PR when GitHub access is
 explicitly intended.
 
+For sequential dependency chains, use:
+
+```bash
+make agentops-chain-status
+make agentops-issue-contracts
+make agentops-context-budget
+make agentops-pr-body
+python3 -m tools.agentops.check_pr_body --body-file docs/agentops/templates/pr-body-chain.md --chain --require-closure
+python3 -m tools.agentops.check_context_budget --file docs/agentops/templates/chain-implementation-prompt.md --max-lines 90
+```
+
 Use `docs/agentops/github-codex-runbook.md` when GitHub CLI, network approval,
 PR publishing, or Codex thread inspection behavior is ambiguous.
 
