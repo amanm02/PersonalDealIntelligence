@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import re
 import socket
+import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -170,6 +171,13 @@ def safe_fetch_public_source(
     except urllib.error.URLError as error:
         if isinstance(error.reason, (TimeoutError, socket.timeout)):
             return _timeout_failure(policy.url, max_response_bytes)
+        if isinstance(error.reason, ssl.SSLCertVerificationError):
+            return SafeFetchResult.failure(
+                error_type="tls_certificate_error",
+                error_message="public-pilot TLS certificate verification failed",
+                final_url=policy.url,
+                max_size_bytes=max_response_bytes,
+            )
         return SafeFetchResult.failure(
             error_type="network_error",
             error_message="public-pilot fetch failed",
