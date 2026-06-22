@@ -1,0 +1,5 @@
+Archived partner page for the Beacon Cash Forward Card from Beacon Mock Bank.
+This page describes a $300 cash bonus, but the minimum spend line says spend $2,000 within 90 days.
+The issuer landing page currently lists a different $1,500 minimum spend, so this source should preserve the conflict.
+Annual fee is $0 and the card network is Visa.
+The page says the offer expires December 15, 2026.
