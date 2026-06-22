@@ -17,6 +17,18 @@ from typing import Any, Mapping
 DbPath = str | Path
 FIELD_EVIDENCE_FIELDS = (
     "bonus_amount_cents",
+    "issuer",
+    "card_name",
+    "customer_type",
+    "headline_bonus_amount",
+    "minimum_spend_cents",
+    "spend_window_days",
+    "annual_fee_cents",
+    "first_year_annual_fee_waived",
+    "statement_credit_amount_cents",
+    "statement_credit_requirements",
+    "targeted",
+    "eligibility_restriction_notes",
     "direct_deposit_required",
     "direct_deposit_minimum_cents",
     "minimum_deposit_amount_cents",
@@ -319,11 +331,30 @@ def insert_banking_deal_candidate(
               extraction_notes_json,
               tiered_bonus_json,
               raw_pattern_matches_json,
+              issuer_name,
+              card_name,
+              product_family,
+              customer_type,
+              card_network,
+              offer_currency,
+              headline_bonus_amount_json,
+              headline_bonus_value_cents,
+              point_mile_valuation_assumption_id,
+              minimum_spend_cents,
+              spend_window_days,
+              annual_fee_cents,
+              first_year_annual_fee_waived,
+              statement_credit_amount_cents,
+              statement_credit_requirements,
+              bonus_payout_timing,
+              targeted,
+              eligibility_restriction_notes_json,
+              source_confidence,
               confidence_score,
               rejected,
               rejection_reason
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 data["raw_snapshot_id"],
@@ -356,6 +387,25 @@ def insert_banking_deal_candidate(
                 _json_text(data.get("extraction_notes")),
                 _json_text(data.get("tiered_bonus")),
                 _json_text(data.get("raw_pattern_matches")),
+                data.get("issuer_name", data.get("issuer")),
+                data.get("card_name"),
+                data.get("product_family"),
+                data.get("customer_type"),
+                data.get("card_network"),
+                data.get("offer_currency"),
+                _json_text(data.get("headline_bonus_amount")),
+                data.get("headline_bonus_value_cents"),
+                data.get("point_mile_valuation_assumption_id"),
+                data.get("minimum_spend_cents"),
+                data.get("spend_window_days"),
+                data.get("annual_fee_cents"),
+                _bool_to_int(data.get("first_year_annual_fee_waived")),
+                data.get("statement_credit_amount_cents"),
+                data.get("statement_credit_requirements"),
+                data.get("bonus_payout_timing"),
+                _bool_to_int(data.get("targeted")),
+                _json_text(data.get("eligibility_restriction_notes")),
+                data.get("source_confidence"),
                 data.get("confidence_score"),
                 _bool_to_int(data.get("rejected", False)),
                 data.get("rejection_reason"),
@@ -1481,17 +1531,30 @@ def _field_evidence_link(
 
 def _candidate_field_value(candidate: Mapping[str, Any], field_name: str) -> Any:
     value = candidate.get(field_name)
+    field_aliases = {
+        "issuer": "issuer_name",
+        "headline_bonus_amount": "headline_bonus_amount_json",
+        "eligibility_restriction_notes": "eligibility_restriction_notes_json",
+    }
+    if value is None and field_name in field_aliases:
+        value = candidate.get(field_aliases[field_name])
     if field_name in {
         "direct_deposit_required",
         "new_customer_only",
         "hard_pull_risk",
         "soft_pull_only",
+        "first_year_annual_fee_waived",
+        "targeted",
     }:
         if value is None:
             return None
         return bool(value)
-    if field_name == "state_restrictions":
-        return _json_value(candidate.get("state_restrictions_json"))
+    if field_name in {
+        "state_restrictions",
+        "headline_bonus_amount",
+        "eligibility_restriction_notes",
+    }:
+        return _json_value(value)
     return value
 
 

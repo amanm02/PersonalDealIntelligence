@@ -78,6 +78,25 @@ def test_extracts_checking_bonus_with_direct_deposit_and_evidence():
     }.issubset(evidence_fields(candidate))
 
 
+def test_checking_bonus_with_debit_card_purchases_stays_deposit_extraction():
+    raw_text = (
+        "Northstar Mock Bank offers a $150 checking bonus. "
+        "Open a new checking account, make 10 debit card purchases within 60 days, "
+        "and receive qualifying direct deposits totaling $500. "
+        "Offer expires December 31, 2026."
+    )
+
+    candidate = extract_banking_deal(raw_text, metadata())
+
+    assert candidate.rejected is False
+    assert candidate.subcategory == "checking_bonus"
+    assert candidate.issuer_name is None
+    assert candidate.card_name is None
+    assert candidate.bonus_amount_cents == 15000
+    assert candidate.direct_deposit_required is True
+    assert candidate.direct_deposit_minimum_cents == 50000
+
+
 def test_extracts_savings_bonus_with_minimum_balance_hold():
     raw_text = load_fixture("savings_balance_hold.txt")
 

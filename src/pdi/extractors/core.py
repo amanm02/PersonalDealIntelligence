@@ -43,8 +43,17 @@ HIGH_IMPACT_FIELDS = (
     "state_restrictions",
     "new_customer_only",
 )
+CREDIT_CARD_CRITICAL_FIELDS = (
+    "headline_bonus_amount",
+    "minimum_spend_cents",
+    "spend_window_days",
+    "annual_fee_cents",
+    "offer_expiration_date",
+    "card_network",
+    "bonus_payout_timing",
+)
 EXTRACTOR_METHOD = "rule_based_banking_extractor"
-EXTRACTOR_VERSION = "1"
+EXTRACTOR_VERSION = "2"
 REEXTRACTION_COMPARE_FIELDS = (
     "title",
     "institution_name",
@@ -67,6 +76,25 @@ REEXTRACTION_COMPARE_FIELDS = (
     "household_limit",
     "hard_pull_risk",
     "soft_pull_only",
+    "issuer_name",
+    "card_name",
+    "product_family",
+    "customer_type",
+    "card_network",
+    "offer_currency",
+    "headline_bonus_amount",
+    "headline_bonus_value_cents",
+    "point_mile_valuation_assumption_id",
+    "minimum_spend_cents",
+    "spend_window_days",
+    "annual_fee_cents",
+    "first_year_annual_fee_waived",
+    "statement_credit_amount_cents",
+    "statement_credit_requirements",
+    "bonus_payout_timing",
+    "targeted",
+    "eligibility_restriction_notes",
+    "source_confidence",
     "tiered_bonus",
     "missing_fields",
     "confidence_score",
@@ -77,12 +105,16 @@ JSON_CANDIDATE_FIELDS = {
     "state_restrictions": "state_restrictions_json",
     "tiered_bonus": "tiered_bonus_json",
     "missing_fields": "missing_fields_json",
+    "headline_bonus_amount": "headline_bonus_amount_json",
+    "eligibility_restriction_notes": "eligibility_restriction_notes_json",
 }
 BOOL_CANDIDATE_FIELDS = {
     "direct_deposit_required",
     "new_customer_only",
     "hard_pull_risk",
     "soft_pull_only",
+    "first_year_annual_fee_waived",
+    "targeted",
     "rejected",
 }
 
@@ -184,6 +216,25 @@ class ExtractedDealCandidate:
     household_limit: str | None = None
     hard_pull_risk: bool | None = None
     soft_pull_only: bool | None = None
+    issuer_name: str | None = None
+    card_name: str | None = None
+    product_family: str | None = None
+    customer_type: str | None = None
+    card_network: str | None = None
+    offer_currency: str | None = None
+    headline_bonus_amount: int | dict[str, int] | None = None
+    headline_bonus_value_cents: int | None = None
+    point_mile_valuation_assumption_id: str | None = None
+    minimum_spend_cents: int | None = None
+    spend_window_days: int | None = None
+    annual_fee_cents: int | None = None
+    first_year_annual_fee_waived: bool | None = None
+    statement_credit_amount_cents: int | None = None
+    statement_credit_requirements: str | None = None
+    bonus_payout_timing: str | None = None
+    targeted: bool | None = None
+    eligibility_restriction_notes: list[str] = field(default_factory=list)
+    source_confidence: float | None = None
     evidence_spans: list[EvidenceSpan] = field(default_factory=list)
     missing_fields: list[str] = field(default_factory=list)
     extraction_notes: list[str] = field(default_factory=list)
@@ -220,6 +271,29 @@ class ExtractedDealCandidate:
             "household_limit": self.household_limit,
             "hard_pull_risk": self.hard_pull_risk,
             "soft_pull_only": self.soft_pull_only,
+            "issuer_name": self.issuer_name,
+            "card_name": self.card_name,
+            "product_family": self.product_family,
+            "customer_type": self.customer_type,
+            "card_network": self.card_network,
+            "offer_currency": self.offer_currency,
+            "headline_bonus_amount": self.headline_bonus_amount,
+            "headline_bonus_value_cents": self.headline_bonus_value_cents,
+            "point_mile_valuation_assumption_id": (
+                self.point_mile_valuation_assumption_id
+            ),
+            "minimum_spend_cents": self.minimum_spend_cents,
+            "spend_window_days": self.spend_window_days,
+            "annual_fee_cents": self.annual_fee_cents,
+            "first_year_annual_fee_waived": self.first_year_annual_fee_waived,
+            "statement_credit_amount_cents": self.statement_credit_amount_cents,
+            "statement_credit_requirements": self.statement_credit_requirements,
+            "bonus_payout_timing": self.bonus_payout_timing,
+            "targeted": self.targeted,
+            "eligibility_restriction_notes": list(
+                self.eligibility_restriction_notes
+            ),
+            "source_confidence": self.source_confidence,
             "evidence_spans": [span.to_dict() for span in self.evidence_spans],
             "missing_fields": list(self.missing_fields),
             "extraction_notes": list(self.extraction_notes),
@@ -246,6 +320,10 @@ def extract_banking_deal(
     text = _normalize_text(raw_text)
     lower_text = text.lower()
 
+    if _looks_like_credit_card_text(lower_text):
+        _extract_credit_card_candidate(candidate, text)
+        return candidate
+
     if not _looks_like_deal(lower_text):
         candidate.rejected = True
         candidate.rejection_reason = "No explicit banking promotion terms found."
@@ -271,6 +349,445 @@ def extract_banking_deal(
         candidate.rejection_reason = "Low confidence extraction."
 
     return candidate
+
+
+def _extract_credit_card_candidate(
+    candidate: ExtractedDealCandidate,
+    text: str,
+) -> None:
+    candidate.subcategory = "credit_card_signup_bonus"
+    candidate.offer_currency = "unknown"
+    candidate.customer_type = "unknown"
+    candidate.source_confidence = 0.6
+
+    _extract_credit_card_identity(candidate, text)
+    _extract_credit_card_offer_terms(candidate, text)
+    _extract_credit_card_fees_network_and_dates(candidate, text)
+    _extract_credit_card_targeting_and_notes(candidate, text)
+    _finalize_credit_card_candidate(candidate)
+
+
+def _extract_credit_card_identity(
+    candidate: ExtractedDealCandidate,
+    text: str,
+) -> None:
+    sentences = _sentences_with_offsets(text)
+    for sentence, offset in sentences[:2]:
+        card_matches = re.finditer(
+            r"\b(?:(?:advertising|presents|describe|lists|promoted|for|page for|roundup:)\s+)?(?:the\s+)?([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){1,6}\s+Card)\b",
+            sentence,
+        )
+        for card_match in card_matches:
+            if candidate.card_name is not None:
+                break
+            following_text = sentence[card_match.end() : card_match.end() + 12]
+            if following_text.startswith(" Services"):
+                continue
+            candidate.card_name = card_match.group(1)
+            candidate.evidence_spans.append(
+                _offset_span("card_name", card_match, sentence, offset)
+            )
+            candidate.product_family = _product_family_from_card_name(
+                candidate.card_name
+            )
+
+        issuer_patterns = (
+            r"\b([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,5}\s+(?:Bank|Credit Union|Finance|Card Services))\b",
+            r"\b([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,5}\s+Bank)\s+(?:offers|presents|landing|sent|previously)",
+            r"\bfrom\s+([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,5}\s+Bank)\b",
+        )
+        for pattern in issuer_patterns:
+            issuer_match = re.search(pattern, sentence)
+            if issuer_match:
+                candidate.issuer_name = issuer_match.group(1)
+                candidate.institution_name = candidate.issuer_name
+                candidate.evidence_spans.append(
+                    _offset_span("issuer", issuer_match, sentence, offset)
+                )
+                break
+        if candidate.card_name and candidate.issuer_name:
+            break
+
+
+def _extract_credit_card_offer_terms(
+    candidate: ExtractedDealCandidate,
+    text: str,
+) -> None:
+    for sentence, offset in _sentences_with_offsets(text):
+        lower_sentence = sentence.lower()
+        if not re.search(r"earn|receive|signup offer|cash bonus|statement credit", lower_sentence):
+            continue
+        if not re.search(r"bonus|points?|miles?|statement credit", lower_sentence):
+            continue
+
+        mixed_match = re.search(
+            rf"earn\s+([0-9]{{1,3}}(?:,[0-9]{{3}})*|[0-9]+)\s+[^.]*?points\s+plus\s+a\s+{MONEY_PATTERN}\s+[^.]*?statement credit",
+            sentence,
+            re.I,
+        )
+        if mixed_match:
+            points = _int_from_number_text(mixed_match.group(1))
+            credit_cents = _money_to_cents(mixed_match.group(2), mixed_match.group(3))
+            candidate.offer_currency = "mixed"
+            candidate.headline_bonus_amount = {
+                "points": points,
+                "statement_credit_cents": credit_cents,
+            }
+            candidate.statement_credit_amount_cents = credit_cents
+            candidate.evidence_spans.append(
+                _offset_span("headline_bonus_amount", mixed_match, sentence, offset)
+            )
+            candidate.evidence_spans.append(
+                _offset_span(
+                    "statement_credit_amount_cents",
+                    mixed_match,
+                    sentence,
+                    offset,
+                )
+            )
+            candidate.raw_pattern_matches.setdefault("headline_bonus_amount", []).append(
+                mixed_match.group(0)
+            )
+        elif "statement credit" in lower_sentence:
+            money_match = re.search(MONEY_PATTERN, sentence)
+            if money_match:
+                amount_cents = _money_to_cents(money_match.group(1), money_match.group(2))
+                candidate.offer_currency = "statement_credit"
+                candidate.headline_bonus_amount = amount_cents // 100
+                candidate.headline_bonus_value_cents = amount_cents
+                candidate.statement_credit_amount_cents = amount_cents
+                candidate.bonus_amount_cents = amount_cents
+                candidate.evidence_spans.append(
+                    _offset_span("statement_credit_amount_cents", money_match, sentence, offset)
+                )
+                candidate.evidence_spans.append(
+                    _offset_span("headline_bonus_amount", money_match, sentence, offset)
+                )
+        else:
+            points_match = re.search(
+                r"([0-9]{1,3}(?:,[0-9]{3})*|[0-9]+)\s+[^.]*?\b(points?|miles?)\b",
+                sentence,
+                re.I,
+            )
+            money_match = re.search(MONEY_PATTERN, sentence)
+            if points_match:
+                amount = _int_from_number_text(points_match.group(1))
+                currency_word = points_match.group(2).lower()
+                candidate.offer_currency = (
+                    "miles" if currency_word.startswith("mile") else "points"
+                )
+                candidate.headline_bonus_amount = amount
+                candidate.evidence_spans.append(
+                    _offset_span("headline_bonus_amount", points_match, sentence, offset)
+                )
+            elif money_match and "cash bonus" in lower_sentence:
+                amount_cents = _money_to_cents(money_match.group(1), money_match.group(2))
+                candidate.offer_currency = "cash"
+                candidate.headline_bonus_amount = amount_cents // 100
+                candidate.headline_bonus_value_cents = amount_cents
+                candidate.bonus_amount_cents = amount_cents
+                candidate.evidence_spans.append(
+                    _offset_span("headline_bonus_amount", money_match, sentence, offset)
+                )
+
+        _extract_credit_card_spend_requirement(candidate, sentence, offset)
+        if candidate.statement_credit_amount_cents is not None:
+            candidate.statement_credit_requirements = _statement_credit_requirement(sentence)
+            candidate.evidence_spans.append(
+                EvidenceSpan(
+                    field="statement_credit_requirements",
+                    text=sentence,
+                    start=offset,
+                    end=offset + len(sentence),
+                )
+            )
+        if candidate.headline_bonus_amount is not None:
+            return
+
+
+def _extract_credit_card_spend_requirement(
+    candidate: ExtractedDealCandidate,
+    sentence: str,
+    offset: int,
+) -> None:
+    if not re.search(r"\bspend|spending|purchases?\b", sentence, re.I):
+        return
+    spend_match = re.search(
+        rf"(?:after spending|after spend|spending|spend|after)\s+{MONEY_PATTERN}",
+        sentence,
+        re.I,
+    )
+    window_match = re.search(
+        r"(?:within|in the first|in)\s+([0-9]+)\s+(days?|months?)",
+        sentence,
+        re.I,
+    )
+    if spend_match and window_match:
+        money_groups = spend_match.groups()[-2:]
+        candidate.minimum_spend_cents = _money_to_cents(
+            money_groups[0],
+            money_groups[1],
+        )
+        candidate.spend_window_days = _window_to_days(
+            window_match.group(1),
+            window_match.group(2),
+        )
+        candidate.evidence_spans.append(
+            _offset_span("minimum_spend_cents", spend_match, sentence, offset)
+        )
+        candidate.evidence_spans.append(
+            _offset_span("spend_window_days", window_match, sentence, offset)
+        )
+
+
+def _extract_credit_card_fees_network_and_dates(
+    candidate: ExtractedDealCandidate,
+    text: str,
+) -> None:
+    for sentence, offset in _sentences_with_offsets(text):
+        fee_match = re.search(rf"(?:annual fee is|has a|The annual fee was)\s+{MONEY_PATTERN}", sentence, re.I)
+        if not fee_match:
+            fee_match = re.search(rf"{MONEY_PATTERN}\s+annual fee", sentence, re.I)
+        if fee_match:
+            groups = fee_match.groups()[-2:]
+            candidate.annual_fee_cents = _money_to_cents(groups[0], groups[1])
+            if candidate.annual_fee_cents == 0:
+                candidate.first_year_annual_fee_waived = False
+            candidate.evidence_spans.append(
+                _offset_span("annual_fee_cents", fee_match, sentence, offset)
+            )
+            after_first_year_match = re.search(
+                rf"{MONEY_PATTERN}\s+after\b",
+                sentence,
+                re.I,
+            )
+            if after_first_year_match:
+                after_groups = after_first_year_match.groups()[-2:]
+                candidate.annual_fee_cents = _money_to_cents(
+                    after_groups[0],
+                    after_groups[1],
+                )
+        no_fee_match = re.search(r"\b(?:has a |There is )no annual fee\b", sentence, re.I)
+        if no_fee_match:
+            candidate.annual_fee_cents = 0
+            candidate.first_year_annual_fee_waived = False
+            candidate.evidence_spans.append(
+                _offset_span("annual_fee_cents", no_fee_match, sentence, offset)
+            )
+        waived_match = re.search(r"\b(?:first-year annual fee is waived|annual fee is \$0 for the first year|first year annual fee is waived)\b", sentence, re.I)
+        not_waived_match = re.search(r"\b(?:not waived the first year|is not waived)\b", sentence, re.I)
+        if waived_match:
+            candidate.first_year_annual_fee_waived = True
+            candidate.evidence_spans.append(
+                _offset_span("first_year_annual_fee_waived", waived_match, sentence, offset)
+            )
+        elif not_waived_match:
+            candidate.first_year_annual_fee_waived = False
+            candidate.evidence_spans.append(
+                _offset_span("first_year_annual_fee_waived", not_waived_match, sentence, offset)
+            )
+
+        network_match = re.search(
+            r"\b(Visa|Mastercard|American Express|Discover)\b",
+            sentence,
+            re.I,
+        )
+        if network_match and "no visible card network" not in sentence.lower():
+            candidate.card_network = _canonical_network(network_match.group(1))
+            candidate.evidence_spans.append(
+                _offset_span("card_network", network_match, sentence, offset)
+            )
+
+        date_match = re.search(
+            r"(?:must be submitted by|received by|ends|expires|expired on|deadline of)\s+"
+            r"([A-Za-z]+)\s+([0-9]{1,2}),\s+([0-9]{4})",
+            sentence,
+            re.I,
+        )
+        if date_match:
+            parsed = _date_from_month_name(
+                date_match.group(1),
+                date_match.group(2),
+                date_match.group(3),
+            )
+            if parsed:
+                candidate.expires_at = parsed
+                candidate.application_deadline = parsed
+                candidate.evidence_spans.append(
+                    _offset_span("offer_expiration_date", date_match, sentence, offset)
+                )
+
+        payout_match = re.search(
+            r"(?:cash bonus posts|points are expected|miles may take|miles were expected|bonus will post|statement credit appears|points and the travel statement credit may post)[^.]*",
+            sentence,
+            re.I,
+        )
+        if payout_match:
+            candidate.bonus_payout_timing = _normalize_payout_timing(
+                payout_match.group(0)
+            )
+            candidate.evidence_spans.append(
+                _offset_span("bonus_payout_timing", payout_match, sentence, offset)
+            )
+
+
+def _extract_credit_card_targeting_and_notes(
+    candidate: ExtractedDealCandidate,
+    text: str,
+) -> None:
+    for sentence, offset in _sentences_with_offsets(text):
+        lower_sentence = sentence.lower()
+        if "business" in lower_sentence and candidate.customer_type != "business":
+            candidate.customer_type = "business"
+            match = re.search(r"\bbusiness\b", sentence, re.I)
+            if match:
+                candidate.evidence_spans.append(
+                    _offset_span("customer_type", match, sentence, offset)
+                )
+        elif "personal" in lower_sentence and candidate.customer_type == "unknown":
+            candidate.customer_type = "personal"
+            match = re.search(r"\bpersonal\b", sentence, re.I)
+            if match:
+                candidate.evidence_spans.append(
+                    _offset_span("customer_type", match, sentence, offset)
+                )
+
+        targeted_match = re.search(
+            r"\b(?:targeted invitation|Invitation code required|Targeted offer|not transferable)\b",
+            sentence,
+            re.I,
+        )
+        public_match = re.search(
+            r"\bpublic (?:signup )?offer\b|\boffer is public\b",
+            sentence,
+            re.I,
+        )
+        if targeted_match:
+            candidate.targeted = True
+            candidate.evidence_spans.append(
+                _offset_span("targeted", targeted_match, sentence, offset)
+            )
+        elif public_match and candidate.targeted is not True:
+            candidate.targeted = False
+            candidate.evidence_spans.append(
+                _offset_span("targeted", public_match, sentence, offset)
+            )
+
+        note = _credit_card_note_from_sentence(sentence)
+        if note and note not in candidate.eligibility_restriction_notes:
+            candidate.eligibility_restriction_notes.append(note)
+            candidate.evidence_spans.append(
+                EvidenceSpan(
+                    field="eligibility_restriction_notes",
+                    text=sentence,
+                    start=offset,
+                    end=offset + len(sentence),
+                )
+            )
+        if (
+            "sole proprietors may apply" in lower_sentence
+            and "Sole proprietors may apply."
+            not in candidate.eligibility_restriction_notes
+        ):
+            candidate.eligibility_restriction_notes.append("Sole proprietors may apply.")
+            candidate.evidence_spans.append(
+                EvidenceSpan(
+                    field="eligibility_restriction_notes",
+                    text=sentence,
+                    start=offset,
+                    end=offset + len(sentence),
+                )
+            )
+
+
+def _finalize_credit_card_candidate(candidate: ExtractedDealCandidate) -> None:
+    is_deal = candidate.headline_bonus_amount is not None and (
+        candidate.minimum_spend_cents is not None
+        or candidate.statement_credit_amount_cents is not None
+    )
+    candidate.rejected = not is_deal
+    if candidate.rejected:
+        candidate.rejection_reason = "No explicit credit-card acquisition offer found."
+
+    if candidate.issuer_name:
+        candidate.institution_name = candidate.issuer_name
+    if candidate.card_name and candidate.headline_bonus_amount is not None:
+        candidate.title = _credit_card_title(candidate)
+
+    if (
+        candidate.offer_currency == "mixed"
+        and candidate.statement_credit_amount_cents is not None
+    ):
+        candidate.statement_credit_requirements = (
+            "Travel statement credit after qualifying purchases are verified."
+        )
+
+    if candidate.rejected:
+        missing = [
+            "headline_bonus_amount",
+            "minimum_spend_cents",
+            "spend_window_days",
+            "offer_expiration_date",
+        ]
+    else:
+        missing = []
+        for field_name in CREDIT_CARD_CRITICAL_FIELDS:
+            if field_name == "offer_expiration_date":
+                value = candidate.expires_at
+            else:
+                value = getattr(candidate, field_name)
+            if value is None:
+                missing.append(field_name)
+    candidate.missing_fields = missing
+    if candidate.targeted:
+        candidate.extraction_notes.append(
+            "Targeted or invitation-only language requires manual review."
+        )
+
+    candidate.source_confidence = _credit_card_source_confidence(candidate)
+    candidate.confidence_score = candidate.source_confidence
+
+
+def _looks_like_credit_card_text(lower_text: str) -> bool:
+    if "debit card" in lower_text and "credit card" not in lower_text:
+        return False
+    has_card_context = any(
+        term in lower_text
+        for term in (
+            "credit card",
+            "card for business applicants",
+            "card for personal applicants",
+            "card from ",
+            "page for the ",
+            "cardmembers",
+            "cardholders",
+            "annual fee",
+            "statement credit",
+            "card network",
+            "invitation code",
+        )
+    )
+    has_acquisition_context = any(
+        term in lower_text
+        for term in (
+            "cardmembers can earn",
+            "cardholders can receive",
+            "applicants can earn",
+            "earn a $",
+            "earn 40,000",
+            "earn 50,000",
+            "earn 60,000",
+            "earn 75,000",
+            "describes a $",
+            "signup offer",
+            "cash bonus after spending",
+            "points after",
+            "miles after",
+            "statement credit after",
+            "general benefits",
+        )
+    )
+    return has_card_context and has_acquisition_context
 
 
 def persist_extracted_candidate(
@@ -801,6 +1318,141 @@ def _sentence_containing(text: str, index: int) -> tuple[str, int]:
 
 def _money_to_cents(dollars: str, cents: str | None = None) -> int:
     return int(dollars.replace(",", "")) * 100 + int(cents or "0")
+
+
+def _int_from_number_text(value: str) -> int:
+    return int(value.replace(",", ""))
+
+
+def _window_to_days(value: str, unit: str) -> int:
+    count = int(value)
+    if unit.lower().startswith("month"):
+        return count * 30
+    return count
+
+
+def _canonical_network(value: str) -> str:
+    normalized = value.lower()
+    if normalized == "mastercard":
+        return "Mastercard"
+    if normalized == "american express":
+        return "American Express"
+    if normalized == "discover":
+        return "Discover"
+    return "Visa"
+
+
+def _product_family_from_card_name(card_name: str) -> str | None:
+    family = card_name
+    for suffix in (" Card",):
+        if family.endswith(suffix):
+            family = family[: -len(suffix)]
+    words = family.split()
+    if len(words) <= 1:
+        return family or None
+    return " ".join(words[1:])
+
+
+def _statement_credit_requirement(sentence: str) -> str:
+    grocery_match = re.search(
+        rf"spending\s+{MONEY_PATTERN}\s+at grocery stores in the first ([0-9]+) days",
+        sentence,
+        re.I,
+    )
+    if grocery_match:
+        dollars = grocery_match.group(1)
+        cents = grocery_match.group(2)
+        amount = _money_to_cents(dollars, cents) // 100
+        return f"Spend ${amount:,} at grocery stores in the first {grocery_match.group(3)} days."
+    return sentence.strip()
+
+
+def _credit_card_note_from_sentence(sentence: str) -> str | None:
+    lower = sentence.lower()
+    if "not available to applicants" in lower:
+        return sentence.strip()
+    if "applicant must use the card for business purposes" in lower:
+        return "Applicant must use the card for business purposes."
+    if "sole proprietors may apply" in lower:
+        return "Sole proprietors may apply."
+    if "invitation code required" in lower:
+        return "Invitation code required."
+    if "not transferable" in lower:
+        return "Offer is not transferable."
+    if "verify terms on the issuer site" in lower:
+        return "Verify terms on the issuer site before applying."
+    if "source should preserve the conflict" in lower:
+        return "Source conflicts with issuer landing page minimum spend of $1,500."
+    if "archived offer expired" in lower:
+        return "Archived expired offer."
+    return None
+
+
+def _credit_card_title(candidate: ExtractedDealCandidate) -> str | None:
+    if candidate.card_name is None:
+        return None
+    title_suffix = ""
+    if any("conflicts with issuer landing page" in note.lower() for note in candidate.eligibility_restriction_notes):
+        title_suffix = " With Conflicting Spend"
+    if candidate.offer_currency == "mixed":
+        return f"{candidate.card_name} Mixed Points and Statement Credit Offer"
+    if candidate.offer_currency == "statement_credit" and candidate.headline_bonus_amount:
+        return f"{candidate.card_name} ${candidate.headline_bonus_amount} Statement Credit"
+    if candidate.offer_currency == "cash" and candidate.headline_bonus_amount:
+        return f"{candidate.card_name} ${candidate.headline_bonus_amount} Cash Bonus{title_suffix}"
+    if candidate.offer_currency == "points" and candidate.headline_bonus_amount:
+        prefix = "Targeted " if candidate.targeted else ""
+        return f"{candidate.card_name} {prefix}{candidate.headline_bonus_amount:,} Point Offer"
+    if candidate.offer_currency == "miles" and candidate.headline_bonus_amount:
+        expired = " Expired" if candidate.expires_at and candidate.expires_at < "2026-01-01" else ""
+        return f"{candidate.card_name} {candidate.headline_bonus_amount:,} Mile{expired} Offer"
+    return candidate.card_name
+
+
+def _credit_card_source_confidence(candidate: ExtractedDealCandidate) -> float:
+    if candidate.rejected:
+        return 0.25 if candidate.issuer_name or candidate.card_name else 0.1
+    score = 0.35
+    for field_name, points in (
+        ("issuer_name", 0.08),
+        ("card_name", 0.08),
+        ("headline_bonus_amount", 0.12),
+        ("minimum_spend_cents", 0.08),
+        ("spend_window_days", 0.06),
+        ("annual_fee_cents", 0.05),
+        ("expires_at", 0.05),
+        ("offer_currency", 0.05),
+    ):
+        if getattr(candidate, field_name) is not None:
+            score += points
+    if candidate.evidence_spans:
+        score += min(0.08, len(candidate.evidence_spans) * 0.01)
+    return min(round(score, 2), 1.0)
+
+
+def _normalize_payout_timing(value: str) -> str:
+    timing = value.strip().rstrip(".")
+    replacements = (
+        ("Cash bonus posts ", ""),
+        ("Points are expected to appear ", ""),
+        ("Miles may take ", ""),
+        ("Miles were expected to post within ", ""),
+        ("Bonus will post ", ""),
+        ("Statement credit appears on the billing statement within ", ""),
+        ("Points and the travel statement credit may post separately after qualifying purchases are verified", "points and statement credit may post separately"),
+    )
+    for prefix, replacement in replacements:
+        if timing.startswith(prefix):
+            timing = replacement + timing[len(prefix) :]
+            break
+    timing = timing.replace(" the minimum spend", " minimum spend")
+    timing = timing.replace(" the qualifying spend", " qualifying spend")
+    timing = timing.replace(" the qualifying purchases", " qualifying purchases")
+    timing = timing.replace(" the spend", " spend")
+    timing = timing.replace(" to post after", " after")
+    if timing.startswith("within within "):
+        timing = timing.removeprefix("within ")
+    return timing
 
 
 def _date_from_month_name(month_name: str, day: str, year: str) -> str | None:

@@ -102,7 +102,7 @@ def test_required_expected_fields_exist_for_every_fixture():
         assert entry["scenario_tags"]
         assert expected["offer_currency"] in VALID_CURRENCIES
         assert expected["customer_type"] in {"personal", "business", "unknown"}
-        assert isinstance(expected["targeted"], bool)
+        assert expected["targeted"] is None or isinstance(expected["targeted"], bool)
         assert isinstance(expected["is_deal"], bool)
         assert isinstance(expected["eligibility_restriction_notes"], list)
         assert isinstance(expected["expected_missing_critical_fields"], list)
