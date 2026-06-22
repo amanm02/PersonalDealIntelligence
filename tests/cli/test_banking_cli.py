@@ -77,6 +77,37 @@ def seed_deal(db_path, **overrides):
     return insert_banking_deal(db_path, values)
 
 
+def seed_card_deal(db_path, **overrides):
+    credit_card = {
+        "issuer_name": "Beacon Mock Bank",
+        "card_name": "Beacon Cash Forward Card",
+        "customer_type": "personal",
+        "offer_currency": "cash",
+        "headline_bonus_amount": 300,
+        "headline_bonus_value_cents": 30000,
+        "minimum_spend_cents": 150000,
+        "spend_window_days": 90,
+        "annual_fee_cents": 0,
+        "first_year_annual_fee_waived": False,
+        "statement_credit_amount_cents": None,
+        "statement_credit_requirements": None,
+        "targeted": False,
+        "eligibility_restriction_notes": [],
+    }
+    credit_card.update(overrides.pop("credit_card", {}))
+    return seed_deal(
+        db_path,
+        canonical_key=overrides.pop("canonical_key", "credit-card-beacon-cash"),
+        title=overrides.pop("title", "Beacon Cash Forward Card $300 Cash Bonus"),
+        institution_name=overrides.pop("institution_name", "Beacon Mock Bank"),
+        subcategory="credit_card_signup_bonus",
+        bonus_amount_cents=overrides.pop("bonus_amount_cents", 30000),
+        source_url=overrides.pop("source_url", "https://example.test/beacon/card"),
+        terms={"terms_json": {"credit_card": credit_card}},
+        **overrides,
+    )
+
+
 def test_list_deals_by_status(tmp_path):
     db_path = tmp_path / "pdi.sqlite"
     initialize_database(db_path)
@@ -370,6 +401,181 @@ def test_search_json_output_includes_match_reason_and_source_fields(tmp_path):
     assert rows[0]["match_reason"] == "matched query 'checking'."
     assert rows[0]["source_name"] == "Fixture Source Label"
     assert rows[0]["source_url"] == "https://example.test/search-source"
+
+
+def test_list_json_includes_credit_card_fields(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    deal_id = seed_card_deal(db_path)
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "list",
+        "--subcategory",
+        "credit_card_signup_bonus",
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 0, result.stderr
+    rows = json.loads(result.stdout)
+    assert [row["id"] for row in rows] == [deal_id]
+    assert rows[0]["credit_card"]["issuer_name"] == "Beacon Mock Bank"
+    assert rows[0]["credit_card"]["card_name"] == "Beacon Cash Forward Card"
+    assert rows[0]["credit_card"]["estimated_cash_equivalent_value_cents"] == 30000
+    assert rows[0]["credit_card"]["minimum_spend_cents"] == 150000
+
+
+def test_list_table_surfaces_credit_card_context(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    seed_card_deal(db_path)
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "list",
+        "--subcategory",
+        "credit_card_signup_bonus",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Beacon Cash Forward Card" in result.stdout
+    assert "cash" in result.stdout
+
+
+def test_search_credit_card_text_and_structured_filters(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    personal_id = seed_card_deal(db_path)
+    seed_card_deal(
+        db_path,
+        canonical_key="credit-card-business",
+        title="Lakeside Business Builder Card $500 Cash Bonus",
+        institution_name="Lakeside Fictional Bank",
+        bonus_amount_cents=50000,
+        credit_card={
+            "issuer_name": "Lakeside Fictional Bank",
+            "card_name": "Lakeside Business Builder Card",
+            "customer_type": "business",
+            "offer_currency": "cash",
+            "headline_bonus_amount": 500,
+            "headline_bonus_value_cents": 50000,
+        },
+    )
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "search",
+        "--query",
+        "Beacon Cash Forward",
+        "--issuer",
+        "Beacon",
+        "--card",
+        "Forward",
+        "--customer-type",
+        "personal",
+        "--offer-currency",
+        "cash",
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 0, result.stderr
+    rows = json.loads(result.stdout)
+    assert [row["id"] for row in rows] == [personal_id]
+    assert rows[0]["credit_card"]["customer_type"] == "personal"
+    assert "issuer matches Beacon" in rows[0]["match_reason"]
+    assert "offer currency cash" in rows[0]["match_reason"]
+
+
+def test_show_credit_card_output_includes_terms_and_evidence(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    snapshot_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_url": "manual://beacon-card",
+            "source_name": "Beacon Card Source",
+            "retrieved_at": "2026-06-21T12:00:00+00:00",
+            "raw_text": "Beacon Cash Forward Card offers a $300 cash bonus.",
+            "collector_name": "fixture",
+        },
+    )
+    deal_id = seed_card_deal(db_path, raw_snapshot_id=snapshot_id)
+    candidate_id = insert_banking_deal_candidate(
+        db_path,
+        {
+            "raw_snapshot_id": snapshot_id,
+            "title": "Beacon Cash Forward Card $300 Cash Bonus",
+            "institution_name": "Beacon Mock Bank",
+            "subcategory": "credit_card_signup_bonus",
+            "bonus_amount_cents": 30000,
+            "source_name": "Beacon Card Source",
+            "source_url": "manual://beacon-card",
+            "retrieved_at": "2026-06-21T12:00:00+00:00",
+            "issuer_name": "Beacon Mock Bank",
+            "card_name": "Beacon Cash Forward Card",
+            "minimum_spend_cents": 150000,
+            "evidence_spans": [],
+            "missing_fields": [],
+            "confidence_score": 0.9,
+        },
+    )
+    insert_banking_deal_source_link(
+        db_path,
+        {
+            "deal_id": deal_id,
+            "candidate_id": candidate_id,
+            "raw_snapshot_id": snapshot_id,
+            "source_name": "Beacon Card Source",
+            "source_url": "manual://beacon-card",
+            "source_authority": "official",
+            "retrieved_at": "2026-06-21T12:00:00+00:00",
+            "confidence_score": 0.9,
+            "evidence": [
+                {
+                    "field": "card_name",
+                    "text": "Beacon Cash Forward Card",
+                    "start": 0,
+                    "end": 24,
+                    "extracted_value": "Beacon Cash Forward Card",
+                },
+                {
+                    "field": "minimum_spend_cents",
+                    "text": "$1,500",
+                    "start": 60,
+                    "end": 66,
+                    "extracted_value": 150000,
+                },
+            ],
+        },
+    )
+
+    result = run_cli(db_path, "banking", "show", str(deal_id))
+
+    assert result.returncode == 0, result.stderr
+    assert "Credit card:" in result.stdout
+    assert "card_name: Beacon Cash Forward Card" in result.stdout
+    assert "estimated_cash_equivalent_value_cents: 30000" in result.stdout
+    assert "minimum_spend_cents" in result.stdout
+    assert "Beacon Card Source manual://beacon-card" in result.stdout
+
+
+def test_score_credit_card_output_includes_card_components(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    deal_id = seed_card_deal(db_path)
+
+    result = run_cli(db_path, "banking", "score", str(deal_id), "--format", "json")
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["estimated_cash_equivalent_value"] == 30000
+    assert payload["estimated_minimum_spend_friction_penalty"] == 2500
+    assert payload["reward_valuation_assumption_ids"] == ["card_cash_face_value_v1"]
 
 
 def test_find_alias_matches_search_shape(tmp_path):

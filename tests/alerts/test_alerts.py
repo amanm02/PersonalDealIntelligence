@@ -66,11 +66,43 @@ def seed_deal(db_path, **overrides):
     return insert_banking_deal(db_path, values)
 
 
+def seed_card_deal(db_path, **overrides):
+    credit_card = {
+        "issuer_name": "Beacon Mock Bank",
+        "card_name": "Beacon Cash Forward Card",
+        "customer_type": "personal",
+        "offer_currency": "cash",
+        "headline_bonus_amount": 300,
+        "headline_bonus_value_cents": 30000,
+        "minimum_spend_cents": 150000,
+        "spend_window_days": 90,
+        "annual_fee_cents": 0,
+        "first_year_annual_fee_waived": False,
+        "statement_credit_amount_cents": None,
+        "statement_credit_requirements": None,
+        "targeted": False,
+        "eligibility_restriction_notes": [],
+    }
+    credit_card.update(overrides.pop("credit_card", {}))
+    return seed_deal(
+        db_path,
+        canonical_key=overrides.pop("canonical_key", "credit-card-beacon-cash"),
+        title=overrides.pop("title", "Beacon Cash Forward Card $300 Cash Bonus"),
+        institution_name=overrides.pop("institution_name", "Beacon Mock Bank"),
+        subcategory="credit_card_signup_bonus",
+        bonus_amount_cents=overrides.pop("bonus_amount_cents", 30000),
+        source_url=overrides.pop("source_url", "https://example.test/beacon/card"),
+        terms={"terms_json": {"credit_card": credit_card}},
+        **overrides,
+    )
+
+
 def test_repository_alert_config_validates():
     config = load_alert_config(CONFIG_PATH)
 
     assert config.minimum_score == 75
     assert config.notification_channels["email"]["enabled"] is False
+    assert "credit_card_signup_bonus" in config.enabled_subcategories
 
 
 def test_invalid_alert_config_fails_closed():
@@ -217,6 +249,67 @@ def test_digest_rendering_is_deterministic_for_fixed_data(tmp_path):
 
     assert render_digest_markdown(first) == render_digest_markdown(second)
     assert json.loads(render_digest_json(first)) == json.loads(render_digest_json(second))
+
+
+def test_credit_card_deal_appears_with_card_terms_in_digest(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    deal_id = seed_card_deal(db_path)
+
+    digest = generate_banking_digest(
+        db_path,
+        config_path=CONFIG_PATH,
+        as_of=AS_OF,
+        generated_at=GENERATED_AT,
+    )
+
+    item = digest.sections["Review Now"][0]
+    assert item.deal_id == deal_id
+    assert item.credit_card["card_name"] == "Beacon Cash Forward Card"
+    assert item.credit_card["minimum_spend_cents"] == 150000
+    assert item.credit_card["estimated_cash_equivalent_value_cents"] == 30000
+    rendered = render_digest_markdown(digest)
+    assert "Card: Beacon Mock Bank - Beacon Cash Forward Card" in rendered
+    assert "Spend/fees: minimum spend $1,500.00" in rendered
+    payload = json.loads(render_digest_json(digest))
+    assert payload["sections"]["Review Now"][0]["credit_card"]["offer_currency"] == (
+        "cash"
+    )
+
+
+def test_credit_card_missing_critical_fields_appear_in_digest_warning(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    deal_id = seed_card_deal(
+        db_path,
+        canonical_key="credit-card-missing-spend",
+        credit_card={
+            "minimum_spend_cents": None,
+            "spend_window_days": None,
+        },
+    )
+
+    digest = generate_banking_digest(
+        db_path,
+        config_path=CONFIG_PATH,
+        as_of=AS_OF,
+        generated_at=GENERATED_AT,
+    )
+
+    needs_info_ids = {
+        item.deal_id for item in digest.sections["Needs More Information"]
+    }
+    assert deal_id in needs_info_ids
+    item = next(
+        item
+        for item in digest.sections["Needs More Information"]
+        if item.deal_id == deal_id
+    )
+    assert "minimum_spend_cents missing" in item.missing_data_warnings
+    assert "minimum_spend_cents" in item.credit_card["missing_critical_fields"]
+    assert "Review warnings: minimum_spend_cents missing" in render_digest_markdown(
+        digest
+    )
 
 
 def test_dry_run_notification_does_not_send_external_messages(tmp_path):

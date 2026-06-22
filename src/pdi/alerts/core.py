@@ -13,6 +13,7 @@ import yaml
 
 from pdi.scoring import BankingScore, score_banking_deal
 from pdi.storage import (
+    get_banking_deal,
     list_banking_deal_source_links,
     list_banking_deals,
     list_deal_change_events,
@@ -50,9 +51,18 @@ SUBCATEGORY_VALUES = {
     "cd_bonus",
     "credit_card_signup_bonus",
 }
+CREDIT_CARD_SUBCATEGORY = "credit_card_signup_bonus"
 WATCHLIST_STATUSES = {"watching", "interested"}
 REVIEW_RECOMMENDATIONS = {"needs_more_info", "conflict_needs_review"}
-CRITICAL_MISSING_FIELDS = {"bonus_amount_cents", "direct_deposit_required"}
+CRITICAL_MISSING_FIELDS = {
+    "bonus_amount_cents",
+    "credit_card_cash_equivalent_value",
+    "direct_deposit_required",
+    "headline_bonus_amount",
+    "minimum_spend_cents",
+    "offer_currency",
+    "spend_window_days",
+}
 CONFLICT_REASONS = {
     "candidate_official_preferred",
     "existing_official_preserved",
@@ -92,6 +102,8 @@ class AlertItem:
     expires_at: str | None
     source_url: str | None
     reason: str
+    credit_card: dict[str, Any] | None
+    missing_data_warnings: list[str]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -107,6 +119,8 @@ class AlertItem:
             "expires_at": self.expires_at,
             "source_url": self.source_url,
             "reason": self.reason,
+            "credit_card": self.credit_card,
+            "missing_data_warnings": list(self.missing_data_warnings),
         }
 
 
@@ -281,6 +295,8 @@ def generate_banking_digest(
 
         deal_id = int(deal["id"])
         score = score_banking_deal(db_path, deal_id, as_of=as_of)
+        score_payload = score.to_dict()
+        full_deal = get_banking_deal(db_path, deal_id) or deal
         change_events = list_deal_change_events(db_path, deal_id=deal_id)
         status_events = list_deal_status_events(db_path, deal_id=deal_id)
         source_url = _primary_source_url(
@@ -291,10 +307,11 @@ def generate_banking_digest(
         if _is_review_now(score, config):
             sections["Review Now"].append(
                 _alert_item(
-                    deal,
+                    full_deal,
                     score,
                     source_url,
                     _review_now_reason(score, config),
+                    score_payload,
                 )
             )
 
@@ -305,30 +322,33 @@ def generate_banking_digest(
         ):
             sections["Expiring Soon"].append(
                 _alert_item(
-                    deal,
+                    full_deal,
                     score,
                     source_url,
                     f"Expires in {days_until_expiration} days.",
+                    score_payload,
                 )
             )
 
         if status in WATCHLIST_STATUSES and _has_material_change(change_events):
             sections["Changed Deals"].append(
                 _alert_item(
-                    deal,
+                    full_deal,
                     score,
                     source_url,
                     "Watched/interested deal has material term changes.",
+                    score_payload,
                 )
             )
 
         if _needs_more_information(deal, score, change_events):
             sections["Needs More Information"].append(
                 _alert_item(
-                    deal,
+                    full_deal,
                     score,
                     source_url,
                     _needs_more_information_reason(deal, score, change_events),
+                    score_payload,
                 )
             )
 
@@ -338,10 +358,11 @@ def generate_banking_digest(
         ):
             sections["Watchlist Updates"].append(
                 _alert_item(
-                    deal,
+                    full_deal,
                     score,
                     source_url,
                     "Watchlist deal has a status or change update.",
+                    score_payload,
                 )
             )
 
@@ -400,6 +421,32 @@ def render_digest_markdown(digest: BankingDigest) -> str:
             )
             lines.append(f"  Reason: {item.reason}")
             lines.append(f"  Status: {item.status}; expires: {item.expires_at or 'unknown'}")
+            if item.credit_card:
+                lines.append(
+                    "  Card: "
+                    f"{item.credit_card.get('issuer_name') or item.institution_name} - "
+                    f"{item.credit_card.get('card_name') or 'unknown card'}; "
+                    f"{item.credit_card.get('customer_type') or 'unknown'}; "
+                    f"{item.credit_card.get('offer_currency') or 'unknown'}; "
+                    "cash-equivalent "
+                    f"{_money(item.credit_card.get('estimated_cash_equivalent_value_cents'))}"
+                )
+                lines.append(
+                    "  Spend/fees: minimum spend "
+                    f"{_money(item.credit_card.get('minimum_spend_cents'))}, "
+                    f"window {item.credit_card.get('spend_window_days') or 'unknown'} days, "
+                    f"annual fee {_money(item.credit_card.get('annual_fee_cents'))}, "
+                    "first-year waiver "
+                    f"{_display_value(item.credit_card.get('first_year_annual_fee_waived'))}"
+                )
+                lines.append(
+                    "  Review warnings: "
+                    + (
+                        "; ".join(item.missing_data_warnings)
+                        if item.missing_data_warnings
+                        else "none"
+                    )
+                )
             lines.append(f"  CLI: pdi banking show {item.deal_id}")
             lines.append(f"  Source: {item.source_url or 'unknown'}")
         lines.append("")
@@ -604,6 +651,7 @@ def _alert_item(
     score: BankingScore,
     source_url: str | None,
     reason: str,
+    score_payload: Mapping[str, Any],
 ) -> AlertItem:
     return AlertItem(
         deal_id=int(deal["id"]),
@@ -618,6 +666,8 @@ def _alert_item(
         expires_at=deal.get("expires_at"),
         source_url=source_url,
         reason=reason,
+        credit_card=_credit_card_details(deal, score_payload, score.missing_data_warnings),
+        missing_data_warnings=list(score.missing_data_warnings),
     )
 
 
@@ -643,6 +693,62 @@ def _primary_source_url(
         if link.get("source_url"):
             return str(link["source_url"])
     return None
+
+
+def _credit_card_details(
+    deal: Mapping[str, Any],
+    score_payload: Mapping[str, Any],
+    missing_data_warnings: Sequence[str],
+) -> dict[str, Any] | None:
+    if deal.get("subcategory") != CREDIT_CARD_SUBCATEGORY:
+        return None
+    terms = deal.get("terms") or {}
+    terms_json = _json_value(terms.get("terms_json")) if isinstance(terms, Mapping) else None
+    if not isinstance(terms_json, Mapping):
+        return None
+    credit_card = terms_json.get("credit_card")
+    if not isinstance(credit_card, Mapping):
+        return None
+    return {
+        "issuer_name": credit_card.get("issuer_name"),
+        "card_name": credit_card.get("card_name"),
+        "customer_type": credit_card.get("customer_type"),
+        "offer_currency": credit_card.get("offer_currency"),
+        "headline_bonus_amount": credit_card.get("headline_bonus_amount"),
+        "estimated_cash_equivalent_value_cents": score_payload.get(
+            "estimated_cash_equivalent_value"
+        ),
+        "reward_valuation_assumption_ids": score_payload.get(
+            "reward_valuation_assumption_ids",
+            [],
+        ),
+        "minimum_spend_cents": credit_card.get("minimum_spend_cents"),
+        "spend_window_days": credit_card.get("spend_window_days"),
+        "annual_fee_cents": credit_card.get("annual_fee_cents"),
+        "first_year_annual_fee_waived": credit_card.get(
+            "first_year_annual_fee_waived"
+        ),
+        "statement_credit_amount_cents": credit_card.get(
+            "statement_credit_amount_cents"
+        ),
+        "statement_credit_requirements": credit_card.get(
+            "statement_credit_requirements"
+        ),
+        "targeted": credit_card.get("targeted"),
+        "eligibility_restriction_notes": _json_value(
+            credit_card.get("eligibility_restriction_notes")
+        )
+        or [],
+        "missing_critical_fields": _card_missing_fields(missing_data_warnings),
+    }
+
+
+def _card_missing_fields(warnings: Sequence[str]) -> list[str]:
+    return [
+        warning.split(" missing", 1)[0]
+        for warning in warnings
+        if warning.endswith(" missing")
+    ]
 
 
 def _days_until(value: Any, as_of: date) -> int | None:
@@ -768,6 +874,18 @@ def _validate_notification_channels(value: Any) -> list[str]:
     return errors
 
 
-def _money(cents: int) -> str:
+def _display_value(value: Any) -> str:
+    if value is None:
+        return "unknown"
+    if isinstance(value, bool):
+        return str(value).lower()
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, sort_keys=True)
+    return str(value)
+
+
+def _money(cents: Any) -> str:
+    if cents is None:
+        return "unknown"
     sign = "-" if cents < 0 else ""
     return f"{sign}${abs(cents) / 100:,.2f}"

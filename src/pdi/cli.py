@@ -74,8 +74,23 @@ STATUS_VALUES = (
     "applied",
 )
 REVIEW_RECOMMENDATIONS = {"needs_more_info", "conflict_needs_review"}
+CREDIT_CARD_SUBCATEGORY = "credit_card_signup_bonus"
+CARD_OFFER_CURRENCIES = ("cash", "statement_credit", "points", "miles", "mixed")
+CARD_CUSTOMER_TYPES = ("personal", "business")
 CRITICAL_EVIDENCE_FIELDS = (
     "bonus_amount_cents",
+    "issuer",
+    "card_name",
+    "customer_type",
+    "headline_bonus_amount",
+    "minimum_spend_cents",
+    "spend_window_days",
+    "annual_fee_cents",
+    "first_year_annual_fee_waived",
+    "statement_credit_amount_cents",
+    "statement_credit_requirements",
+    "targeted",
+    "eligibility_restriction_notes",
     "expires_at",
     "application_deadline",
     "direct_deposit_required",
@@ -588,6 +603,10 @@ def _add_list_filters(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--status", choices=STATUS_VALUES)
     parser.add_argument("--institution")
     parser.add_argument("--subcategory")
+    parser.add_argument("--issuer")
+    parser.add_argument("--card")
+    parser.add_argument("--customer-type", choices=CARD_CUSTOMER_TYPES)
+    parser.add_argument("--offer-currency", choices=CARD_OFFER_CURRENCIES)
     parser.add_argument("--score-band")
     parser.add_argument("--recommended-action")
     parser.add_argument("--expires-within-days", type=int)
@@ -598,6 +617,10 @@ def _add_search_filters(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--query", help="Free-text query.")
     parser.add_argument("--institution")
     parser.add_argument("--subcategory")
+    parser.add_argument("--issuer")
+    parser.add_argument("--card")
+    parser.add_argument("--customer-type", choices=CARD_CUSTOMER_TYPES)
+    parser.add_argument("--offer-currency", choices=CARD_OFFER_CURRENCIES)
     parser.add_argument("--min-bonus", type=_money_arg)
     parser.add_argument("--min-net-value", type=_money_arg)
     parser.add_argument("--score-band")
@@ -627,6 +650,10 @@ def _handle_list(args: argparse.Namespace) -> int:
         status=args.status,
         institution=args.institution,
         subcategory=args.subcategory,
+        issuer=args.issuer,
+        card=args.card,
+        customer_type=args.customer_type,
+        offer_currency=args.offer_currency,
         score_band=args.score_band,
         recommended_action=args.recommended_action,
         expires_within_days=args.expires_within_days,
@@ -681,6 +708,10 @@ def _handle_search(args: argparse.Namespace) -> int:
         query=args.query,
         institution=args.institution,
         subcategory=args.subcategory,
+        issuer=args.issuer,
+        card=args.card,
+        customer_type=args.customer_type,
+        offer_currency=args.offer_currency,
         min_bonus=args.min_bonus,
         min_net_value=args.min_net_value,
         score_band=args.score_band,
@@ -1135,6 +1166,10 @@ def _filtered_deals(
     status: str | None = None,
     institution: str | None = None,
     subcategory: str | None = None,
+    issuer: str | None = None,
+    card: str | None = None,
+    customer_type: str | None = None,
+    offer_currency: str | None = None,
     score_band: str | None = None,
     recommended_action: str | None = None,
     expires_within_days: int | None = None,
@@ -1153,6 +1188,26 @@ def _filtered_deals(
         filters.append(
             lambda deal: institution_filter
             in str(deal.get("institution_name") or "").lower()
+        )
+    if issuer:
+        issuer_filter = issuer.lower()
+        filters.append(
+            lambda deal: issuer_filter
+            in str(_card_details(deal).get("issuer_name") or "").lower()
+        )
+    if card:
+        card_filter = card.lower()
+        filters.append(
+            lambda deal: card_filter
+            in str(_card_details(deal).get("card_name") or "").lower()
+        )
+    if customer_type:
+        filters.append(
+            lambda deal: _card_details(deal).get("customer_type") == customer_type
+        )
+    if offer_currency:
+        filters.append(
+            lambda deal: _card_details(deal).get("offer_currency") == offer_currency
         )
     if score_band:
         filters.append(lambda deal: deal.get("score_band") == score_band)
@@ -1176,6 +1231,9 @@ def _summary_record(db_path: str, deal: Mapping[str, Any]) -> dict[str, Any]:
     score = score_banking_deal(db_path, int(deal["id"]))
     change_events = list_deal_change_events(db_path, deal_id=int(deal["id"]))
     needs_review = _needs_review(deal, score, change_events)
+    detail = get_banking_deal(db_path, int(deal["id"])) or deal
+    terms = _normalized_terms(detail.get("terms") or {})
+    card_details = _credit_card_details(terms, score.to_dict(), score.missing_data_warnings)
     return {
         "id": deal["id"],
         "title": deal["title"],
@@ -1189,6 +1247,7 @@ def _summary_record(db_path: str, deal: Mapping[str, Any]) -> dict[str, Any]:
         "recommended_action": score.recommended_action,
         "expires_at": deal.get("expires_at"),
         "needs_review": needs_review,
+        "credit_card": card_details,
     }
 
 
@@ -1198,6 +1257,10 @@ def _search_deals(
     query: str | None = None,
     institution: str | None = None,
     subcategory: str | None = None,
+    issuer: str | None = None,
+    card: str | None = None,
+    customer_type: str | None = None,
+    offer_currency: str | None = None,
     min_bonus: int | None = None,
     min_net_value: int | None = None,
     score_band: str | None = None,
@@ -1222,6 +1285,26 @@ def _search_deals(
         filters.append(
             lambda deal: institution_filter
             in str(deal.get("institution_name") or "").lower()
+        )
+    if issuer:
+        issuer_filter = issuer.lower()
+        filters.append(
+            lambda deal: issuer_filter
+            in str(_card_details(deal).get("issuer_name") or "").lower()
+        )
+    if card:
+        card_filter = card.lower()
+        filters.append(
+            lambda deal: card_filter
+            in str(_card_details(deal).get("card_name") or "").lower()
+        )
+    if customer_type:
+        filters.append(
+            lambda deal: _card_details(deal).get("customer_type") == customer_type
+        )
+    if offer_currency:
+        filters.append(
+            lambda deal: _card_details(deal).get("offer_currency") == offer_currency
         )
     if min_bonus is not None:
         filters.append(lambda deal: int(deal.get("bonus_amount_cents") or 0) >= min_bonus)
@@ -1251,6 +1334,10 @@ def _search_deals(
             query_tokens=query_tokens,
             institution=institution,
             subcategory=subcategory,
+            issuer=issuer,
+            card=card,
+            customer_type=customer_type,
+            offer_currency=offer_currency,
             min_bonus=min_bonus,
             min_net_value=min_net_value,
             score_band=score_band,
@@ -1301,6 +1388,7 @@ def _search_record(db_path: str, deal: Mapping[str, Any]) -> dict[str, Any]:
         "source_context": source_context,
         "requirements": detail["requirements"],
         "restrictions": detail["restrictions"],
+        "credit_card": detail["credit_card"],
         "missing_data_warnings": detail["missing_data_warnings"],
     }
 
@@ -1323,6 +1411,7 @@ def _public_search_record(record: Mapping[str, Any]) -> dict[str, Any]:
         "match_reason": record["match_reason"],
         "source_name": record.get("source_name"),
         "source_url": record.get("source_url"),
+        "credit_card": record.get("credit_card"),
     }
 
 
@@ -1353,6 +1442,11 @@ def _deal_detail(db_path: str, deal_id: int) -> dict[str, Any]:
         "score": score.to_dict(),
         "requirements": _requirements(terms),
         "restrictions": _restrictions(terms),
+        "credit_card": _credit_card_details(
+            terms,
+            score.to_dict(),
+            score.missing_data_warnings,
+        ),
         "expires_at": deal.get("expires_at"),
         "application_deadline": deal.get("application_deadline"),
         "confidence_score": deal.get("confidence_score"),
@@ -1417,6 +1511,69 @@ def _restrictions(terms: Mapping[str, Any]) -> dict[str, Any]:
         "hard_pull_risk": terms.get("hard_pull_risk"),
         "soft_pull_only": terms.get("soft_pull_only"),
     }
+
+
+def _credit_card_terms(terms: Mapping[str, Any]) -> dict[str, Any]:
+    terms_json = _json_value(terms.get("terms_json"))
+    if not isinstance(terms_json, Mapping):
+        return {}
+    credit_card = terms_json.get("credit_card")
+    return dict(credit_card) if isinstance(credit_card, Mapping) else {}
+
+
+def _credit_card_details(
+    terms: Mapping[str, Any],
+    score: Mapping[str, Any],
+    missing_data_warnings: Sequence[str],
+) -> dict[str, Any] | None:
+    card_terms = _credit_card_terms(terms)
+    if not card_terms:
+        return None
+    return {
+        "issuer_name": card_terms.get("issuer_name"),
+        "card_name": card_terms.get("card_name"),
+        "customer_type": card_terms.get("customer_type"),
+        "offer_currency": card_terms.get("offer_currency"),
+        "headline_bonus_amount": card_terms.get("headline_bonus_amount"),
+        "estimated_cash_equivalent_value_cents": score.get(
+            "estimated_cash_equivalent_value"
+        ),
+        "reward_valuation_assumption_ids": score.get(
+            "reward_valuation_assumption_ids",
+            [],
+        ),
+        "minimum_spend_cents": card_terms.get("minimum_spend_cents"),
+        "spend_window_days": card_terms.get("spend_window_days"),
+        "annual_fee_cents": card_terms.get("annual_fee_cents"),
+        "first_year_annual_fee_waived": card_terms.get(
+            "first_year_annual_fee_waived"
+        ),
+        "statement_credit_amount_cents": card_terms.get(
+            "statement_credit_amount_cents"
+        ),
+        "statement_credit_requirements": card_terms.get(
+            "statement_credit_requirements"
+        ),
+        "targeted": card_terms.get("targeted"),
+        "eligibility_restriction_notes": _json_value(
+            card_terms.get("eligibility_restriction_notes")
+        )
+        or [],
+        "missing_critical_fields": _card_missing_fields(missing_data_warnings),
+    }
+
+
+def _card_details(deal: Mapping[str, Any]) -> Mapping[str, Any]:
+    value = deal.get("credit_card")
+    return value if isinstance(value, Mapping) else {}
+
+
+def _card_missing_fields(warnings: Sequence[str]) -> list[str]:
+    return [
+        warning.split(" missing", 1)[0]
+        for warning in warnings
+        if warning.endswith(" missing")
+    ]
 
 
 def _source_urls(
@@ -1584,6 +1741,7 @@ def _evidence_field_values(
     deal: Mapping[str, Any],
     terms: Mapping[str, Any],
 ) -> dict[str, Any]:
+    card_terms = _credit_card_terms(terms)
     return {
         "bonus_amount_cents": deal.get("bonus_amount_cents"),
         "expires_at": deal.get("expires_at"),
@@ -1592,6 +1750,11 @@ def _evidence_field_values(
             field_name: terms.get(field_name)
             for field_name in CRITICAL_EVIDENCE_FIELDS
             if field_name not in {"bonus_amount_cents", "expires_at", "application_deadline"}
+        },
+        **{
+            field_name: card_terms.get(field_name)
+            for field_name in CRITICAL_EVIDENCE_FIELDS
+            if field_name in card_terms
         },
     }
 
@@ -1714,6 +1877,7 @@ def _search_text(deal: Mapping[str, Any]) -> str:
         deal.get("source_url"),
         deal.get("requirements"),
         deal.get("restrictions"),
+        deal.get("credit_card"),
         deal.get("missing_data_warnings"),
     ]
     return " ".join(_flatten_search_values(values)).lower()
@@ -1741,6 +1905,10 @@ def _match_reason(
     query_tokens: Sequence[str],
     institution: str | None,
     subcategory: str | None,
+    issuer: str | None,
+    card: str | None,
+    customer_type: str | None,
+    offer_currency: str | None,
     min_bonus: int | None,
     min_net_value: int | None,
     score_band: str | None,
@@ -1756,6 +1924,14 @@ def _match_reason(
         reasons.append(f"institution contains '{institution}'")
     if subcategory:
         reasons.append(f"subcategory {subcategory}")
+    if issuer:
+        reasons.append(f"issuer matches {issuer}")
+    if card:
+        reasons.append(f"card matches {card}")
+    if customer_type:
+        reasons.append(f"customer type {customer_type}")
+    if offer_currency:
+        reasons.append(f"offer currency {offer_currency}")
     if min_bonus is not None:
         reasons.append(f"bonus at least {_money(min_bonus)}")
     if min_net_value is not None:
@@ -1782,10 +1958,12 @@ def _print_deal_list(deals: list[dict[str, Any]], output_format: str) -> None:
 
     rows = [
         {
+            "card": (_card_details(deal).get("card_name") or ""),
             "id": deal["id"],
             "status": deal["status"],
             "institution": deal["institution_name"],
             "subcategory": deal["subcategory"],
+            "currency": (_card_details(deal).get("offer_currency") or ""),
             "bonus": _money(deal.get("bonus_amount_cents")),
             "net": _money(deal.get("estimated_net_value_cents")),
             "score": deal["score_0_to_100"],
@@ -1806,9 +1984,11 @@ def _print_search_results(deals: list[dict[str, Any]], output_format: str) -> No
 
     rows = [
         {
+            "card": (_card_details(deal).get("card_name") or ""),
             "id": deal["id"],
             "institution": deal["institution_name"],
             "subcategory": deal["subcategory"],
+            "currency": (_card_details(deal).get("offer_currency") or ""),
             "bonus": _money(deal.get("bonus_amount_cents")),
             "net": _money(deal.get("estimated_net_value_cents")),
             "score": deal["score_0_to_100"],
@@ -1852,6 +2032,10 @@ def _print_detail(detail: Mapping[str, Any]) -> None:
     print("Restrictions:")
     for key, value in detail["restrictions"].items():
         print(f"  - {key}: {_display_value(value)}")
+    if detail.get("credit_card"):
+        print("Credit card:")
+        for key, value in detail["credit_card"].items():
+            print(f"  - {key}: {_display_value(value)}")
     print("Missing data warnings:")
     for warning in detail["missing_data_warnings"] or ["none"]:
         print(f"  - {warning}")

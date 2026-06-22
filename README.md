@@ -277,10 +277,10 @@ differences in `deal_change_events`, and marks important conflicts
 `needs_review`.
 
 `pdi banking show <deal_id>` exposes source URLs, source-link references,
-field-level evidence excerpts for critical terms, raw snapshot ids, snapshot
-content hashes, and missing-evidence warnings. Evidence is a review aid for
-manual verification; final offer terms still need to be checked on the official
-institution or issuer page.
+field-level evidence excerpts for critical terms, credit-card acquisition terms
+when present, raw snapshot ids, snapshot content hashes, and missing-evidence
+warnings. Evidence is a review aid for manual verification; final offer terms
+still need to be checked on the official institution or issuer page.
 
 Scoring support exists under `pdi.scoring` for canonical banking deals. It reads
 `config/banking_scoring.yaml`, returns component-level estimates for gross
@@ -319,6 +319,8 @@ python3 -m pdi --db data/pdi.sqlite banking search --subcategory checking_bonus 
 python3 -m pdi --db data/pdi.sqlite banking search --recommended-action review_now
 python3 -m pdi --db data/pdi.sqlite banking search --expiring-days 14
 python3 -m pdi --db data/pdi.sqlite banking search --institution "Example Bank"
+python3 -m pdi --db data/pdi.sqlite banking search --issuer "Example Issuer" --card "Rewards"
+python3 -m pdi --db data/pdi.sqlite banking search --customer-type personal --offer-currency cash
 python3 -m pdi --db data/pdi.sqlite banking score <deal_id>
 python3 -m pdi --db data/pdi.sqlite banking digest
 python3 -m pdi --db data/pdi.sqlite banking digest --format json --output data/digests/banking_digest.json
@@ -327,7 +329,11 @@ python3 -m pdi --db data/pdi.sqlite banking demo --reset --seed fixtures
 
 Search results are ranked by score, estimated net value, bonus amount, and deal
 id. `find` is an alias for the ranked local search command. Use `--format json`
-when structured match reason and source context are needed.
+when structured match reason and source context are needed. Credit-card
+acquisition offers can be reviewed and filtered by transitional issuer, card
+name, personal/business classification, and offer currency fields; display
+surfaces show spend, fee, statement-credit, targeted/public, valuation
+assumption, missing-field, and evidence/source context when available.
 
 Use `--format json` on review commands when structured output is needed.
 Status changes are local review notes only. The system does not perform account

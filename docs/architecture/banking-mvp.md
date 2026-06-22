@@ -351,6 +351,8 @@ python3 -m pdi --db data/pdi.sqlite banking search --subcategory checking_bonus 
 python3 -m pdi --db data/pdi.sqlite banking search --recommended-action review_now
 python3 -m pdi --db data/pdi.sqlite banking search --expiring-days 14
 python3 -m pdi --db data/pdi.sqlite banking search --institution <name>
+python3 -m pdi --db data/pdi.sqlite banking search --issuer <issuer> --card <text>
+python3 -m pdi --db data/pdi.sqlite banking search --customer-type personal --offer-currency cash
 python3 -m pdi --db data/pdi.sqlite banking score <deal_id>
 python3 -m pdi --db data/pdi.sqlite banking demo --reset --seed fixtures
 ```
@@ -361,12 +363,19 @@ score band, recommended action, expiration window, and needs-review state.
 `search` and its `find` alias return ranked local results with match reasons,
 source labels, score, estimated net value, review indicators, and filters for
 query text, institution, subcategory, bonus/net thresholds, score band,
-recommended action, status, expiration window, and needs-review state. `demo`
-seeds the local synthetic fixture corpus through the offline smoke flow and
-writes a local digest artifact for demo review.
+recommended action, status, expiration window, needs-review state, and
+transitional credit-card issuer/card/customer-type/offer-currency fields.
+`demo` seeds the local synthetic fixture corpus through the offline smoke flow
+and writes a local digest artifact for demo review.
 `show` includes terms, score explanation, source URLs, missing-data warnings,
 source-link references, field-level evidence excerpts for critical terms,
 snapshot ids/content hashes, missing-evidence warnings, and status history.
+For credit-card acquisition offers, `list`, `search`, `find`, `show`, and
+`score` expose issuer, card name, personal/business classification, offer
+currency, headline value, estimated cash-equivalent value, valuation assumption
+IDs, minimum spend, spend window, annual fee, first-year waiver, statement
+credit terms, targeted/public marker, missing critical fields, and source or
+evidence references when available.
 Field evidence is stored in a normalized table and remains linked back to the
 candidate/source JSON evidence for auditability.
 Field-level evidence is derived from stored candidate evidence spans and
@@ -403,6 +412,10 @@ Digest sections:
 
 Digest outputs are local markdown first, with JSON available for deterministic
 tests and future automation.
+Credit-card acquisition offers are eligible when `credit_card_signup_bonus` is
+enabled in `config/banking_alerts.yaml`; digest entries include card-specific
+acquisition terms and review warnings without adding application calls to
+action.
 Credit-card digest entries should show acquisition-offer fields when available,
 including issuer, card name, offer currency, headline value, estimated
 cash-equivalent value, minimum spend, spend window, annual fee, public/targeted
