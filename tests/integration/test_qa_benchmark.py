@@ -23,6 +23,14 @@ def run_cli(db_path, *args):
     )
 
 
+def check_by_name(payload, name):
+    return next(
+        check
+        for check in payload["supported_checks"]
+        if check["name"] == name
+    )
+
+
 def test_qa_benchmark_json_output_is_offline_and_deterministic(tmp_path):
     first = run_cli(
         tmp_path / "pdi-demo-qa-1.sqlite",
@@ -60,10 +68,32 @@ def test_qa_benchmark_json_output_is_offline_and_deterministic(tmp_path):
     )
     assert first_payload["sections"]["deposit"]["expected_deals_missed"] == []
     assert first_payload["sections"]["deposit"]["status"] == "pass"
+    assert first_payload["sections"]["deposit"]["checks"]["expected_deals_found"]
     assert (
         first_payload["sections"]["deposit"]["reason_code"]
         == "supported_checks_passed"
     )
+    assert [
+        check["name"]
+        for check in first_payload["sections"]["deposit"]["supported_checks"]
+    ] == [
+        "expected_deals_found",
+        "unexpected_deals_absent",
+        "expected_subcategories_present",
+        "duplicate_offer_merged",
+        "conflicting_terms_surfaced",
+        "non_deal_suppressed",
+        "expired_offer_flagged",
+        "low_value_offer_flagged",
+        "ambiguous_terms_surfaced",
+        "scores_persisted",
+        "expected_scenarios_present",
+    ]
+    expected_deals_check = check_by_name(first_payload, "expected_deals_found")
+    assert expected_deals_check["section"] == "deposit"
+    assert expected_deals_check["status"] == "pass"
+    assert expected_deals_check["actual"] == expected_deals_check["expected"]
+    assert expected_deals_check["reason"]
     assert first_payload["sections"]["credit_card"]["status"] == "pending_runtime"
     assert first_payload["sections"]["credit_card"]["reason_code"] == (
         "credit_card_coverage_deferred_to_24d"
@@ -92,6 +122,9 @@ def test_qa_benchmark_table_output_reports_core_checks(tmp_path):
     assert "pending_runtime" in result.stdout
     assert "supported_checks_passed" in result.stdout
     assert "skipped_dependency" in result.stdout
+    assert "Supported checks:" in result.stdout
+    assert "expected_deals_found" in result.stdout
+    assert "expected_scenarios_present" in result.stdout
 
 
 def test_qa_benchmark_can_be_repeated_against_same_database(tmp_path):
@@ -155,6 +188,8 @@ def test_qa_benchmark_credit_card_category_reports_deferred_runtime(tmp_path):
     assert payload["category"] == "credit_card"
     assert payload["verification_status"] == "pending"
     assert payload["summary"]["raw_snapshots"] == 0
+    assert payload["failures"] == []
+    assert payload["supported_checks"] == []
     assert payload["sections"]["credit_card"]["status"] == "pending_runtime"
     assert payload["sections"]["credit_card"]["reason_code"] == (
         "credit_card_coverage_deferred_to_24d"
@@ -175,6 +210,22 @@ def test_qa_benchmark_fails_when_expected_deal_is_missing(tmp_path):
         "Missing Demo Bank"
     ]
     assert "expected_deals_found" in payload["failures"]
+    check = check_by_name(payload, "expected_deals_found")
+    assert check["status"] == "fail"
+    assert check["actual"] == [
+        "Cypress Sample Bank",
+        "Harbor Demo Brokerage",
+        "Lakeside Sample Bank",
+        "Northstar Demo Bank",
+        "Pioneer Example Bank",
+        "Prairie Example Bank",
+        "Riverbend Demo Bank",
+        "Sunset Demo Bank",
+    ]
+    assert check["expected"] == ["Missing Demo Bank"]
+    assert check["reason"] == (
+        "All required deposit and brokerage demo deals should canonicalize."
+    )
 
 
 def test_qa_benchmark_fails_when_expected_scenario_is_missing(tmp_path):
@@ -192,3 +243,76 @@ def test_qa_benchmark_fails_when_expected_scenario_is_missing(tmp_path):
     ]
     assert "expected_scenarios_present" in payload["sections"]["deposit"]["failures"]
     assert "expected_scenarios_present" in payload["failures"]
+    check = check_by_name(payload, "expected_scenarios_present")
+    assert check["status"] == "fail"
+    assert check["actual"]["missing_scenario"] == 0
+    assert check["expected"] == ["missing_scenario"]
+    assert check["reason"] == (
+        "Every required fixture scenario should be present in the demo manifest."
+    )
+
+
+def test_qa_benchmark_fails_when_duplicate_threshold_is_not_met(tmp_path):
+    payload = run_banking_qa_benchmark(
+        tmp_path / "pdi-demo-qa.sqlite",
+        reset_db=True,
+        expected_duplicate_merges_min=3,
+    )
+
+    assert payload["verification_status"] == "fail"
+    assert "duplicate_offer_merged" in payload["failures"]
+    check = check_by_name(payload, "duplicate_offer_merged")
+    assert check["status"] == "fail"
+    assert check["actual"] == {
+        "canonical_deals_for_fixture": 1,
+        "duplicate_merges": 2,
+    }
+    assert check["expected"] == {
+        "canonical_deals_for_fixture": 1,
+        "duplicate_merges_min": 3,
+    }
+    assert check["reason"] == (
+        "Duplicate fixture mentions should merge into one canonical deal."
+    )
+
+
+def test_qa_benchmark_fails_when_false_positive_deal_appears(tmp_path):
+    payload = run_banking_qa_benchmark(
+        tmp_path / "pdi-demo-qa.sqlite",
+        reset_db=True,
+        expected_deposit_deals=(
+            "Cypress Sample Bank",
+            "Harbor Demo Brokerage",
+            "Lakeside Sample Bank",
+            "Northstar Demo Bank",
+            "Pioneer Example Bank",
+            "Prairie Example Bank",
+            "Riverbend Demo Bank",
+        ),
+    )
+
+    assert payload["verification_status"] == "fail"
+    assert payload["sections"]["deposit"]["unexpected_deals"] == [
+        "Sunset Demo Bank"
+    ]
+    assert "unexpected_deals_absent" in payload["failures"]
+    check = check_by_name(payload, "unexpected_deals_absent")
+    assert check["status"] == "fail"
+    assert check["actual"] == ["Sunset Demo Bank"]
+    assert check["expected"] == []
+
+
+def test_qa_benchmark_supported_check_order_is_deterministic(tmp_path):
+    first = run_banking_qa_benchmark(
+        tmp_path / "pdi-demo-qa-1.sqlite",
+        reset_db=True,
+    )
+    second = run_banking_qa_benchmark(
+        tmp_path / "pdi-demo-qa-2.sqlite",
+        reset_db=True,
+    )
+
+    assert [check["name"] for check in first["supported_checks"]] == [
+        check["name"] for check in second["supported_checks"]
+    ]
+    assert first["supported_checks"] == second["supported_checks"]
