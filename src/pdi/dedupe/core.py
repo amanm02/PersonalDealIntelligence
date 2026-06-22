@@ -87,6 +87,18 @@ REVIEW_FIELDS = {
 }
 FIELD_EVIDENCE_FIELDS = {
     "bonus_amount_cents",
+    "issuer",
+    "card_name",
+    "customer_type",
+    "headline_bonus_amount",
+    "minimum_spend_cents",
+    "spend_window_days",
+    "annual_fee_cents",
+    "first_year_annual_fee_waived",
+    "statement_credit_amount_cents",
+    "statement_credit_requirements",
+    "targeted",
+    "eligibility_restriction_notes",
     "direct_deposit_required",
     "direct_deposit_minimum_cents",
     "minimum_deposit_amount_cents",
@@ -99,7 +111,27 @@ FIELD_EVIDENCE_FIELDS = {
     "new_customer_only",
 }
 EXTRACTION_METHOD = "rule_based_banking_extractor"
-EXTRACTION_VERSION = "1"
+EXTRACTION_VERSION = "2"
+CREDIT_CARD_SUBCATEGORY = "credit_card_signup_bonus"
+CREDIT_CARD_MATERIAL_FIELDS = (
+    "issuer_name",
+    "card_name",
+    "product_family",
+    "customer_type",
+    "offer_currency",
+    "headline_bonus_amount",
+    "headline_bonus_value_cents",
+    "minimum_spend_cents",
+    "spend_window_days",
+    "annual_fee_cents",
+    "first_year_annual_fee_waived",
+    "statement_credit_amount_cents",
+    "statement_credit_requirements",
+    "bonus_payout_timing",
+    "targeted",
+    "eligibility_restriction_notes",
+)
+REVIEW_FIELDS.update(CREDIT_CARD_MATERIAL_FIELDS)
 
 
 @dataclass(frozen=True)
@@ -116,6 +148,9 @@ class CanonicalizationResult:
 
 def generate_canonical_key(candidate: Mapping[str, Any]) -> str:
     """Generate a deterministic canonical key for an extracted candidate."""
+
+    if _is_credit_card_candidate(candidate):
+        return _credit_card_canonical_key(candidate)
 
     institution = _slug(_normalize_name(candidate.get("institution_name")))
     subcategory = _slug(str(candidate.get("subcategory") or "unknown"))
@@ -227,6 +262,9 @@ def _find_match(
     exact = get_banking_deal_by_canonical_key(db_path, canonical_key)
     if exact is not None:
         return exact, "exact_canonical_key"
+
+    if _is_credit_card_candidate(candidate):
+        return _find_credit_card_match(db_path, candidate)
 
     candidate_institution = _normalize_name(candidate.get("institution_name"))
     candidate_subcategory = candidate.get("subcategory")
@@ -376,6 +414,20 @@ def _merge_candidate(
         if is_conflict and field_name in REVIEW_FIELDS:
             conflict_fields.append(field_name)
 
+    if _is_credit_card_candidate(candidate):
+        card_updates, card_changed, card_conflicts = _merge_credit_card_terms(
+            db_path,
+            deal,
+            candidate,
+            existing_terms,
+            existing_authority=existing_authority,
+            candidate_authority=candidate_authority,
+        )
+        if card_updates:
+            term_updates["terms_json"] = card_updates
+        changed_fields.extend(card_changed)
+        conflict_fields.extend(card_conflicts)
+
     update_banking_deal(db_path, deal_id, deal_updates)
     if term_updates:
         upsert_banking_deal_terms(db_path, deal_id, term_updates)
@@ -512,12 +564,218 @@ def _field_evidence_from_candidate(candidate: Mapping[str, Any]) -> list[dict[st
     return evidence
 
 
+def _find_credit_card_match(
+    db_path: DbPath,
+    candidate: Mapping[str, Any],
+) -> tuple[dict[str, Any] | None, str]:
+    if (candidate.get("confidence_score") or 0) < FUZZY_CONFIDENCE_THRESHOLD:
+        return None, "low_confidence_no_match"
+
+    candidate_issuer = _normalize_name(candidate.get("issuer_name") or candidate.get("institution_name"))
+    candidate_card = _normalize_card_name(candidate.get("card_name"))
+    candidate_source_path = _source_path_key(candidate.get("source_url"))
+    candidate_headline = _normalized_json_value(candidate.get("headline_bonus_amount_json"))
+    candidate_currency = candidate.get("offer_currency")
+    candidate_customer_type = candidate.get("customer_type")
+
+    for deal in list_banking_deals(db_path, subcategory=CREDIT_CARD_SUBCATEGORY):
+        full_deal = get_banking_deal(db_path, int(deal["id"]))
+        if full_deal is None:
+            continue
+        deal_issuer = _normalize_name(
+            _credit_card_record_value(full_deal, "issuer_name")
+            or full_deal.get("institution_name")
+        )
+        deal_card = _normalize_card_name(_credit_card_record_value(full_deal, "card_name"))
+        same_card_identity = bool(candidate_card and deal_card and candidate_card == deal_card)
+        if candidate_issuer and deal_issuer and candidate_issuer != deal_issuer:
+            continue
+        if candidate_card and deal_card and not same_card_identity:
+            continue
+
+        deal_customer_type = _credit_card_record_value(full_deal, "customer_type")
+        if _known_different(candidate_customer_type, deal_customer_type):
+            continue
+
+        same_source_path = (
+            candidate_source_path
+            and _source_path_key(full_deal.get("source_url")) == candidate_source_path
+        )
+        deal_headline = _credit_card_record_value(full_deal, "headline_bonus_amount")
+        deal_currency = _credit_card_record_value(full_deal, "offer_currency")
+        same_offer = (
+            same_card_identity
+            and _compatible_value(candidate_currency, deal_currency)
+            and _compatible_value(candidate_headline, deal_headline)
+            and _expiration_compatible(full_deal, candidate)
+        )
+        if same_source_path:
+            return full_deal, "same_credit_card_source"
+        if same_offer:
+            return full_deal, "same_credit_card_offer"
+
+    return None, "no_match"
+
+
+def _merge_credit_card_terms(
+    db_path: DbPath,
+    deal: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+    existing_terms: Mapping[str, Any],
+    *,
+    existing_authority: str,
+    candidate_authority: str,
+) -> tuple[dict[str, Any] | None, list[str], list[str]]:
+    existing_terms_json = _terms_json(existing_terms)
+    existing_card_terms = dict(existing_terms_json.get("credit_card") or {})
+    updated_card_terms = dict(existing_card_terms)
+    changed_fields: list[str] = []
+    conflict_fields: list[str] = []
+
+    for field_name in CREDIT_CARD_MATERIAL_FIELDS:
+        existing_value = existing_card_terms.get(field_name)
+        candidate_value = _candidate_credit_card_value(candidate, field_name)
+        selected, reason, is_conflict = _select_value(
+            existing_value,
+            candidate_value,
+            existing_confidence=deal.get("confidence_score"),
+            candidate_confidence=candidate.get("confidence_score"),
+            existing_authority=existing_authority,
+            candidate_authority=candidate_authority,
+        )
+        if reason == "unchanged":
+            continue
+        updated_card_terms[field_name] = selected
+        _record_field_change(
+            db_path,
+            int(deal["id"]),
+            field_name,
+            existing_value,
+            candidate_value,
+            selected,
+            candidate,
+            reason,
+        )
+        changed_fields.append(field_name)
+        if is_conflict:
+            conflict_fields.append(field_name)
+
+    if updated_card_terms == existing_card_terms:
+        return None, changed_fields, conflict_fields
+
+    existing_terms_json["credit_card"] = updated_card_terms
+    existing_terms_json["last_credit_card_candidate_id"] = candidate["id"]
+    return existing_terms_json, sorted(set(changed_fields)), sorted(set(conflict_fields))
+
+
+def _is_credit_card_candidate(record: Mapping[str, Any]) -> bool:
+    if record.get("subcategory") == CREDIT_CARD_SUBCATEGORY:
+        return True
+    terms = record.get("terms")
+    if isinstance(terms, Mapping):
+        return bool(_terms_json(terms).get("credit_card"))
+    return False
+
+
+def _credit_card_canonical_key(candidate: Mapping[str, Any]) -> str:
+    issuer = _slug(_normalize_name(candidate.get("issuer_name") or candidate.get("institution_name")))
+    card = _slug(str(candidate.get("card_name") or "card-unknown"))
+    customer_type = _slug(str(candidate.get("customer_type") or "customer-unknown"))
+    currency = _slug(str(candidate.get("offer_currency") or "currency-unknown"))
+    headline = _slug(str(_normalized_json_value(candidate.get("headline_bonus_amount_json")) or "headline-unknown"))
+    expiration = _slug(str(candidate.get("expires_at") or "expires-unknown"))
+    return "-".join(
+        part
+        for part in (
+            issuer or "issuer-unknown",
+            CREDIT_CARD_SUBCATEGORY.replace("_", "-"),
+            card,
+            customer_type,
+            currency,
+            headline,
+            expiration,
+        )
+        if part
+    )
+
+
+def _candidate_credit_card_terms(candidate: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        field_name: _candidate_credit_card_value(candidate, field_name)
+        for field_name in CREDIT_CARD_MATERIAL_FIELDS
+        if _candidate_credit_card_value(candidate, field_name) is not None
+    }
+
+
+def _candidate_credit_card_value(candidate: Mapping[str, Any], field_name: str) -> Any:
+    if field_name == "headline_bonus_amount":
+        return _json_candidate_scalar(candidate.get("headline_bonus_amount_json"))
+    if field_name == "eligibility_restriction_notes":
+        return _json_list(candidate.get("eligibility_restriction_notes_json"))
+    if field_name in {"first_year_annual_fee_waived", "targeted"}:
+        return _int_to_bool(candidate.get(field_name))
+    return candidate.get(field_name)
+
+
+def _credit_card_record_value(record: Mapping[str, Any], field_name: str) -> Any:
+    if field_name in record and record.get(field_name) is not None:
+        return record.get(field_name)
+    terms = record.get("terms")
+    if isinstance(terms, Mapping):
+        return (_terms_json(terms).get("credit_card") or {}).get(field_name)
+    return None
+
+
+def _json_candidate_scalar(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return value
+
+
+def _terms_json(terms: Mapping[str, Any]) -> dict[str, Any]:
+    value = _normalized_json_value(terms.get("terms_json"))
+    return value if isinstance(value, dict) else {}
+
+
+def _normalize_card_name(value: Any) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", str(value or "").lower()))
+
+
+def _known_different(left: Any, right: Any) -> bool:
+    return (
+        left not in (None, "", "unknown")
+        and right not in (None, "", "unknown")
+        and left != right
+    )
+
+
+def _compatible_value(left: Any, right: Any) -> bool:
+    left = _normalized_json_value(left)
+    right = _normalized_json_value(right)
+    return left in (None, "", "unknown", []) or right in (None, "", "unknown", []) or left == right
+
+
 def _candidate_field_value(candidate: Mapping[str, Any], field_name: str) -> Any:
+    aliases = {
+        "issuer": "issuer_name",
+        "headline_bonus_amount": "headline_bonus_amount_json",
+        "eligibility_restriction_notes": "eligibility_restriction_notes_json",
+    }
+    if field_name in aliases:
+        value = candidate.get(aliases[field_name])
+        if field_name == "headline_bonus_amount":
+            return _json_candidate_scalar(value)
+        return _normalized_json_value(value)
     if field_name in {
         "direct_deposit_required",
         "new_customer_only",
         "hard_pull_risk",
         "soft_pull_only",
+        "first_year_annual_fee_waived",
+        "targeted",
     }:
         return _int_to_bool(candidate.get(field_name))
     if field_name == "state_restrictions":
@@ -551,6 +809,13 @@ def _deal_authority(db_path: DbPath, deal_id: int) -> str:
 
 
 def _candidate_terms(candidate: Mapping[str, Any]) -> dict[str, Any]:
+    terms_json: dict[str, Any] = {
+        "candidate_id": candidate["id"],
+        "missing_fields": _json_list(candidate.get("missing_fields_json")),
+    }
+    if _is_credit_card_candidate(candidate):
+        terms_json["credit_card"] = _candidate_credit_card_terms(candidate)
+
     return {
         "minimum_deposit_amount_cents": candidate.get("minimum_deposit_amount_cents"),
         "direct_deposit_required": _int_to_bool(candidate.get("direct_deposit_required")),
@@ -567,10 +832,7 @@ def _candidate_terms(candidate: Mapping[str, Any]) -> dict[str, Any]:
         "state_restrictions": _json_list(candidate.get("state_restrictions_json")),
         "new_customer_only": _int_to_bool(candidate.get("new_customer_only")),
         "household_limit": candidate.get("household_limit"),
-        "terms_json": {
-            "candidate_id": candidate["id"],
-            "missing_fields": _json_list(candidate.get("missing_fields_json")),
-        },
+        "terms_json": terms_json,
     }
 
 
@@ -592,7 +854,9 @@ def _term_value(terms: Mapping[str, Any], field_name: str) -> Any:
 
 def _candidate_needs_review(candidate: Mapping[str, Any]) -> bool:
     missing = set(_json_list(candidate.get("missing_fields_json")))
-    return bool(missing.intersection(REVIEW_FIELDS))
+    return bool(missing.intersection(REVIEW_FIELDS)) or _int_to_bool(
+        candidate.get("targeted")
+    ) is True
 
 
 def _fallback_title(candidate: Mapping[str, Any]) -> str:
@@ -628,6 +892,10 @@ def _product_compatible(
 
 
 def _product_key(record: Mapping[str, Any]) -> str:
+    if _is_credit_card_candidate(record):
+        card_name = _credit_card_record_value(record, "card_name")
+        if card_name:
+            return _slug(str(card_name))
     title = str(record.get("title") or "")
     institution = str(record.get("institution_name") or "")
     title = title.replace(institution, " ")
