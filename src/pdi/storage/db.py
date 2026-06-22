@@ -165,6 +165,22 @@ def list_raw_snapshots_by_content_hash(
         ]
 
 
+def list_raw_snapshots(db_path: DbPath) -> list[dict[str, Any]]:
+    """Return all raw snapshots in deterministic insertion order."""
+
+    with _connect(db_path) as connection:
+        return [
+            _row_to_dict(row)
+            for row in connection.execute(
+                """
+                SELECT *
+                FROM raw_deal_snapshots
+                ORDER BY id ASC
+                """
+            ).fetchall()
+        ]
+
+
 def get_raw_snapshot(db_path: DbPath, snapshot_id: int) -> dict[str, Any] | None:
     """Return one raw source snapshot, or None."""
 

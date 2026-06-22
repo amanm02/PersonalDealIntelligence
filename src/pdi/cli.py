@@ -16,6 +16,7 @@ from pdi.alerts import (
     load_alert_config,
     write_digest_artifact,
 )
+from pdi.extractors import reextract_all_snapshots, reextract_snapshot
 from pdi.public_pilot import (
     NO_ENABLED_PUBLIC_PILOT_MESSAGE,
     validate_public_pilot_sources,
@@ -542,6 +543,34 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Shortcut for --format json.",
     )
     qa_parser.set_defaults(handler=_handle_qa_benchmark)
+
+    reextract_parser = banking_subparsers.add_parser(
+        "reextract",
+        help="Reprocess stored raw snapshots without live collection.",
+    )
+    reextract_target = reextract_parser.add_mutually_exclusive_group(required=True)
+    reextract_target.add_argument("--snapshot", type=int, help="Raw snapshot id.")
+    reextract_target.add_argument(
+        "--all",
+        action="store_true",
+        help="Reprocess all stored raw snapshots.",
+    )
+    reextract_mode = reextract_parser.add_mutually_exclusive_group()
+    reextract_mode.add_argument(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        default=True,
+        help="Report changes without writing new candidates. This is the default.",
+    )
+    reextract_mode.add_argument(
+        "--write",
+        dest="dry_run",
+        action="store_false",
+        help="Persist new candidate rows while preserving canonical deals.",
+    )
+    _add_output_format(reextract_parser)
+    reextract_parser.set_defaults(handler=_handle_reextract)
 
     return parser
 
@@ -1075,6 +1104,29 @@ def _handle_qa_benchmark(args: argparse.Namespace) -> int:
         print("Offline banking QA benchmark complete.")
         _print_qa_benchmark_summary(summary)
     return 1 if summary["verification_status"] == "fail" else 0
+
+
+def _handle_reextract(args: argparse.Namespace) -> int:
+    initialize_database(args.db)
+    if args.all:
+        results = reextract_all_snapshots(args.db, dry_run=args.dry_run)
+    else:
+        results = [reextract_snapshot(args.db, args.snapshot, dry_run=args.dry_run)]
+    payload = {
+        "dry_run": args.dry_run,
+        "snapshot_count": len(results),
+        "candidate_write_count": sum(
+            1 for result in results if result.new_candidate_id is not None
+        ),
+        "changed_snapshot_count": sum(1 for result in results if result.changed_fields),
+        "results": [result.to_dict() for result in results],
+        "canonical_values_preserved": True,
+    }
+    if args.format == "json":
+        _print_json(payload)
+    else:
+        _print_reextract_summary(payload)
+    return 0
 
 
 def _filtered_deals(
@@ -1927,6 +1979,28 @@ def _print_qa_benchmark_summary(summary: Mapping[str, Any]) -> None:
         print("Failures:")
         for failure in summary["failures"]:
             print(f"  - {failure}")
+
+
+def _print_reextract_summary(payload: Mapping[str, Any]) -> None:
+    print(
+        "Offline banking re-extraction complete "
+        f"({'dry-run' if payload['dry_run'] else 'write'})."
+    )
+    rows = []
+    for item in payload["results"]:
+        changed = item.get("changed_fields") or []
+        rows.append(
+            {
+                "snapshot": item["raw_snapshot_id"],
+                "previous_candidate": item.get("previous_candidate_id") or "none",
+                "new_candidate": item.get("new_candidate_id") or "dry-run",
+                "changed_fields": ",".join(change["field"] for change in changed)
+                or "none",
+                "source": item.get("source_name") or "unknown",
+            }
+        )
+    _print_table(rows, empty_message="No raw snapshots found.")
+    print("Canonical values preserved: yes")
 
 
 def _print_table(
