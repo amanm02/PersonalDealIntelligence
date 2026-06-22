@@ -18,6 +18,7 @@
 |   `-- workflows/agentops.yml
 |-- docs/
 |   |-- agentops/
+|   |   `-- templates/
 |   |-- architecture/
 |   |-- implementation-plans/
 |   |-- release-checklists/
@@ -42,6 +43,7 @@
 - Active issue order: `docs/issue-map.md`.
 - Verification source of truth: `docs/verification.md`.
 - Detailed AgentOps docs and registries: `docs/agentops/`.
+- Reusable AgentOps prompt and report templates: `docs/agentops/templates/`.
 - Implementation plans: `docs/implementation-plans/`.
 - Project specs: `docs/specs/`.
 - Product code: `src/pdi/`.

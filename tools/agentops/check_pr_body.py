@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -21,6 +22,19 @@ REQUIRED_MARKERS = [
     "## Risks",
 ]
 
+CHAIN_REQUIRED_MARKERS = [
+    "## Summary",
+    "## Files changed",
+    "## Validation",
+    "## Product safety",
+    "## Follow-ups",
+]
+
+CLOSURE_RE = re.compile(
+    r"\b(?:Closes|Fixes|Resolves)\s+#(?:\d+|<ISSUE_NUMBER>)(?=\s|$|[.,;)])",
+    re.IGNORECASE,
+)
+
 
 def _run_gh(args: list[str]) -> dict[str, Any]:
     result = subprocess.run(["gh", *args], capture_output=True, check=False, text=True)
@@ -37,14 +51,25 @@ def load_pr_body(repo: str, number: int) -> str:
     return str(item.get("body") or "")
 
 
-def validate_pr_body_text(text: str) -> bool:
+def validate_pr_body_text(
+    text: str,
+    *,
+    markers: list[str] | None = None,
+    require_closure: bool = False,
+) -> bool:
     ok = True
-    for marker in REQUIRED_MARKERS:
+    for marker in markers or REQUIRED_MARKERS:
         if marker not in text:
             print(f"FAIL PR body missing marker: {marker}")
             ok = False
         else:
             print(f"OK PR body marker: {marker}")
+    if require_closure:
+        if CLOSURE_RE.search(text):
+            print("OK PR body issue closure marker")
+        else:
+            print("FAIL PR body missing issue closure marker")
+            ok = False
     return ok
 
 
@@ -53,6 +78,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--body-file", type=Path, help="Local markdown file containing a PR body.")
     parser.add_argument("--github-pr", type=int, help="Read a PR body with gh.")
     parser.add_argument("--repo", default="amanm02/PersonalDealIntelligence", help="GitHub owner/repo.")
+    parser.add_argument(
+        "--chain",
+        action="store_true",
+        help="Validate the compact sequential-chain PR body contract.",
+    )
+    parser.add_argument(
+        "--require-closure",
+        action="store_true",
+        help="Require a Closes/Fixes/Resolves issue marker.",
+    )
     return parser
 
 
@@ -73,7 +108,8 @@ def main(argv: list[str] | None = None) -> int:
         print("check_pr_body: FAIL")
         return 1
 
-    ok = validate_pr_body_text(text)
+    markers = CHAIN_REQUIRED_MARKERS if args.chain else REQUIRED_MARKERS
+    ok = validate_pr_body_text(text, markers=markers, require_closure=args.require_closure)
     print(f"check_pr_body: {'PASS' if ok else 'FAIL'}")
     return 0 if ok else 1
 

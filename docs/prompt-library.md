@@ -17,6 +17,19 @@ Keep prompts compact. Point to source-of-truth files instead of embedding long c
 - Keep Banking MVP work separate from future clothing, travel, flight, hotel, and shopping work.
 - Treat credit-card acquisition offers as Banking MVP scope, but implement them only through the dedicated credit-card/source/taxonomy/scoring issues.
 
+## Sequential dependency chains
+
+Use these compact templates for multi-issue chains:
+
+- `docs/agentops/templates/issue-contract.md`
+- `docs/agentops/templates/chain-implementation-prompt.md`
+- `docs/agentops/templates/chain-review-prompt.md`
+- `docs/agentops/templates/subagent-readonly-audit.md`
+- `docs/agentops/templates/blocker-report.md`
+- `docs/agentops/templates/pr-body-chain.md`
+
+Run `python3 -m tools.agentops.check_context_budget --file <prompt> --max-lines <budget>` before reusing a prompt that has been expanded with issue-specific context.
+
 ## Prompt: implement a GitHub issue
 
 ```text
