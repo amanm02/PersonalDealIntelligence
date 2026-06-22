@@ -327,7 +327,11 @@ Outputs:
 Scoring is transparent and configurable. It is for personal review support only
 and must not be presented as financial advice.
 Credit-card scoring must not hard-code opaque point or mile valuations without a
-configurable assumption and explanation.
+configurable assumption and explanation. Credit-card acquisition scoring reads
+canonical `terms_json.credit_card`, uses named valuation assumption IDs from
+`config/banking_scoring.yaml`, and treats missing spend, fee, targeting, and
+currency data as review warnings with configurable penalties rather than
+guessing.
 
 ### 7. Review CLI
 

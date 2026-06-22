@@ -204,6 +204,17 @@ def test_conflicting_canonical_deal_returns_conflict_needs_review(tmp_path):
     assert score.recommended_action == "conflict_needs_review"
 
 
+def test_zero_confidence_deal_receives_low_confidence_penalty(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    deal_id = deal(db_path, confidence_score=0.0)
+
+    score = score_banking_deal(db_path, deal_id, config_path=CONFIG_PATH, as_of=AS_OF)
+
+    assert score.estimated_source_confidence_adjustment == 2000
+    assert score.estimated_risk_penalty >= 2000
+
+
 def test_scoring_config_changes_affect_score_predictably(tmp_path):
     db_path = tmp_path / "pdi.sqlite"
     initialize_database(db_path)

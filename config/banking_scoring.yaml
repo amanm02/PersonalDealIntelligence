@@ -25,6 +25,10 @@ hassle_penalties_cents:
   money_market_bonus: 750
   cd_bonus: 1000
   credit_card_signup_bonus: 3000
+  credit_card_minimum_spend_required: 2500
+  credit_card_short_spend_window: 1500
+  credit_card_standard_spend_window: 750
+  credit_card_missing_spend_window: 2500
 
 risk_penalties_cents:
   hard_pull_risk: 5000
@@ -32,11 +36,32 @@ risk_penalties_cents:
   new_customer_only: 500
   early_closure_terms: 1000
   low_confidence: 2000
+  credit_card_targeted_offer: 5000
+  credit_card_restriction_notes: 1500
 
 missing_data_penalties_cents:
   bonus_amount_cents: 5000
+  credit_card_cash_equivalent_value: 5000
+  offer_currency: 2500
+  headline_bonus_amount: 5000
   direct_deposit_required: 2500
   minimum_balance_required_cents: 1500
   balance_hold_days: 1500
+  minimum_spend_cents: 2500
+  spend_window_days: 2500
   monthly_fee_cents: 2000
+  annual_fee_cents: 1500
+  targeted: 1000
   expires_at: 1000
+
+credit_card_reward_values_cents_per_unit:
+  cash: 100
+  statement_credit: 100
+  points: 1
+  miles: 1
+
+credit_card_reward_assumption_ids:
+  cash: card_cash_face_value_v1
+  statement_credit: card_statement_credit_face_value_v1
+  points: card_points_one_cent_v1
+  miles: card_miles_one_cent_v1
