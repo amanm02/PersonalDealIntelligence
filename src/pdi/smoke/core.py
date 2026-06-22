@@ -142,6 +142,7 @@ def run_offline_banking_smoke(
     as_of: date = DEFAULT_AS_OF,
     reset_db: bool = False,
     allow_existing: bool = False,
+    banking_run_id: int | None = None,
 ) -> OfflineSmokeSummary:
     """Run the full Banking MVP flow against local text fixtures only."""
 
@@ -195,7 +196,12 @@ def run_offline_banking_smoke(
 
     canonicalization_results = canonicalize_pending_candidates(db_file)
     scores = [
-        persist_banking_deal_score(db_file, int(deal["id"]), as_of=as_of)
+        persist_banking_deal_score(
+            db_file,
+            int(deal["id"]),
+            as_of=as_of,
+            banking_run_id=banking_run_id,
+        )
         for deal in list_banking_deals(db_file)
     ]
 

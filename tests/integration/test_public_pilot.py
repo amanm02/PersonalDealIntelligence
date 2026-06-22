@@ -9,7 +9,7 @@ import pytest
 from pdi.fetchers import SafeFetchResult
 from pdi.public_pilot import PublicPilotCollectionError
 from pdi.public_pilot import run_public_pilot_workflow
-from pdi.storage import list_banking_deals
+from pdi.storage import list_banking_deals, list_banking_score_records
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -52,6 +52,9 @@ def test_fixture_backed_public_pilot_flow_produces_searchable_deal(tmp_path):
     assert digest_path.exists()
     deals = list_banking_deals(db_path)
     assert deals[0]["institution_name"] == "Pilot Public Bank"
+    score_records = list_banking_score_records(db_path)
+    assert len(score_records) == 1
+    assert score_records[0]["banking_run_id"] is None
 
     result = run_cli(
         db_path,

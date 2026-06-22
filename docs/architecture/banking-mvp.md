@@ -493,14 +493,20 @@ Run records include:
 - source counts
 - candidate counts
 - canonical deal counts
+- scored deal counts
+- durable score record count and score record ids
 - conflicts
 - errors
 - digest path
 
 The default run mode is dry-run. Dry-run records only run history in the real
 database, executes the workflow against a temporary database copy, avoids
-durable digest writes, and stores the requested digest path as metadata. Durable
-workflow changes require explicit `--execute`.
+durable deal/candidate/source-link/score/digest writes, stores the requested
+digest path as metadata, and records zero durable score record ids. Durable
+workflow changes require explicit `--execute`. Executed runs pass the run id
+into score persistence so `banking_score_records.banking_run_id` links each
+score history row to the run, and `banking_runs` stores deterministic score
+record counts and ids for audit output.
 
 Overlapping runs are blocked by a SQLite lock row with a unique `lock_name` and
 local owner metadata. The lock is released after successful or failed runs.

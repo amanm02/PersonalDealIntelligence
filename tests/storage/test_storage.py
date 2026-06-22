@@ -76,7 +76,7 @@ def test_initializes_database_from_scratch(tmp_path):
         }.issubset(table_names)
         assert connection.execute(
             "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0] == 8
+        ).fetchone()[0] == 9
 
 
 def test_migrations_are_idempotent(tmp_path):
@@ -88,7 +88,7 @@ def test_migrations_are_idempotent(tmp_path):
     with sqlite3.connect(db_path) as connection:
         assert connection.execute(
             "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0] == 8
+        ).fetchone()[0] == 9
 
 
 def test_raw_snapshot_content_hash_is_stable_and_content_derived(tmp_path):
@@ -1225,6 +1225,7 @@ def test_score_record_insert_get_list_latest_and_deterministic_json(tmp_path):
 
     first = get_banking_score_record(db_path, first_id)
     records = list_banking_score_records(db_path, deal_id=deal_id)
+    run_records = list_banking_score_records(db_path, banking_run_id=run_id)
     latest = get_latest_banking_score_record(db_path, deal_id)
 
     assert first["banking_run_id"] == run_id
@@ -1234,6 +1235,7 @@ def test_score_record_insert_get_list_latest_and_deterministic_json(tmp_path):
     )
     assert first["missing_data_warnings_json"] == '["expires_at missing"]'
     assert [record["id"] for record in records] == [second_id, first_id]
+    assert [record["id"] for record in run_records] == [first_id]
     assert latest["id"] == second_id
     assert latest["scoring_config_hash"] == "hash-b"
     assert latest["scored_as_of"] == "2026-06-19"
@@ -1788,6 +1790,8 @@ def test_banking_run_history_records_counts_and_metadata(tmp_path):
             "candidates": 2,
             "canonical_deals": 1,
             "conflicts": 1,
+            "score_record_count": 2,
+            "score_record_ids": [4, 5],
         },
         metadata={"workflow": "fixture", "digest_written": False},
     )
@@ -1802,8 +1806,33 @@ def test_banking_run_history_records_counts_and_metadata(tmp_path):
     assert run["candidate_count"] == 2
     assert run["canonical_deal_count"] == 1
     assert run["conflict_count"] == 1
+    assert run["score_record_count"] == 2
+    assert run["score_record_ids_json"] == "[4, 5]"
     assert run["metadata_json"] == '{"digest_written": false, "workflow": "fixture"}'
     assert recent[0]["id"] == run_id
+
+
+def test_banking_run_schema_migrates_score_record_metadata(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    _initialize_through_migration(db_path, "008")
+    run_id = insert_banking_run(
+        db_path,
+        dry_run=False,
+        metadata={"workflow": "legacy-fixture"},
+    )
+
+    initialize_database(db_path)
+    update_banking_run(
+        db_path,
+        run_id,
+        status="succeeded",
+        counts={"score_record_count": 1, "score_record_ids": [42]},
+        metadata={"workflow": "legacy-fixture"},
+    )
+    run = get_banking_run(db_path, run_id)
+
+    assert run["score_record_count"] == 1
+    assert run["score_record_ids_json"] == "[42]"
 
 
 def test_banking_run_lock_blocks_overlap_and_releases_owner(tmp_path):

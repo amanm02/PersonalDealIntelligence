@@ -1921,6 +1921,7 @@ def _print_run_list(runs: list[dict[str, Any]]) -> None:
             "ended": run.get("ended_at") or "running",
             "candidates": run["candidate_count"],
             "deals": run["canonical_deal_count"],
+            "score_records": run["score_record_count"],
             "conflicts": run["conflict_count"],
             "errors": run["error_count"],
         }
@@ -2121,6 +2122,8 @@ def _run_record_payload(run: Mapping[str, Any]) -> dict[str, Any]:
         "review_needed_deal_count": run["review_needed_deal_count"],
         "scored_deal_count": run["scored_deal_count"],
         "expired_scored_deal_count": run["expired_scored_deal_count"],
+        "score_record_count": run.get("score_record_count", 0),
+        "score_record_ids": _json_value(run.get("score_record_ids_json")) or [],
         "error_count": run["error_count"],
         "errors": _json_value(run.get("errors_json")) or [],
         "digest_path": run.get("digest_path"),

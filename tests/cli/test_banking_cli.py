@@ -18,6 +18,7 @@ from pdi.storage import (
     insert_deal_change_event,
     insert_raw_snapshot,
     list_banking_deal_candidates,
+    list_banking_score_records,
     list_deal_status_events,
 )
 
@@ -766,6 +767,8 @@ def test_run_defaults_to_dry_run_without_durable_deal_or_digest_changes(tmp_path
     assert payload["metadata"]["would_be_digest_path"] == str(digest_path)
     assert payload["metadata"]["digest_written"] is False
     assert payload["source_count"] == 8
+    assert payload["score_record_count"] == 0
+    assert payload["score_record_ids"] == []
     assert workflow_table_counts(db_path) == before_counts
     assert not digest_path.exists()
 
@@ -793,8 +796,24 @@ def test_run_execute_persists_workflow_and_digest(tmp_path):
     assert payload["dry_run"] is False
     assert payload["digest_path"] == str(digest_path)
     assert payload["canonical_deal_count"] == 5
+    assert payload["score_record_count"] == 5
+    assert len(payload["score_record_ids"]) == 5
+    assert [
+        record["banking_run_id"]
+        for record in list_banking_score_records(db_path, banking_run_id=payload["id"])
+    ] == [payload["id"]] * 5
     assert digest_path.exists()
     assert workflow_table_counts(db_path)["banking_deals"] == 5
+
+    runs_table = run_cli(db_path, "banking", "runs")
+    status_table = run_cli(db_path, "banking", "run-status", str(payload["id"]))
+
+    assert runs_table.returncode == 0, runs_table.stderr
+    assert "score_records" in runs_table.stdout
+    assert "5" in runs_table.stdout
+    assert status_table.returncode == 0, status_table.stderr
+    assert "score_record_count" in status_table.stdout
+    assert "score_record_ids" in status_table.stdout
 
 
 def test_runs_and_run_status_return_recorded_run(tmp_path):
@@ -831,6 +850,8 @@ def test_runs_and_run_status_return_recorded_run(tmp_path):
     assert status["id"] == run_id
     assert status["status"] == "succeeded"
     assert status["dry_run"] is True
+    assert status["score_record_count"] == 0
+    assert status["score_record_ids"] == []
 
 
 def test_run_records_blocked_status_without_taking_over_existing_lock(tmp_path):
@@ -852,6 +873,8 @@ def test_run_records_blocked_status_without_taking_over_existing_lock(tmp_path):
     payload = json.loads(result.stdout)
     assert payload["status"] == "blocked"
     assert payload["errors"] == ["another banking run is already active"]
+    assert payload["score_record_count"] == 0
+    assert payload["score_record_ids"] == []
     with sqlite3.connect(db_path) as connection:
         lock = connection.execute(
             "SELECT run_id FROM banking_run_locks WHERE lock_name = 'banking_run'"
@@ -1137,6 +1160,8 @@ def test_public_pilot_confirm_live_bad_url_fails_closed_with_json_metadata(tmp_p
     assert result.returncode == 1
     payload = json.loads(result.stdout)
     assert payload["status"] == "failed"
+    assert payload["score_record_count"] == 0
+    assert payload["score_record_ids"] == []
     public_pilot = payload["metadata"]["public_pilot"]
     assert public_pilot["network_fetch_attempted"] is True
     assert "secret" not in str(public_pilot)
@@ -1156,6 +1181,7 @@ def workflow_table_counts(db_path):
         "banking_deal_candidates",
         "banking_deals",
         "banking_deal_source_links",
+        "banking_score_records",
         "deal_change_events",
         "deal_status_events",
     )

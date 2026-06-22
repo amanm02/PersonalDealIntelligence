@@ -24,6 +24,7 @@ from pdi.storage import (
     get_banking_run,
     initialize_database,
     insert_banking_run,
+    list_banking_score_records,
     release_banking_run_lock,
     update_banking_run,
 )
@@ -86,12 +87,18 @@ def run_banking_workflow_once(
                 digest_output=digest_output,
                 alert_config_path=alert_config_path,
                 as_of=as_of,
+                banking_run_id=None if dry_run else run_id,
             )
             update_banking_run(
                 db_path,
                 run_id,
                 status="succeeded",
-                counts=summary,
+                counts=_run_counts_with_score_records(
+                    db_path,
+                    run_id,
+                    summary,
+                    dry_run=dry_run,
+                ),
                 digest_path=summary.get("digest_path"),
                 metadata={
                     **metadata,
@@ -118,7 +125,12 @@ def run_banking_workflow_once(
                 db_path,
                 run_id,
                 status="succeeded",
-                counts=summary,
+                counts=_run_counts_with_score_records(
+                    db_path,
+                    run_id,
+                    summary,
+                    dry_run=True,
+                ),
                 metadata={
                     **metadata,
                     "dry_run_database": "temporary_copy",
@@ -134,12 +146,18 @@ def run_banking_workflow_once(
                 alert_config_path=alert_config_path,
                 as_of=as_of,
                 allow_existing=True,
+                banking_run_id=run_id,
             ).to_dict()
             update_banking_run(
                 db_path,
                 run_id,
                 status="succeeded",
-                counts=summary,
+                counts=_run_counts_with_score_records(
+                    db_path,
+                    run_id,
+                    summary,
+                    dry_run=False,
+                ),
                 digest_path=str(summary["digest_path"]),
                 metadata={**metadata, "digest_written": True},
             )
@@ -158,6 +176,12 @@ def run_banking_workflow_once(
             db_path,
             run_id,
             status="failed",
+            counts=_run_counts_with_score_records(
+                db_path,
+                run_id,
+                {},
+                dry_run=dry_run,
+            ),
             errors=[f"{type(error).__name__}: {error}"],
             metadata=failure_metadata,
         )
@@ -165,6 +189,33 @@ def run_banking_workflow_once(
         release_banking_run_lock(db_path, run_id=run_id)
 
     return _run_payload(db_path, run_id)
+
+
+def _run_counts_with_score_records(
+    db_path: DbPath,
+    run_id: int,
+    summary: dict[str, Any],
+    *,
+    dry_run: bool,
+) -> dict[str, Any]:
+    if dry_run:
+        return {
+            **summary,
+            "score_record_count": 0,
+            "score_record_ids": [],
+        }
+
+    score_record_ids = [
+        int(record["id"])
+        for record in reversed(
+            list_banking_score_records(db_path, banking_run_id=run_id)
+        )
+    ]
+    return {
+        **summary,
+        "score_record_count": len(score_record_ids),
+        "score_record_ids": score_record_ids,
+    }
 
 
 def _run_dry_run_copy(

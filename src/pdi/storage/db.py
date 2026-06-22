@@ -567,6 +567,8 @@ def update_banking_run(
                 review_needed_deal_count = ?,
                 scored_deal_count = ?,
                 expired_scored_deal_count = ?,
+                score_record_count = ?,
+                score_record_ids_json = ?,
                 error_count = ?,
                 errors_json = ?,
                 digest_path = ?,
@@ -587,6 +589,8 @@ def update_banking_run(
                 count_values["review_needed_deal_count"],
                 count_values["scored_deal_count"],
                 count_values["expired_scored_deal_count"],
+                count_values["score_record_count"],
+                _json_text(count_values["score_record_ids"]),
                 len(error_values),
                 _json_text(error_values),
                 digest_path,
@@ -1000,14 +1004,21 @@ def list_banking_score_records(
     db_path: DbPath,
     *,
     deal_id: int | None = None,
+    banking_run_id: int | None = None,
 ) -> list[dict[str, Any]]:
     """List durable score records newest first."""
 
+    clauses: list[str] = []
     values: list[Any] = []
     query = "SELECT * FROM banking_score_records"
     if deal_id is not None:
-        query += " WHERE deal_id = ?"
+        clauses.append("deal_id = ?")
         values.append(deal_id)
+    if banking_run_id is not None:
+        clauses.append("banking_run_id = ?")
+        values.append(banking_run_id)
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
     query += " ORDER BY created_at DESC, id DESC"
 
     with _connect(db_path) as connection:
@@ -1231,7 +1242,7 @@ def _merge_record(
     return data
 
 
-def _banking_run_count_values(counts: Mapping[str, Any]) -> dict[str, int]:
+def _banking_run_count_values(counts: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "source_count": int(counts.get("source_count", counts.get("sources", 0))),
         "raw_snapshot_count": int(
@@ -1268,6 +1279,13 @@ def _banking_run_count_values(counts: Mapping[str, Any]) -> dict[str, int]:
                 counts.get("expired_scored_deals", 0),
             )
         ),
+        "score_record_count": int(
+            counts.get("score_record_count", counts.get("score_records", 0))
+        ),
+        "score_record_ids": [
+            int(score_record_id)
+            for score_record_id in counts.get("score_record_ids", [])
+        ],
     }
 
 
