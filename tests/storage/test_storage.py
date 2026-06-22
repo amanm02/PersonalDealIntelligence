@@ -12,6 +12,7 @@ import pytest
 from pdi.storage import (
     acquire_banking_run_lock,
     get_banking_deal,
+    get_banking_deal_candidate,
     get_banking_run,
     get_raw_snapshot,
     initialize_database,
@@ -23,12 +24,15 @@ from pdi.storage import (
     insert_source_record,
     insert_status_event,
     list_banking_deals,
+    list_banking_deal_candidates,
     list_banking_runs,
+    list_pending_banking_deal_candidates,
     list_field_evidence_links,
     list_missing_field_evidence,
     list_raw_snapshots,
     list_raw_snapshots_by_content_hash,
     load_seed_fixture,
+    mark_banking_deal_candidate_canonicalized,
     release_banking_run_lock,
     update_banking_run,
 )
@@ -205,6 +209,293 @@ def test_raw_snapshot_rejects_mismatched_supplied_content_hash(tmp_path):
                 "content_hash": "0" * 64,
                 "raw_text": "A different raw snapshot body.",
                 "collector_name": "fixture",
+            },
+        )
+
+
+def test_candidate_schema_is_hardened_on_fresh_database(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+
+    with sqlite3.connect(db_path) as connection:
+        columns = {
+            row[1]: row
+            for row in connection.execute(
+                "PRAGMA table_info(banking_deal_candidates)"
+            )
+        }
+        indexes = {
+            row[1]
+            for row in connection.execute(
+                "PRAGMA index_list(banking_deal_candidates)"
+            )
+        }
+        foreign_keys = [
+            row
+            for row in connection.execute(
+                "PRAGMA foreign_key_list(banking_deal_candidates)"
+            )
+        ]
+
+    assert "raw_snapshot_id" in columns
+    assert columns["raw_snapshot_id"][3] == 1
+    assert "evidence_spans_json" in columns
+    assert "missing_fields_json" in columns
+    assert "extraction_notes_json" in columns
+    assert "raw_pattern_matches_json" in columns
+    assert "canonical_deal_id" in columns
+    assert "canonicalization_status" in columns
+    assert "idx_banking_deal_candidates_raw_snapshot_id" in indexes
+    assert "idx_banking_deal_candidates_rejected" in indexes
+    assert "idx_banking_deal_candidates_canonicalization_status" in indexes
+    assert any(
+        row[2] == "raw_deal_snapshots"
+        and row[3] == "raw_snapshot_id"
+        and row[4] == "id"
+        for row in foreign_keys
+    )
+
+
+def test_candidate_insert_retrieve_preserves_nulls_and_deterministic_json(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    snapshot_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_url": "manual://candidate-json",
+            "source_name": "Candidate JSON Source",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "raw_text": "Mock Bank offers a $300 checking bonus.",
+            "collector_name": "fixture",
+        },
+    )
+
+    candidate_id = insert_banking_deal_candidate(
+        db_path,
+        {
+            "raw_snapshot_id": snapshot_id,
+            "title": "Mock Bank $300 Checking Bonus",
+            "institution_name": "Mock Bank",
+            "subcategory": "checking_bonus",
+            "bonus_amount_cents": 30000,
+            "source_name": "Candidate JSON Source",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "state_restrictions": ["OR", "CA"],
+            "evidence_spans": [
+                {
+                    "text": "$300",
+                    "start": 19,
+                    "field": "bonus_amount_cents",
+                    "end": 23,
+                }
+            ],
+            "missing_fields": ["direct_deposit_required", "expires_at"],
+            "extraction_notes": ["ambiguous direct deposit requirement"],
+            "tiered_bonus": [
+                {
+                    "minimum_deposit_amount_cents": 100000,
+                    "bonus_amount_cents": 30000,
+                }
+            ],
+            "raw_pattern_matches": {
+                "minimum_deposit": ["$1,000"],
+                "bonus_amount": ["$300"],
+            },
+            "confidence_score": 0.7,
+        },
+    )
+
+    row = get_banking_deal_candidate(db_path, candidate_id)
+
+    assert row["raw_snapshot_id"] == snapshot_id
+    assert row["direct_deposit_required"] is None
+    assert row["minimum_deposit_amount_cents"] is None
+    assert row["expires_at"] is None
+    assert row["state_restrictions_json"] == '["OR", "CA"]'
+    assert row["evidence_spans_json"] == (
+        '[{"end": 23, "field": "bonus_amount_cents", '
+        '"start": 19, "text": "$300"}]'
+    )
+    assert row["missing_fields_json"] == (
+        '["direct_deposit_required", "expires_at"]'
+    )
+    assert row["extraction_notes_json"] == (
+        '["ambiguous direct deposit requirement"]'
+    )
+    assert row["tiered_bonus_json"] == (
+        '[{"bonus_amount_cents": 30000, '
+        '"minimum_deposit_amount_cents": 100000}]'
+    )
+    assert row["raw_pattern_matches_json"] == (
+        '{"bonus_amount": ["$300"], "minimum_deposit": ["$1,000"]}'
+    )
+
+
+def test_candidate_lifecycle_filters_rejected_and_canonicalization_status(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    snapshot_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_url": "manual://candidate-filter",
+            "source_name": "Candidate Filter Source",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "raw_text": "Mock Bank offers a $300 checking bonus.",
+            "collector_name": "fixture",
+        },
+    )
+    kept_id = insert_banking_deal_candidate(
+        db_path,
+        {
+            "raw_snapshot_id": snapshot_id,
+            "title": "Mock Bank $300 Checking Bonus",
+            "institution_name": "Mock Bank",
+            "subcategory": "checking_bonus",
+            "bonus_amount_cents": 30000,
+            "source_name": "Candidate Filter Source",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "confidence_score": 0.8,
+        },
+    )
+    rejected_id = insert_banking_deal_candidate(
+        db_path,
+        {
+            "raw_snapshot_id": snapshot_id,
+            "title": None,
+            "institution_name": None,
+            "subcategory": None,
+            "source_name": "Candidate Filter Source",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "confidence_score": 0.1,
+            "rejected": True,
+            "rejection_reason": "Low confidence extraction.",
+        },
+    )
+    deal_id = insert_banking_deal(
+        db_path,
+        {
+            "canonical_key": "candidate-filter",
+            "title": "Mock Bank $300 Checking Bonus",
+            "institution_name": "Mock Bank",
+            "subcategory": "checking_bonus",
+            "bonus_amount_cents": 30000,
+            "source_name": "Candidate Filter Source",
+            "raw_snapshot_id": snapshot_id,
+        },
+    )
+
+    mark_banking_deal_candidate_canonicalized(
+        db_path,
+        kept_id,
+        deal_id=deal_id,
+        status="created",
+    )
+
+    rejected = list_banking_deal_candidates(db_path, rejected=True)
+    created = list_banking_deal_candidates(
+        db_path,
+        rejected=False,
+        canonicalization_status="created",
+    )
+    pending = list_pending_banking_deal_candidates(db_path)
+
+    assert [candidate["id"] for candidate in rejected] == [rejected_id]
+    assert [candidate["id"] for candidate in created] == [kept_id]
+    assert pending == []
+
+
+def test_existing_candidate_rows_migrate_cleanly_from_candidate_migration(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    _initialize_through_migration(db_path, "002")
+    with sqlite3.connect(db_path) as connection:
+        snapshot_id = connection.execute(
+            """
+            INSERT INTO raw_deal_snapshots (
+              source_url,
+              source_name,
+              retrieved_at,
+              content_hash,
+              raw_text,
+              collector_name
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "manual://legacy-candidate",
+                "Legacy Candidate Source",
+                "2026-06-17T12:00:00+00:00",
+                hashlib.sha256(b"legacy candidate text").hexdigest(),
+                "legacy candidate text",
+                "fixture",
+            ),
+        ).lastrowid
+        candidate_id = connection.execute(
+            """
+            INSERT INTO banking_deal_candidates (
+              raw_snapshot_id,
+              title,
+              institution_name,
+              category,
+              subcategory,
+              bonus_amount_cents,
+              currency,
+              source_name,
+              retrieved_at,
+              evidence_spans_json,
+              missing_fields_json,
+              raw_pattern_matches_json,
+              confidence_score,
+              rejected
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                snapshot_id,
+                "Legacy Candidate Bank Bonus",
+                "Legacy Candidate Bank",
+                "banking",
+                "checking_bonus",
+                30000,
+                "USD",
+                "Legacy Candidate Source",
+                "2026-06-17T12:00:00+00:00",
+                "[]",
+                '["expires_at"]',
+                '{"bonus_amount": ["$300"]}',
+                0.8,
+                0,
+            ),
+        ).lastrowid
+        connection.commit()
+
+    initialize_database(db_path)
+    pending = list_pending_banking_deal_candidates(db_path)
+    mark_banking_deal_candidate_canonicalized(
+        db_path,
+        candidate_id,
+        deal_id=None,
+        status="skipped",
+    )
+    row = get_banking_deal_candidate(db_path, candidate_id)
+
+    assert [candidate["id"] for candidate in pending] == [candidate_id]
+    assert row["canonicalization_status"] == "skipped"
+    assert row["canonicalized_at"] is not None
+
+
+def test_candidate_raw_snapshot_foreign_key_is_enforced(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+
+    with pytest.raises(sqlite3.IntegrityError):
+        insert_banking_deal_candidate(
+            db_path,
+            {
+                "raw_snapshot_id": 999,
+                "title": "Missing Snapshot Candidate",
+                "institution_name": "Missing Snapshot Bank",
+                "subcategory": "checking_bonus",
+                "source_name": "Missing Snapshot Source",
             },
         )
 

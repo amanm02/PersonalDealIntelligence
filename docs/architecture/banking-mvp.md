@@ -237,7 +237,10 @@ Extractor identifies:
 
 Extraction must not guess. Unknown fields should remain null/unknown.
 Evidence spans, missing fields, extraction notes, and tiered bonus matches are
-stored with candidates for review and later dedupe/canonicalization. During
+stored in `banking_deal_candidates`, the canonical pre-dedupe candidate
+persistence table. Candidate rows preserve unknown terms as `NULL`, keep raw
+evidence/missing-field/extraction-note/pattern JSON deterministic, and track
+rejected and canonicalization lifecycle status for downstream dedupe. During
 canonicalization, deposit and brokerage field evidence is normalized into
 `banking_field_evidence_links` with the canonical deal id, candidate id, raw
 snapshot id, field name, extracted value, excerpt/span offsets, confidence, and
