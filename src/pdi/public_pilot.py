@@ -95,6 +95,7 @@ def run_public_pilot_workflow(
     digest_output: str | Path = DEFAULT_PUBLIC_PILOT_DIGEST_OUTPUT,
     alert_config_path: str | Path = DEFAULT_ALERT_CONFIG,
     as_of: date = DEFAULT_AS_OF,
+    banking_run_id: int | None = None,
 ) -> dict[str, Any]:
     """Plan or execute public-pilot collection behind explicit source policy."""
 
@@ -194,7 +195,12 @@ def run_public_pilot_workflow(
 
     canonicalization_results = canonicalize_pending_candidates(db_path)
     scores = [
-        persist_banking_deal_score(db_path, int(deal["id"]), as_of=as_of)
+        persist_banking_deal_score(
+            db_path,
+            int(deal["id"]),
+            as_of=as_of,
+            banking_run_id=banking_run_id,
+        )
         for deal in list_banking_deals(db_path)
     ]
     digest = generate_banking_digest(db_path, config_path=alert_config_path, as_of=as_of)

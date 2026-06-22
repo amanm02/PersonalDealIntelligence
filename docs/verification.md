@@ -526,9 +526,13 @@ Must validate:
 
 - dry-run mode works
 - dry-run updates only run history in the real database
+- dry-run does not leak temporary score records or score record ids into the real
+  database
 - dry-run does not create the durable digest artifact
 - `--execute` is required for persistent workflow writes
 - run records are persisted
+- executed runs link durable score records by run id and expose deterministic
+  score record counts and ids in run-status output
 - overlapping runs are blocked
 - failed runs release the lock after failure state is persisted
 - recent run listing works
