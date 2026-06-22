@@ -140,6 +140,13 @@ Current narrower extractor command:
 python3 -m pytest tests/extractors
 ```
 
+Current narrower stored-snapshot re-extraction commands:
+
+```bash
+python3 -m pytest tests/extractors tests/storage tests/cli
+python3 -m pdi --db /tmp/pdi-reextract.sqlite banking reextract --all --dry-run --format json
+```
+
 Current narrower dedupe command:
 
 ```bash
@@ -375,6 +382,11 @@ Must validate:
 - raw snapshots link to extracted/canonical records
 - raw snapshot content hashes are derived from stored raw text
 - duplicate raw snapshot content hashes are queryable without deduping rows
+- stored raw snapshots can be re-extracted offline without live collection
+- re-extraction dry-run reports deterministic candidate comparisons without
+  writing new candidate rows
+- re-extraction write mode creates new pre-dedupe candidates while preserving
+  reviewed canonical deal values and statuses
 - field-level evidence links preserve deal, candidate, raw snapshot, source-link,
   field, extracted value, excerpt, span, confidence, and extraction metadata
 - missing field evidence is detectable for populated canonical fields

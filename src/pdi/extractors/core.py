@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from datetime import date
@@ -10,6 +11,8 @@ from typing import Any, Mapping
 from pdi.storage import (
     get_raw_snapshot,
     insert_banking_deal_candidate,
+    list_banking_deal_candidates,
+    list_raw_snapshots,
 )
 
 
@@ -40,6 +43,98 @@ HIGH_IMPACT_FIELDS = (
     "state_restrictions",
     "new_customer_only",
 )
+EXTRACTOR_METHOD = "rule_based_banking_extractor"
+EXTRACTOR_VERSION = "1"
+REEXTRACTION_COMPARE_FIELDS = (
+    "title",
+    "institution_name",
+    "category",
+    "subcategory",
+    "bonus_amount_cents",
+    "currency",
+    "expires_at",
+    "application_deadline",
+    "minimum_deposit_amount_cents",
+    "direct_deposit_required",
+    "direct_deposit_minimum_cents",
+    "minimum_balance_required_cents",
+    "balance_hold_days",
+    "monthly_fee_cents",
+    "monthly_fee_waiver_terms",
+    "early_closure_fee_cents",
+    "state_restrictions",
+    "new_customer_only",
+    "household_limit",
+    "hard_pull_risk",
+    "soft_pull_only",
+    "tiered_bonus",
+    "missing_fields",
+    "confidence_score",
+    "rejected",
+    "rejection_reason",
+)
+JSON_CANDIDATE_FIELDS = {
+    "state_restrictions": "state_restrictions_json",
+    "tiered_bonus": "tiered_bonus_json",
+    "missing_fields": "missing_fields_json",
+}
+BOOL_CANDIDATE_FIELDS = {
+    "direct_deposit_required",
+    "new_customer_only",
+    "hard_pull_risk",
+    "soft_pull_only",
+    "rejected",
+}
+
+
+@dataclass(frozen=True)
+class ReextractionFieldChange:
+    """A deterministic old/new extracted value comparison."""
+
+    field: str
+    previous_value: Any
+    new_value: Any
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "field": self.field,
+            "previous_value": self.previous_value,
+            "new_value": self.new_value,
+        }
+
+
+@dataclass(frozen=True)
+class ReextractionResult:
+    """Result from reprocessing one stored raw snapshot."""
+
+    raw_snapshot_id: int
+    content_hash: str | None
+    source_name: str
+    source_url: str | None
+    dry_run: bool
+    previous_candidate_id: int | None
+    new_candidate_id: int | None
+    changed_fields: list[ReextractionFieldChange]
+    new_candidate: ExtractedDealCandidate
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "raw_snapshot_id": self.raw_snapshot_id,
+            "content_hash": self.content_hash,
+            "source_name": self.source_name,
+            "source_url": self.source_url,
+            "dry_run": self.dry_run,
+            "previous_candidate_id": self.previous_candidate_id,
+            "new_candidate_id": self.new_candidate_id,
+            "candidate_written": self.new_candidate_id is not None,
+            "extractor_method": EXTRACTOR_METHOD,
+            "extractor_version": EXTRACTOR_VERSION,
+            "changed_fields": [
+                change.to_dict() for change in self.changed_fields
+            ],
+            "new_candidate": self.new_candidate.to_storage_record(),
+            "canonical_values_preserved": True,
+        }
 
 
 @dataclass(frozen=True)
@@ -204,6 +299,133 @@ def extract_and_persist_snapshot(db_path: DbPath, raw_snapshot_id: int) -> int:
         },
     )
     return persist_extracted_candidate(db_path, candidate)
+
+
+def reextract_snapshot(
+    db_path: DbPath,
+    raw_snapshot_id: int,
+    *,
+    dry_run: bool = True,
+) -> ReextractionResult:
+    """Reprocess one stored raw snapshot without touching canonical deals."""
+
+    snapshot = get_raw_snapshot(db_path, raw_snapshot_id)
+    if snapshot is None:
+        raise ValueError(f"Raw snapshot id {raw_snapshot_id} does not exist.")
+
+    candidate = _candidate_from_snapshot(snapshot)
+    candidate.extraction_notes.append(
+        f"Re-extracted with {EXTRACTOR_METHOD} v{EXTRACTOR_VERSION}."
+    )
+    previous_candidate = _latest_candidate_for_snapshot(db_path, raw_snapshot_id)
+    changed_fields = _changed_fields(previous_candidate, candidate)
+    new_candidate_id = None
+    if not dry_run:
+        new_candidate_id = persist_extracted_candidate(db_path, candidate)
+
+    return ReextractionResult(
+        raw_snapshot_id=raw_snapshot_id,
+        content_hash=snapshot.get("content_hash"),
+        source_name=str(snapshot.get("source_name") or "unknown"),
+        source_url=snapshot.get("source_url"),
+        dry_run=dry_run,
+        previous_candidate_id=(
+            int(previous_candidate["id"]) if previous_candidate is not None else None
+        ),
+        new_candidate_id=new_candidate_id,
+        changed_fields=changed_fields,
+        new_candidate=candidate,
+    )
+
+
+def reextract_all_snapshots(
+    db_path: DbPath,
+    *,
+    dry_run: bool = True,
+) -> list[ReextractionResult]:
+    """Reprocess every stored raw snapshot in deterministic order."""
+
+    return [
+        reextract_snapshot(db_path, int(snapshot["id"]), dry_run=dry_run)
+        for snapshot in list_raw_snapshots(db_path)
+    ]
+
+
+def _candidate_from_snapshot(snapshot: Mapping[str, Any]) -> ExtractedDealCandidate:
+    return extract_banking_deal(
+        snapshot["raw_text"],
+        {
+            "raw_snapshot_id": snapshot["id"],
+            "source_name": snapshot["source_name"],
+            "source_url": snapshot["source_url"],
+            "retrieved_at": snapshot["retrieved_at"],
+        },
+    )
+
+
+def _latest_candidate_for_snapshot(
+    db_path: DbPath,
+    raw_snapshot_id: int,
+) -> dict[str, Any] | None:
+    candidates = list_banking_deal_candidates(
+        db_path,
+        raw_snapshot_id=raw_snapshot_id,
+        limit=1,
+    )
+    return candidates[0] if candidates else None
+
+
+def _changed_fields(
+    previous_candidate: Mapping[str, Any] | None,
+    new_candidate: ExtractedDealCandidate,
+) -> list[ReextractionFieldChange]:
+    if previous_candidate is None:
+        return []
+
+    new_record = new_candidate.to_storage_record()
+    changes: list[ReextractionFieldChange] = []
+    for field_name in REEXTRACTION_COMPARE_FIELDS:
+        previous_value = _candidate_compare_value(previous_candidate, field_name)
+        new_value = _candidate_compare_value(new_record, field_name)
+        if previous_value != new_value:
+            changes.append(
+                ReextractionFieldChange(
+                    field=field_name,
+                    previous_value=previous_value,
+                    new_value=new_value,
+                )
+            )
+    return changes
+
+
+def _candidate_compare_value(candidate: Mapping[str, Any], field_name: str) -> Any:
+    storage_field = JSON_CANDIDATE_FIELDS.get(field_name, field_name)
+    value = candidate.get(storage_field)
+    if value is None and storage_field != field_name:
+        value = candidate.get(field_name)
+    if field_name in JSON_CANDIDATE_FIELDS:
+        value = _json_value(value)
+    if field_name in BOOL_CANDIDATE_FIELDS:
+        return _to_bool(value)
+    return value
+
+
+def _json_value(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return json.loads(value)
+    return value
+
+
+def _to_bool(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return bool(value)
+    return None
 
 
 def _looks_like_deal(lower_text: str) -> bool:

@@ -17,6 +17,7 @@ from pdi.storage import (
     insert_banking_run,
     insert_deal_change_event,
     insert_raw_snapshot,
+    list_banking_deal_candidates,
     list_deal_status_events,
 )
 
@@ -570,6 +571,122 @@ def test_show_text_surfaces_missing_evidence_warning(tmp_path):
     assert "direct_deposit_required has value but no field-level evidence" in result.stdout
     assert "bonus_amount_cents has only secondary-source evidence" in result.stdout
     assert "Fixture Bank offers a $300 checking bonus." not in result.stdout
+
+
+def test_reextract_dry_run_reports_changes_without_candidate_write(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    raw_text = (
+        "Fixture Bank offers a $300 checking bonus when you receive qualifying "
+        "direct deposits of $1,000. Offer expires December 31, 2026. New "
+        "customers only. No monthly fee."
+    )
+    snapshot_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_url": "manual://reextract",
+            "source_name": "Reextract Fixture Source",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "raw_text": raw_text,
+            "collector_name": "fixture",
+        },
+    )
+    candidate_id = insert_banking_deal_candidate(
+        db_path,
+        {
+            "raw_snapshot_id": snapshot_id,
+            "title": "Fixture Bank $250 Checking Bonus",
+            "institution_name": "Fixture Bank",
+            "subcategory": "checking_bonus",
+            "bonus_amount_cents": 25000,
+            "direct_deposit_required": True,
+            "direct_deposit_minimum_cents": 100000,
+            "source_name": "Reextract Fixture Source",
+            "source_url": "manual://reextract",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "evidence_spans": [],
+            "missing_fields": [],
+            "confidence_score": 0.9,
+        },
+    )
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "reextract",
+        "--snapshot",
+        str(snapshot_id),
+        "--dry-run",
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["dry_run"] is True
+    assert payload["snapshot_count"] == 1
+    assert payload["candidate_write_count"] == 0
+    assert payload["results"][0]["previous_candidate_id"] == candidate_id
+    assert payload["results"][0]["new_candidate_id"] is None
+    changed_fields = {
+        item["field"]: item for item in payload["results"][0]["changed_fields"]
+    }
+    assert changed_fields["bonus_amount_cents"] == {
+        "field": "bonus_amount_cents",
+        "previous_value": 25000,
+        "new_value": 30000,
+    }
+    assert [candidate["id"] for candidate in list_banking_deal_candidates(db_path)] == [
+        candidate_id
+    ]
+
+
+def test_reextract_write_creates_candidate_and_preserves_canonical_deal(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    raw_text = (
+        "Fixture Bank offers a $300 checking bonus when you receive qualifying "
+        "direct deposits of $1,000. Offer expires December 31, 2026. New "
+        "customers only. No monthly fee."
+    )
+    snapshot_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_url": "manual://reextract-write",
+            "source_name": "Reextract Write Source",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "raw_text": raw_text,
+            "collector_name": "fixture",
+        },
+    )
+    deal_id = seed_deal(
+        db_path,
+        canonical_key="reviewed-reextract",
+        raw_snapshot_id=snapshot_id,
+        bonus_amount_cents=10000,
+        status="watching",
+    )
+
+    result = run_cli(
+        db_path,
+        "banking",
+        "reextract",
+        "--all",
+        "--write",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Offline banking re-extraction complete (write)." in result.stdout
+    assert "Canonical values preserved: yes" in result.stdout
+    candidates = list_banking_deal_candidates(db_path, raw_snapshot_id=snapshot_id)
+    with sqlite3.connect(db_path) as connection:
+        deal = connection.execute(
+            "SELECT bonus_amount_cents, status FROM banking_deals WHERE id = ?",
+            (deal_id,),
+        ).fetchone()
+    assert len(candidates) == 1
+    assert candidates[0]["bonus_amount_cents"] == 30000
+    assert deal == (10000, "watching")
 
 
 def test_digest_command_writes_json_output(tmp_path):
