@@ -457,7 +457,10 @@ The local QA benchmark is exposed through `python3 -m pdi banking qa-benchmark`.
 It reuses the demo corpus to check expected deal coverage, duplicate merging,
 conflict surfacing, non-deal suppression, score sanity, and edge-case fixture
 coverage. It is deterministic and offline-only. Credit-card runtime coverage is
-reported as pending until the credit-card extraction/scoring path exists.
+reported as `pending_runtime` with a deterministic reason code until dedicated
+benchmark coverage lands. Future-only systems from the broad research and deal
+intelligence tracks are represented as `skipped_dependency` sections, not
+failures, so 24A remains a harness/output hardening step.
 
 ### 8c. Opt-in public-pilot sources
 

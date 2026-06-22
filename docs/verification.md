@@ -310,7 +310,11 @@ The QA benchmark is deterministic and offline-only. It validates the reusable
 demo corpus for expected deal coverage, duplicate merging, conflict surfacing,
 non-deal suppression, score sanity, expired and low-value handling, ambiguous
 terms, and fixture edge-case coverage. Credit-card runtime coverage is reported
-as pending until that product path exists.
+as `pending_runtime` with a deterministic reason code until 24D adds that
+benchmark coverage. Future-only systems such as evidence expansion, persistence
+expansion, taxonomy/lifecycle, and rules-engine checks are reported as
+`skipped_dependency` sections with machine-readable `reason_code` values rather
+than failures.
 
 ## Banking MVP readiness validation
 

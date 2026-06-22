@@ -61,6 +61,44 @@ EXPECTED_EDGE_CASES = (
     "non_deal_content",
     "disabled_or_disallowed_source",
 )
+FUTURE_DEPENDENCY_SECTIONS = (
+    (
+        "evidence_links",
+        "#30",
+        "evidence_model_deferred",
+        "Evidence-link expansion remains deferred to #30.",
+    ),
+    (
+        "persistence_tables",
+        "#35",
+        "persistence_expansion_deferred",
+        "Candidate/source-link/score/run-history table expansion remains deferred to #35.",
+    ),
+    (
+        "taxonomy_lifecycle",
+        "#36",
+        "taxonomy_lifecycle_deferred",
+        "Canonical product taxonomy and offer lifecycle checks remain deferred to #36.",
+    ),
+    (
+        "rules_engine",
+        "#37",
+        "rules_engine_deferred",
+        "Eligibility and requirements rules-engine checks remain deferred to #37.",
+    ),
+    (
+        "credit_card_model",
+        "#40",
+        "credit_card_model_parent_deferred",
+        "Broad credit-card model checks remain deferred to #40 child issues.",
+    ),
+    (
+        "credit_card_runtime_coverage",
+        "#76",
+        "credit_card_runtime_coverage_skipped_dependency",
+        "Credit-card QA benchmark runtime coverage remains deferred to #76.",
+    ),
+)
 
 
 class QaBenchmarkError(ValueError):
@@ -157,6 +195,9 @@ def run_banking_qa_benchmark(
     if category in {"all", "credit_card"}:
         sections["credit_card"] = _credit_card_pending_section()
 
+    if category == "all":
+        sections.update(_future_dependency_sections())
+
     status = "fail" if failures else "pass"
     if category == "credit_card":
         status = "pending"
@@ -252,6 +293,12 @@ def _evaluate_deposit_benchmark(
 
     return {
         "status": "fail" if failures else "pass",
+        "reason_code": "deposit_checks_failed" if failures else "supported_checks_passed",
+        "reason": (
+            "Supported deposit and brokerage QA checks failed."
+            if failures
+            else "Supported deposit and brokerage QA checks passed."
+        ),
         "product_scope": "deposit, savings, bundle, brokerage, CD, and money-market banking fixtures",
         "expected_deals": expected_names,
         "expected_deals_found": len(expected_names) - len(missed),
@@ -299,13 +346,27 @@ def _score_sanity_checks(
 def _credit_card_pending_section() -> dict[str, Any]:
     return {
         "status": "pending_runtime",
+        "reason_code": "credit_card_coverage_deferred_to_24d",
         "expected_deals_found": 0,
         "expected_deals_missed": [],
         "reason": (
-            "Credit-card source metadata exists, but the controlled MVP has no "
-            "credit-card runtime extractor/scoring path yet."
+            "Credit-card source and runtime display support exists, but QA "
+            "benchmark coverage is intentionally deferred to #76 / 24D."
         ),
         "failures": [],
+    }
+
+
+def _future_dependency_sections() -> dict[str, dict[str, Any]]:
+    return {
+        section_name: {
+            "status": "skipped_dependency",
+            "reason_code": reason_code,
+            "dependency": dependency,
+            "reason": reason,
+            "failures": [],
+        }
+        for section_name, dependency, reason_code, reason in FUTURE_DEPENDENCY_SECTIONS
     }
 
 
