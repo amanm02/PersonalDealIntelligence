@@ -18,6 +18,7 @@ def test_demo_manifest_covers_required_source_shapes_and_edge_cases():
         for deal_type in ([fixture.deal_type] if fixture.deal_type else fixture.deal_types)
     }
     edge_cases = {edge for fixture in fixtures for edge in fixture.edge_cases}
+    scenario_ids = {scenario for fixture in fixtures for scenario in fixture.scenario_ids}
 
     assert {
         "official_bank_promo_page",
@@ -45,6 +46,21 @@ def test_demo_manifest_covers_required_source_shapes_and_edge_cases():
         "disabled_or_disallowed_source",
         "non_deal_content",
     }.issubset(edge_cases)
+    assert {
+        "active_checking",
+        "active_savings",
+        "checking_savings_bundle",
+        "brokerage_bonus",
+        "cd_or_money_market",
+        "expired_offer",
+        "duplicate_offer",
+        "conflicting_terms",
+        "low_value_offer",
+        "ambiguous_terms",
+        "disabled_or_disallowed_source",
+        "non_deal_content",
+    }.issubset(scenario_ids)
+    assert all(fixture.scenario_ids for fixture in fixtures)
 
 
 def test_demo_fixtures_collect_offline_with_synthetic_source_urls():
@@ -77,6 +93,7 @@ def test_demo_fixtures_collect_offline_with_synthetic_source_urls():
             assert item.snapshot.raw_payload["feed_format"] == "rss"
         else:
             assert "fixture" in item.snapshot.raw_payload.get("input_method", "")
+        assert item.fixture.scenario_ids
 
 
 def test_demo_disabled_fixture_is_present_but_not_collected():

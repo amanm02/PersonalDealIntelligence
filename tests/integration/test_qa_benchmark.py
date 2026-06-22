@@ -50,6 +50,14 @@ def test_qa_benchmark_json_output_is_offline_and_deterministic(tmp_path):
     assert first_payload["verification_status"] == "pass"
     assert first_payload["summary"]["raw_snapshots"] == 11
     assert first_payload["summary"]["canonical_deals"] == 8
+    assert first_payload["scenario_coverage"]["missing_scenarios"] == []
+    assert first_payload["scenario_coverage"]["scenario_counts"]["active_checking"] == 1
+    assert (
+        first_payload["scenario_coverage"]["scenario_counts"][
+            "disabled_or_disallowed_source"
+        ]
+        == 1
+    )
     assert first_payload["sections"]["deposit"]["expected_deals_missed"] == []
     assert first_payload["sections"]["deposit"]["status"] == "pass"
     assert (
@@ -127,6 +135,7 @@ def test_qa_benchmark_deposit_category_runs_runnable_fixture_scope(tmp_path):
     assert payload["verification_status"] == "pass"
     assert set(payload["sections"]) == {"deposit"}
     assert payload["sections"]["deposit"]["reason_code"] == "supported_checks_passed"
+    assert payload["scenario_coverage"]["missing_scenarios"] == []
     assert "brokerage_bonus" in payload["sections"]["deposit"]["subcategories_found"]
 
 
@@ -166,3 +175,20 @@ def test_qa_benchmark_fails_when_expected_deal_is_missing(tmp_path):
         "Missing Demo Bank"
     ]
     assert "expected_deals_found" in payload["failures"]
+
+
+def test_qa_benchmark_fails_when_expected_scenario_is_missing(tmp_path):
+    payload = run_banking_qa_benchmark(
+        tmp_path / "pdi-demo-qa.sqlite",
+        reset_db=True,
+        expected_deposit_scenarios=("missing_scenario",),
+    )
+
+    assert payload["verification_status"] == "fail"
+    assert payload["sections"]["deposit"]["status"] == "fail"
+    assert payload["sections"]["deposit"]["reason_code"] == "deposit_checks_failed"
+    assert payload["sections"]["deposit"]["missing_scenarios"] == [
+        "missing_scenario"
+    ]
+    assert "expected_scenarios_present" in payload["sections"]["deposit"]["failures"]
+    assert "expected_scenarios_present" in payload["failures"]

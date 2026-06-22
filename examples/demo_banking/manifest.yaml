@@ -9,6 +9,8 @@ fixtures:
     edge_cases:
       - "direct_deposit_required"
       - "official_source"
+    scenario_ids:
+      - "active_checking"
 
   - id: official_savings_balance_hold
     policy_name: "Demo Official Riverbend Savings Page"
@@ -20,6 +22,8 @@ fixtures:
     edge_cases:
       - "minimum_balance_hold"
       - "official_source"
+    scenario_ids:
+      - "active_savings"
 
   - id: official_checking_savings_bundle
     policy_name: "Demo Official Cypress Bundle Page"
@@ -31,6 +35,8 @@ fixtures:
     edge_cases:
       - "bundle_bonus"
       - "official_source"
+    scenario_ids:
+      - "checking_savings_bundle"
 
   - id: official_brokerage_tiers
     policy_name: "Demo Official Harbor Brokerage Page"
@@ -42,6 +48,8 @@ fixtures:
     edge_cases:
       - "tiered_bonus"
       - "official_source"
+    scenario_ids:
+      - "brokerage_bonus"
 
   - id: official_cd_new_money
     policy_name: "Demo Official Pioneer CD Page"
@@ -53,6 +61,8 @@ fixtures:
     edge_cases:
       - "money_market_or_cd_bonus"
       - "official_source"
+    scenario_ids:
+      - "cd_or_money_market"
 
   - id: deal_blog_rss
     policy_name: "Demo Banking Deal Blog RSS"
@@ -69,6 +79,9 @@ fixtures:
     edge_cases:
       - "duplicate_offer"
       - "expired_offer"
+    scenario_ids:
+      - "duplicate_offer"
+      - "expired_offer"
 
   - id: newsletter_conflict
     policy_name: "Demo User Authorized Newsletter Export"
@@ -78,6 +91,8 @@ fixtures:
     expected_subcategory: "checking_bonus"
     deal_type: "checking_bonus"
     edge_cases:
+      - "conflicting_terms"
+    scenario_ids:
       - "conflicting_terms"
 
   - id: manual_low_value_savings
@@ -89,6 +104,8 @@ fixtures:
     deal_type: "low_value_offer"
     edge_cases:
       - "low_value_offer"
+    scenario_ids:
+      - "low_value_offer"
 
   - id: manual_ambiguous_savings
     policy_name: "Demo Manual User Pasted Banking Notes"
@@ -99,6 +116,8 @@ fixtures:
     deal_type: "ambiguous_offer"
     edge_cases:
       - "missing_high_impact_terms"
+    scenario_ids:
+      - "ambiguous_terms"
 
   - id: manual_non_deal
     policy_name: "Demo Manual User Pasted Banking Notes"
@@ -108,6 +127,8 @@ fixtures:
     expected_subcategory: null
     deal_type: "non_deal"
     edge_cases:
+      - "non_deal_content"
+    scenario_ids:
       - "non_deal_content"
 
   - id: disabled_private_placeholder
@@ -119,4 +140,6 @@ fixtures:
     expected_subcategory: null
     deal_type: "disabled_source"
     edge_cases:
+      - "disabled_or_disallowed_source"
+    scenario_ids:
       - "disabled_or_disallowed_source"
