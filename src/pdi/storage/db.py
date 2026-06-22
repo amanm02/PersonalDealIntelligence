@@ -802,6 +802,7 @@ def list_banking_deal_candidates(
     *,
     raw_snapshot_id: int | None = None,
     rejected: bool | None = None,
+    canonicalization_status: str | None = None,
     subcategory: str | None = None,
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
@@ -815,6 +816,9 @@ def list_banking_deal_candidates(
     if rejected is not None:
         clauses.append("rejected = ?")
         values.append(_bool_to_int(rejected))
+    if canonicalization_status is not None:
+        clauses.append("canonicalization_status = ?")
+        values.append(canonicalization_status)
     if subcategory is not None:
         clauses.append("subcategory = ?")
         values.append(subcategory)
