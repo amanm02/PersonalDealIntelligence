@@ -39,6 +39,7 @@ class DemoFixture:
     deal_type: str | None = None
     deal_types: tuple[str, ...] = ()
     edge_cases: tuple[str, ...] = ()
+    scenario_ids: tuple[str, ...] = ()
     collect: bool = True
     expected_snapshot_count: int = 1
     raw_metadata: Mapping[str, Any] = field(default_factory=dict)
@@ -185,6 +186,7 @@ def _fixture_from_mapping(
         deal_type=_optional_str(raw_fixture.get("deal_type")),
         deal_types=tuple(raw_fixture.get("deal_types") or ()),
         edge_cases=tuple(str(item) for item in raw_fixture["edge_cases"]),
+        scenario_ids=tuple(str(item) for item in raw_fixture.get("scenario_ids") or ()),
         collect=collect,
         expected_snapshot_count=expected_snapshot_count,
         raw_metadata=dict(raw_fixture),
@@ -233,6 +235,7 @@ def _raw_payload(fixture: DemoFixture) -> dict[str, Any]:
         "fixture_id": fixture.fixture_id,
         "source_shape": fixture.source_shape,
         "edge_cases": list(fixture.edge_cases),
+        "scenario_ids": list(fixture.scenario_ids),
         "deal_type": fixture.deal_type,
     }
 

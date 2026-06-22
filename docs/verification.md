@@ -315,6 +315,13 @@ benchmark coverage. Future-only systems such as evidence expansion, persistence
 expansion, taxonomy/lifecycle, and rules-engine checks are reported as
 `skipped_dependency` sections with machine-readable `reason_code` values rather
 than failures.
+Deposit and brokerage fixture scenarios are identified by stable
+`scenario_ids` in `examples/demo_banking/manifest.yaml`; current expected
+scenarios include active checking, active savings, checking+savings bundle,
+brokerage bonus, CD or money-market style offer, expired offer, duplicate
+offer, conflicting terms, low-value offer, ambiguous terms,
+disabled/disallowed source, and non-deal content. `qa-benchmark --json`
+reports these under `scenario_coverage`.
 
 ## Banking MVP readiness validation
 

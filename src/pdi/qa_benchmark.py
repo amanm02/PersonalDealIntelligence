@@ -61,6 +61,20 @@ EXPECTED_EDGE_CASES = (
     "non_deal_content",
     "disabled_or_disallowed_source",
 )
+EXPECTED_DEPOSIT_SCENARIOS = (
+    "active_checking",
+    "active_savings",
+    "checking_savings_bundle",
+    "brokerage_bonus",
+    "cd_or_money_market",
+    "expired_offer",
+    "duplicate_offer",
+    "conflicting_terms",
+    "low_value_offer",
+    "ambiguous_terms",
+    "disabled_or_disallowed_source",
+    "non_deal_content",
+)
 FUTURE_DEPENDENCY_SECTIONS = (
     (
         "evidence_links",
@@ -115,6 +129,7 @@ def run_banking_qa_benchmark(
     reset_db: bool = False,
     allow_existing: bool = False,
     expected_deposit_deals: Sequence[str] = EXPECTED_DEPOSIT_DEALS,
+    expected_deposit_scenarios: Sequence[str] = EXPECTED_DEPOSIT_SCENARIOS,
 ) -> dict[str, Any]:
     """Run deterministic offline QA checks against the demo banking corpus."""
 
@@ -177,6 +192,10 @@ def run_banking_qa_benchmark(
         canonicalization_results,
     )
     conflicts = _conflict_count(db_file, canonicalization_results)
+    scenario_coverage = _scenario_coverage(
+        fixtures,
+        expected_scenarios=expected_deposit_scenarios,
+    )
     failures: list[str] = []
     sections: dict[str, Any] = {}
 
@@ -190,6 +209,7 @@ def run_banking_qa_benchmark(
             duplicate_merges=duplicate_merges,
             conflicts=conflicts,
         )
+        _apply_scenario_coverage(sections["deposit"], scenario_coverage)
         failures.extend(sections["deposit"]["failures"])
 
     if category in {"all", "credit_card"}:
@@ -230,6 +250,7 @@ def run_banking_qa_benchmark(
             "scored_deals": len(scores),
         },
         "fixture_coverage": _fixture_coverage(fixtures),
+        "scenario_coverage": scenario_coverage,
         "sections": sections,
         "failures": failures,
     }
@@ -385,6 +406,47 @@ def _fixture_coverage(fixtures: Sequence[Any]) -> dict[str, Any]:
         "edge_case_counts": dict(sorted(edge_case_counts.items())),
         "missing_edge_cases": missing_edge_cases,
         "disabled_fixture_count": sum(1 for fixture in fixtures if not fixture.collect),
+    }
+
+
+def _apply_scenario_coverage(
+    deposit_section: dict[str, Any],
+    scenario_coverage: Mapping[str, Any],
+) -> None:
+    missing_scenarios = list(scenario_coverage["missing_scenarios"])
+    deposit_section["scenario_coverage"] = scenario_coverage
+    deposit_section["missing_scenarios"] = missing_scenarios
+    deposit_section["checks"]["expected_scenarios_present"] = not missing_scenarios
+    if missing_scenarios:
+        deposit_section["status"] = "fail"
+        deposit_section["reason_code"] = "deposit_checks_failed"
+        deposit_section["reason"] = "Supported deposit and brokerage QA checks failed."
+        if "expected_scenarios_present" not in deposit_section["failures"]:
+            deposit_section["failures"].append("expected_scenarios_present")
+
+
+def _scenario_coverage(
+    fixtures: Sequence[Any],
+    *,
+    expected_scenarios: Sequence[str],
+) -> dict[str, Any]:
+    scenario_counts = {scenario_id: 0 for scenario_id in expected_scenarios}
+    fixture_scenarios: dict[str, list[str]] = {}
+    for fixture in fixtures:
+        scenarios = list(getattr(fixture, "scenario_ids", ()) or ())
+        fixture_scenarios[str(fixture.fixture_id)] = sorted(scenarios)
+        for scenario_id in scenarios:
+            scenario_counts.setdefault(scenario_id, 0)
+            scenario_counts[scenario_id] += 1
+    missing_scenarios = [
+        scenario_id
+        for scenario_id, count in sorted(scenario_counts.items())
+        if count == 0
+    ]
+    return {
+        "scenario_counts": dict(sorted(scenario_counts.items())),
+        "missing_scenarios": missing_scenarios,
+        "fixture_scenarios": dict(sorted(fixture_scenarios.items())),
     }
 
 
