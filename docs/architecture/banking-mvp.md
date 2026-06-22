@@ -190,7 +190,12 @@ text, so duplicate snapshot content remains queryable while source metadata can
 still differ by row. A separate snapshot hash is not currently stored because
 metadata changes are provenance, not raw-content identity.
 
-Raw snapshots allow re-extraction when extractor logic improves.
+Raw snapshots allow offline re-extraction when extractor logic improves.
+`python3 -m pdi banking reextract --snapshot <id> --dry-run --format json`
+and `--all` reprocess stored snapshot text only. Dry-run reports candidate
+differences without writes. Write mode persists new pre-dedupe candidate rows
+and preserves canonical deal values, statuses, source links, and reviewed terms;
+later canonicalization or conflict policy must be explicit.
 
 ### 4. Banking extractor
 
@@ -232,7 +237,21 @@ Extractor identifies:
 
 Extraction must not guess. Unknown fields should remain null/unknown.
 Evidence spans, missing fields, extraction notes, and tiered bonus matches are
-stored with candidates for review and later dedupe/canonicalization.
+stored in `banking_deal_candidates`, the canonical pre-dedupe candidate
+persistence table. Candidate rows preserve unknown terms as `NULL`, keep raw
+evidence/missing-field/extraction-note/pattern JSON deterministic, and track
+rejected and canonicalization lifecycle status for downstream dedupe. During
+canonicalization, deposit and brokerage field evidence is normalized into
+`banking_field_evidence_links` with the canonical deal id, candidate id, raw
+snapshot id, field name, extracted value, excerpt/span offsets, confidence, and
+extraction method/version while preserving candidate and source-link JSON
+evidence for compatibility.
+
+Re-extraction uses the same deterministic extractor against already stored raw
+snapshots. It compares the newest existing candidate for a snapshot with the
+fresh candidate output across extraction fields and reports changed values in a
+stable order. Re-extraction does not fetch sources, canonicalize candidates, or
+mutate reviewed canonical deal data.
 Intro APR and category multipliers are supporting context unless the offer is
 explicitly about 0% APR or those multipliers are part of the signup offer terms.
 Issuer application restrictions should be captured as review notes, not hard
@@ -246,7 +265,13 @@ Implemented dedupe and canonicalization is exposed under `pdi.dedupe`. It
 consumes non-rejected `banking_deal_candidates`, creates or updates canonical
 `banking_deals`, links every candidate/source snapshot to
 `banking_deal_source_links`, and records material differences in
-`deal_change_events`.
+`deal_change_events`. `banking_deal_source_links` is the canonical
+deal-to-candidate/snapshot evidence relation. Links preserve source name, URL,
+authority, link type, trust tier, official-source flag, notes, retrieval time,
+confidence, and compact evidence JSON; unknown source authority remains
+`unknown` and unknown review metadata remains null rather than guessed.
+Duplicate deal/candidate link inserts return the existing relation instead of
+creating duplicate rows.
 
 Matching uses conservative signals:
 
@@ -338,6 +363,8 @@ writes a local digest artifact for demo review.
 `show` includes terms, score explanation, source URLs, missing-data warnings,
 source-link references, field-level evidence excerpts for critical terms,
 snapshot ids/content hashes, missing-evidence warnings, and status history.
+Field evidence is stored in a normalized table and remains linked back to the
+candidate/source JSON evidence for auditability.
 Field-level evidence is derived from stored candidate evidence spans and
 canonical source links; it is not a substitute for manual verification on
 official institution or issuer pages.

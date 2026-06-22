@@ -140,6 +140,13 @@ Current narrower extractor command:
 python3 -m pytest tests/extractors
 ```
 
+Current narrower stored-snapshot re-extraction commands:
+
+```bash
+python3 -m pytest tests/extractors tests/storage tests/cli
+python3 -m pdi --db /tmp/pdi-reextract.sqlite banking reextract --all --dry-run --format json
+```
+
 Current narrower dedupe command:
 
 ```bash
@@ -375,6 +382,23 @@ Must validate:
 - raw snapshots link to extracted/canonical records
 - raw snapshot content hashes are derived from stored raw text
 - duplicate raw snapshot content hashes are queryable without deduping rows
+- `banking_deal_candidates` is the canonical extracted pre-dedupe candidate
+  table; helpers preserve unknown terms as nulls, deterministic JSON evidence,
+  rejected filters, pending filters, canonicalization status filters, and raw
+  snapshot foreign-key integrity
+- existing candidate rows migrate cleanly from older local database versions
+- `banking_deal_source_links` is the canonical deal-to-candidate/snapshot
+  evidence relation; helpers list by deal and candidate, preserve nullable
+  unknown source authority and review metadata, avoid duplicate relationship
+  rows, and enforce source-link foreign-key integrity
+- stored raw snapshots can be re-extracted offline without live collection
+- re-extraction dry-run reports deterministic candidate comparisons without
+  writing new candidate rows
+- re-extraction write mode creates new pre-dedupe candidates while preserving
+  reviewed canonical deal values and statuses
+- field-level evidence links preserve deal, candidate, raw snapshot, source-link,
+  field, extracted value, excerpt, span, confidence, and extraction metadata
+- missing field evidence is detectable for populated canonical fields
 - status/change events can be recorded
 - partially extracted unknown fields remain null
 

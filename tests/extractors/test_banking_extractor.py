@@ -1,11 +1,20 @@
 import json
+import sqlite3
 from pathlib import Path
 
-from pdi.extractors import extract_and_persist_snapshot, extract_banking_deal
+from pdi.extractors import (
+    extract_and_persist_snapshot,
+    extract_banking_deal,
+    reextract_all_snapshots,
+    reextract_snapshot,
+)
 from pdi.storage import (
+    get_banking_deal,
     get_banking_deal_candidate,
     initialize_database,
+    insert_banking_deal,
     insert_raw_snapshot,
+    list_banking_deal_candidates,
 )
 
 
@@ -34,6 +43,10 @@ def assert_evidence_matches_source(raw_text, candidate):
         assert normalized[span.start : span.end] == span.text
 
 
+def evidence_fields(candidate):
+    return {span.field for span in candidate.evidence_spans}
+
+
 def test_extracts_checking_bonus_with_direct_deposit_and_evidence():
     raw_text = load_fixture("checking_direct_deposit.txt")
 
@@ -57,6 +70,12 @@ def test_extracts_checking_bonus_with_direct_deposit_and_evidence():
     assert "bonus_amount_cents" not in candidate.missing_fields
     assert "expires_at" not in candidate.missing_fields
     assert_evidence_matches_source(raw_text, candidate)
+    assert {
+        "bonus_amount_cents",
+        "direct_deposit_required",
+        "direct_deposit_minimum_cents",
+        "monthly_fee_cents",
+    }.issubset(evidence_fields(candidate))
 
 
 def test_extracts_savings_bonus_with_minimum_balance_hold():
@@ -75,6 +94,13 @@ def test_extracts_savings_bonus_with_minimum_balance_hold():
     assert candidate.monthly_fee_cents == 0
     assert candidate.expires_at == "2026-11-30"
     assert_evidence_matches_source(raw_text, candidate)
+    assert {
+        "bonus_amount_cents",
+        "minimum_deposit_amount_cents",
+        "minimum_balance_required_cents",
+        "balance_hold_days",
+        "direct_deposit_required",
+    }.issubset(evidence_fields(candidate))
 
 
 def test_extracts_brokerage_tiered_bonus_amounts():
@@ -105,6 +131,12 @@ def test_extracts_brokerage_tiered_bonus_amounts():
         },
     ]
     assert_evidence_matches_source(raw_text, candidate)
+    assert {
+        "tiered_bonus",
+        "bonus_amount_cents",
+        "minimum_deposit_amount_cents",
+        "balance_hold_days",
+    }.issubset(evidence_fields(candidate))
 
 
 def test_ambiguous_promo_keeps_missing_expiration_unknown():
@@ -167,3 +199,132 @@ def test_extract_and_persist_snapshot_links_candidate_to_raw_snapshot(tmp_path):
     missing_fields = json.loads(row["missing_fields_json"])
     assert any(span["field"] == "bonus_amount_cents" for span in evidence)
     assert "bonus_amount_cents" not in missing_fields
+
+
+def test_reextract_snapshot_dry_run_reports_changes_without_writes(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    raw_text = load_fixture("checking_direct_deposit.txt")
+    snapshot_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_url": "manual://checking-fixture",
+            "source_name": "Checking Fixture",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "raw_text": raw_text,
+            "collector_name": "fixture",
+        },
+    )
+    candidate_id = extract_and_persist_snapshot(db_path, snapshot_id)
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            "UPDATE banking_deal_candidates SET bonus_amount_cents = ? WHERE id = ?",
+            (25000, candidate_id),
+        )
+        connection.commit()
+
+    result = reextract_snapshot(db_path, snapshot_id, dry_run=True)
+    candidates = list_banking_deal_candidates(db_path, raw_snapshot_id=snapshot_id)
+
+    assert result.dry_run is True
+    assert result.previous_candidate_id == candidate_id
+    assert result.new_candidate_id is None
+    assert [candidate["id"] for candidate in candidates] == [candidate_id]
+    second_result = reextract_snapshot(db_path, snapshot_id, dry_run=True)
+    changed = {change.field: change.to_dict() for change in result.changed_fields}
+    assert changed["bonus_amount_cents"] == {
+        "field": "bonus_amount_cents",
+        "previous_value": 25000,
+        "new_value": 30000,
+    }
+    assert [change.to_dict() for change in result.changed_fields] == [
+        change.to_dict() for change in second_result.changed_fields
+    ]
+
+
+def test_reextract_snapshot_noop_reports_no_changes(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    raw_text = load_fixture("checking_direct_deposit.txt")
+    snapshot_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_url": "manual://checking-fixture",
+            "source_name": "Checking Fixture",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "raw_text": raw_text,
+            "collector_name": "fixture",
+        },
+    )
+    extract_and_persist_snapshot(db_path, snapshot_id)
+
+    result = reextract_snapshot(db_path, snapshot_id, dry_run=True)
+
+    assert result.changed_fields == []
+
+
+def test_reextract_snapshot_write_creates_candidate_without_canonical_mutation(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    raw_text = load_fixture("checking_direct_deposit.txt")
+    snapshot_id = insert_raw_snapshot(
+        db_path,
+        {
+            "source_url": "manual://checking-fixture",
+            "source_name": "Checking Fixture",
+            "retrieved_at": "2026-06-17T12:00:00+00:00",
+            "raw_text": raw_text,
+            "collector_name": "fixture",
+        },
+    )
+    extract_and_persist_snapshot(db_path, snapshot_id)
+    deal_id = insert_banking_deal(
+        db_path,
+        {
+            "canonical_key": "reviewed-fixture",
+            "title": "Reviewed Fixture",
+            "institution_name": "Fixture Bank",
+            "subcategory": "checking_bonus",
+            "bonus_amount_cents": 10000,
+            "source_name": "Reviewed Source",
+            "source_url": "manual://reviewed",
+            "status": "watching",
+            "raw_snapshot_id": snapshot_id,
+            "terms": {"direct_deposit_required": False},
+        },
+    )
+
+    result = reextract_snapshot(db_path, snapshot_id, dry_run=False)
+    candidates = list_banking_deal_candidates(db_path, raw_snapshot_id=snapshot_id)
+    deal = get_banking_deal(db_path, deal_id)
+
+    assert result.new_candidate_id is not None
+    assert len(candidates) == 2
+    assert get_banking_deal_candidate(db_path, result.new_candidate_id)[
+        "bonus_amount_cents"
+    ] == 30000
+    assert deal["bonus_amount_cents"] == 10000
+    assert deal["status"] == "watching"
+
+
+def test_reextract_all_snapshots_is_deterministic(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    snapshot_ids = []
+    for filename in ["checking_direct_deposit.txt", "savings_balance_hold.txt"]:
+        snapshot_ids.append(
+            insert_raw_snapshot(
+                db_path,
+                {
+                    "source_url": f"manual://{filename}",
+                    "source_name": filename,
+                    "retrieved_at": "2026-06-17T12:00:00+00:00",
+                    "raw_text": load_fixture(filename),
+                    "collector_name": "fixture",
+                },
+            )
+        )
+
+    results = reextract_all_snapshots(db_path, dry_run=True)
+
+    assert [result.raw_snapshot_id for result in results] == snapshot_ids

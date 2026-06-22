@@ -16,6 +16,7 @@ from pdi.alerts import (
     load_alert_config,
     write_digest_artifact,
 )
+from pdi.extractors import reextract_all_snapshots, reextract_snapshot
 from pdi.public_pilot import (
     NO_ENABLED_PUBLIC_PILOT_MESSAGE,
     validate_public_pilot_sources,
@@ -50,6 +51,7 @@ from pdi.storage import (
     list_banking_runs,
     list_deal_change_events,
     list_deal_status_events,
+    list_field_evidence_links,
 )
 
 
@@ -541,6 +543,34 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Shortcut for --format json.",
     )
     qa_parser.set_defaults(handler=_handle_qa_benchmark)
+
+    reextract_parser = banking_subparsers.add_parser(
+        "reextract",
+        help="Reprocess stored raw snapshots without live collection.",
+    )
+    reextract_target = reextract_parser.add_mutually_exclusive_group(required=True)
+    reextract_target.add_argument("--snapshot", type=int, help="Raw snapshot id.")
+    reextract_target.add_argument(
+        "--all",
+        action="store_true",
+        help="Reprocess all stored raw snapshots.",
+    )
+    reextract_mode = reextract_parser.add_mutually_exclusive_group()
+    reextract_mode.add_argument(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        default=True,
+        help="Report changes without writing new candidates. This is the default.",
+    )
+    reextract_mode.add_argument(
+        "--write",
+        dest="dry_run",
+        action="store_false",
+        help="Persist new candidate rows while preserving canonical deals.",
+    )
+    _add_output_format(reextract_parser)
+    reextract_parser.set_defaults(handler=_handle_reextract)
 
     return parser
 
@@ -1076,6 +1106,29 @@ def _handle_qa_benchmark(args: argparse.Namespace) -> int:
     return 1 if summary["verification_status"] == "fail" else 0
 
 
+def _handle_reextract(args: argparse.Namespace) -> int:
+    initialize_database(args.db)
+    if args.all:
+        results = reextract_all_snapshots(args.db, dry_run=args.dry_run)
+    else:
+        results = [reextract_snapshot(args.db, args.snapshot, dry_run=args.dry_run)]
+    payload = {
+        "dry_run": args.dry_run,
+        "snapshot_count": len(results),
+        "candidate_write_count": sum(
+            1 for result in results if result.new_candidate_id is not None
+        ),
+        "changed_snapshot_count": sum(1 for result in results if result.changed_fields),
+        "results": [result.to_dict() for result in results],
+        "canonical_values_preserved": True,
+    }
+    if args.format == "json":
+        _print_json(payload)
+    else:
+        _print_reextract_summary(payload)
+    return 0
+
+
 def _filtered_deals(
     db_path: str,
     *,
@@ -1284,7 +1337,7 @@ def _deal_detail(db_path: str, deal_id: int) -> dict[str, Any]:
     status_events = list_deal_status_events(db_path, deal_id=deal_id)
     source_urls = _source_urls(deal, source_links)
     terms = _normalized_terms(deal.get("terms") or {})
-    field_evidence = _field_evidence(db_path, source_links)
+    field_evidence = _review_field_evidence(db_path, deal_id)
     return {
         "id": deal["id"],
         "title": deal["title"],
@@ -1294,6 +1347,7 @@ def _deal_detail(db_path: str, deal_id: int) -> dict[str, Any]:
         "status": deal["status"],
         "source_urls": source_urls,
         "source_links": [_source_link_payload(link) for link in source_links],
+        "source_snapshots": _source_snapshots(db_path, source_links),
         "bonus_amount_cents": deal.get("bonus_amount_cents"),
         "estimated_net_value_cents": score.estimated_net_value,
         "score": score.to_dict(),
@@ -1307,6 +1361,7 @@ def _deal_detail(db_path: str, deal_id: int) -> dict[str, Any]:
             _evidence_field_values(deal, terms),
             field_evidence,
         ),
+        "evidence_authority_warnings": _evidence_authority_warnings(field_evidence),
         "evidence_references": [_source_link_payload(link) for link in source_links],
         "field_evidence": field_evidence,
         "status_history": status_events,
@@ -1391,6 +1446,64 @@ def _source_link_payload(link: Mapping[str, Any]) -> dict[str, Any]:
         "confidence_score": link.get("confidence_score"),
         "evidence": _json_value(link.get("evidence_json")),
     }
+
+
+def _source_snapshots(
+    db_path: str,
+    source_links: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    snapshots: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for link in source_links:
+        raw_snapshot_id = link.get("raw_snapshot_id")
+        if raw_snapshot_id is None:
+            continue
+        snapshot_id = int(raw_snapshot_id)
+        if snapshot_id in seen:
+            continue
+        seen.add(snapshot_id)
+        snapshot = get_raw_snapshot(db_path, snapshot_id)
+        if snapshot is None:
+            continue
+        raw_payload = _json_value(snapshot.get("raw_payload_json"))
+        snapshots.append(
+            {
+                "id": snapshot["id"],
+                "source_record_id": snapshot.get("source_record_id"),
+                "source_name": snapshot.get("source_name"),
+                "source_url": snapshot.get("source_url"),
+                "retrieved_at": snapshot.get("retrieved_at"),
+                "content_hash": snapshot.get("content_hash"),
+                "http_status": snapshot.get("http_status"),
+                "collector_name": snapshot.get("collector_name"),
+                "raw_payload_metadata": _raw_payload_metadata(raw_payload),
+                "raw_text_length": len(snapshot.get("raw_text") or ""),
+            }
+        )
+    return sorted(snapshots, key=lambda item: int(item["id"]))
+
+
+def _review_field_evidence(db_path: str, deal_id: int) -> list[dict[str, Any]]:
+    evidence_items = [
+        item
+        for item in list_field_evidence_links(db_path, deal_id=deal_id)
+        if item.get("field") in CRITICAL_EVIDENCE_FIELDS
+    ]
+    expanded: list[dict[str, Any]] = []
+    for item in evidence_items:
+        expanded.append(item)
+        if item.get("field") == "expires_at":
+            deadline_item = dict(item)
+            deadline_item["field"] = "application_deadline"
+            expanded.append(deadline_item)
+    return sorted(
+        expanded,
+        key=lambda item: (
+            str(item.get("field") or ""),
+            int(item.get("raw_snapshot_id") or 0),
+            int(item.get("start") or 0),
+        ),
+    )
 
 
 def _field_evidence(
@@ -1496,6 +1609,25 @@ def _missing_evidence_warnings(
     return warnings
 
 
+def _evidence_authority_warnings(
+    field_evidence: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    by_field: dict[str, set[str]] = {}
+    for item in field_evidence:
+        field_name = item.get("field")
+        if field_name is None:
+            continue
+        by_field.setdefault(str(field_name), set()).add(
+            str(item.get("source_authority") or "unknown")
+        )
+    warnings = []
+    for field_name in sorted(by_field):
+        authorities = by_field[field_name]
+        if "official" not in authorities and authorities <= {"secondary"}:
+            warnings.append(f"{field_name} has only secondary-source evidence")
+    return warnings
+
+
 def _source_context(
     deal: Mapping[str, Any],
     source_links: Sequence[Mapping[str, Any]],
@@ -1512,6 +1644,19 @@ def _source_context(
         "source_url": deal.get("source_url"),
         "source_authority": "unknown",
     }
+
+
+def _raw_payload_metadata(raw_payload: Any) -> dict[str, Any] | None:
+    if raw_payload is None:
+        return None
+    if isinstance(raw_payload, Mapping):
+        return {
+            "keys": sorted(str(key) for key in raw_payload),
+            "field_count": len(raw_payload),
+        }
+    if isinstance(raw_payload, list):
+        return {"type": "list", "item_count": len(raw_payload)}
+    return {"type": type(raw_payload).__name__}
 
 
 def _needs_review(
@@ -1713,12 +1858,27 @@ def _print_detail(detail: Mapping[str, Any]) -> None:
     print("Missing evidence warnings:")
     for warning in detail["missing_evidence_warnings"] or ["none"]:
         print(f"  - {warning}")
+    print("Evidence authority warnings:")
+    for warning in detail["evidence_authority_warnings"] or ["none"]:
+        print(f"  - {warning}")
     print("Evidence references:")
     for item in detail["evidence_references"] or [{"source_name": "none"}]:
         print(
             "  - "
             f"{item.get('source_name')} "
             f"{item.get('source_url') or ''}".rstrip()
+        )
+    print("Source snapshots:")
+    for item in detail["source_snapshots"] or [{"id": "none"}]:
+        if item.get("id") == "none":
+            print("  - none")
+            continue
+        content_hash = item.get("content_hash") or "unknown"
+        print(
+            "  - "
+            f"snapshot {item.get('id')}: {item.get('source_name')} "
+            f"(hash {content_hash[:12]}, collector {item.get('collector_name')}, "
+            f"retrieved {item.get('retrieved_at') or 'unknown'})"
         )
     print("Field evidence:")
     for item in detail["field_evidence"] or [{"field": "none"}]:
@@ -1819,6 +1979,28 @@ def _print_qa_benchmark_summary(summary: Mapping[str, Any]) -> None:
         print("Failures:")
         for failure in summary["failures"]:
             print(f"  - {failure}")
+
+
+def _print_reextract_summary(payload: Mapping[str, Any]) -> None:
+    print(
+        "Offline banking re-extraction complete "
+        f"({'dry-run' if payload['dry_run'] else 'write'})."
+    )
+    rows = []
+    for item in payload["results"]:
+        changed = item.get("changed_fields") or []
+        rows.append(
+            {
+                "snapshot": item["raw_snapshot_id"],
+                "previous_candidate": item.get("previous_candidate_id") or "none",
+                "new_candidate": item.get("new_candidate_id") or "dry-run",
+                "changed_fields": ",".join(change["field"] for change in changed)
+                or "none",
+                "source": item.get("source_name") or "unknown",
+            }
+        )
+    _print_table(rows, empty_message="No raw snapshots found.")
+    print("Canonical values preserved: yes")
 
 
 def _print_table(
