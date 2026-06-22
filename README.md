@@ -254,8 +254,10 @@ automation, connect email accounts, send notifications, or perform banking
 actions. `pdi banking qa-benchmark` runs the same reusable demo corpus through
 offline collection, extraction, dedupe, scoring, and QA checks for expected
 deals, duplicate merges, surfaced conflicts, non-deal suppression, score sanity,
-and fixture coverage. Credit-card runtime coverage is reported as pending until
-that product path exists.
+and fixture coverage. Credit-card benchmark coverage is reported as
+`pending_runtime`, and future dependency checks are reported as
+`skipped_dependency` with deterministic reason codes until their dedicated
+issues land.
 
 Collector support exists under `pdi.collectors` for manual text, manual URL
 records, RSS/Atom fixture content, newsletter/email export text, and
@@ -369,7 +371,8 @@ local markdown digest, and prints summary counts. It does not fetch websites,
 connect email accounts, send external messages, or automate banking actions.
 The QA benchmark is also local-only and fails when expected demo deals, duplicate
 handling, conflict surfacing, non-deal suppression, or score sanity checks
-regress.
+regress. Unsupported future systems remain pending or skipped in the benchmark
+output rather than failing the supported offline checks.
 
 After the smoke flow seeds a local database, these searches should return
 checking, savings, and brokerage examples from the synthetic corpus:

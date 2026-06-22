@@ -51,7 +51,22 @@ def test_qa_benchmark_json_output_is_offline_and_deterministic(tmp_path):
     assert first_payload["summary"]["raw_snapshots"] == 11
     assert first_payload["summary"]["canonical_deals"] == 8
     assert first_payload["sections"]["deposit"]["expected_deals_missed"] == []
+    assert first_payload["sections"]["deposit"]["status"] == "pass"
+    assert (
+        first_payload["sections"]["deposit"]["reason_code"]
+        == "supported_checks_passed"
+    )
     assert first_payload["sections"]["credit_card"]["status"] == "pending_runtime"
+    assert first_payload["sections"]["credit_card"]["reason_code"] == (
+        "credit_card_coverage_deferred_to_24d"
+    )
+    assert first_payload["sections"]["rules_engine"] == {
+        "dependency": "#37",
+        "failures": [],
+        "reason": "Eligibility and requirements rules-engine checks remain deferred to #37.",
+        "reason_code": "rules_engine_deferred",
+        "status": "skipped_dependency",
+    }
 
 
 def test_qa_benchmark_table_output_reports_core_checks(tmp_path):
@@ -67,6 +82,8 @@ def test_qa_benchmark_table_output_reports_core_checks(tmp_path):
     assert "verification_status" in result.stdout
     assert "deposit" in result.stdout
     assert "pending_runtime" in result.stdout
+    assert "supported_checks_passed" in result.stdout
+    assert "skipped_dependency" in result.stdout
 
 
 def test_qa_benchmark_can_be_repeated_against_same_database(tmp_path):
@@ -109,6 +126,7 @@ def test_qa_benchmark_deposit_category_runs_runnable_fixture_scope(tmp_path):
     assert payload["category"] == "deposit"
     assert payload["verification_status"] == "pass"
     assert set(payload["sections"]) == {"deposit"}
+    assert payload["sections"]["deposit"]["reason_code"] == "supported_checks_passed"
     assert "brokerage_bonus" in payload["sections"]["deposit"]["subcategories_found"]
 
 
@@ -129,6 +147,9 @@ def test_qa_benchmark_credit_card_category_reports_deferred_runtime(tmp_path):
     assert payload["verification_status"] == "pending"
     assert payload["summary"]["raw_snapshots"] == 0
     assert payload["sections"]["credit_card"]["status"] == "pending_runtime"
+    assert payload["sections"]["credit_card"]["reason_code"] == (
+        "credit_card_coverage_deferred_to_24d"
+    )
 
 
 def test_qa_benchmark_fails_when_expected_deal_is_missing(tmp_path):
@@ -139,6 +160,8 @@ def test_qa_benchmark_fails_when_expected_deal_is_missing(tmp_path):
     )
 
     assert payload["verification_status"] == "fail"
+    assert payload["sections"]["deposit"]["status"] == "fail"
+    assert payload["sections"]["deposit"]["reason_code"] == "deposit_checks_failed"
     assert payload["sections"]["deposit"]["expected_deals_missed"] == [
         "Missing Demo Bank"
     ]

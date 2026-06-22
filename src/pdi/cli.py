@@ -2151,10 +2151,12 @@ def _print_qa_benchmark_summary(summary: Mapping[str, Any]) -> None:
             {
                 "section": name,
                 "status": section["status"],
+                "reason_code": section.get("reason_code", "none"),
                 "found": section.get("expected_deals_found", "n/a"),
                 "missed": ", ".join(section.get("expected_deals_missed") or [])
                 or "none",
                 "failures": ", ".join(section.get("failures") or []) or "none",
+                "reason": section.get("reason", ""),
             }
         )
     _print_table(section_rows, empty_message="No QA benchmark sections generated.")
