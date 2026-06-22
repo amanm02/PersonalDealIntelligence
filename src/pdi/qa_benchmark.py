@@ -130,6 +130,7 @@ def run_banking_qa_benchmark(
     allow_existing: bool = False,
     expected_deposit_deals: Sequence[str] = EXPECTED_DEPOSIT_DEALS,
     expected_deposit_scenarios: Sequence[str] = EXPECTED_DEPOSIT_SCENARIOS,
+    expected_duplicate_merges_min: int = 1,
 ) -> dict[str, Any]:
     """Run deterministic offline QA checks against the demo banking corpus."""
 
@@ -206,10 +207,15 @@ def run_banking_qa_benchmark(
             canonicalization_results=canonicalization_results,
             scores=scores,
             expected_deals=expected_deposit_deals,
+            expected_duplicate_merges_min=expected_duplicate_merges_min,
             duplicate_merges=duplicate_merges,
             conflicts=conflicts,
         )
-        _apply_scenario_coverage(sections["deposit"], scenario_coverage)
+        _apply_scenario_coverage(
+            sections["deposit"],
+            scenario_coverage,
+            expected_scenarios=expected_deposit_scenarios,
+        )
         failures.extend(sections["deposit"]["failures"])
 
     if category in {"all", "credit_card"}:
@@ -251,6 +257,7 @@ def run_banking_qa_benchmark(
         },
         "fixture_coverage": _fixture_coverage(fixtures),
         "scenario_coverage": scenario_coverage,
+        "supported_checks": _supported_checks_for_sections(sections),
         "sections": sections,
         "failures": failures,
     }
@@ -263,6 +270,7 @@ def _evaluate_deposit_benchmark(
     canonicalization_results: Sequence[CanonicalizationResult],
     scores: Mapping[int, BankingScore],
     expected_deals: Sequence[str],
+    expected_duplicate_merges_min: int,
     duplicate_merges: int,
     conflicts: int,
 ) -> dict[str, Any]:
@@ -283,33 +291,118 @@ def _evaluate_deposit_benchmark(
         for candidate in rejected_candidates
     )
     score_checks = _score_sanity_checks(deals, scores)
-    checks = {
-        "expected_deals_found": not missed,
-        "unexpected_deals_absent": not unexpected,
-        "expected_subcategories_present": set(EXPECTED_SUBCATEGORIES).issubset(
-            subcategories
+    check_results = [
+        _supported_check(
+            "expected_deals_found",
+            not missed,
+            actual=found_names,
+            expected=expected_names,
+            reason="All required deposit and brokerage demo deals should canonicalize.",
         ),
-        "duplicate_offer_merged": len(northstar_deals) == 1 and duplicate_merges >= 1,
-        "conflicting_terms_surfaced": bool(northstar_deals)
-        and northstar_deals[0]["status"] == "needs_review"
-        and conflicts >= 1,
-        "non_deal_suppressed": len(rejected_candidates) == 1 and non_deal_rejected,
-        "expired_offer_flagged": score_checks["expired_offer_flagged"],
-        "low_value_offer_flagged": score_checks["low_value_offer_flagged"],
-        "ambiguous_terms_surfaced": any(
-            deal["institution_name"] == "Prairie Example Bank"
-            and deal["bonus_amount_cents"] is None
-            and deal["expires_at"] is None
-            for deal in deals
+        _supported_check(
+            "unexpected_deals_absent",
+            not unexpected,
+            actual=unexpected,
+            expected=[],
+            reason="Fixture content that is not an expected deal should not become a canonical deal.",
         ),
-        "scores_persisted": all(
-            deal["estimated_net_value_cents"] is not None for deal in deals
+        _supported_check(
+            "expected_subcategories_present",
+            set(EXPECTED_SUBCATEGORIES).issubset(subcategories),
+            actual=subcategories,
+            expected=sorted(EXPECTED_SUBCATEGORIES),
+            reason="The supported deposit, savings, bundle, brokerage, and CD categories should be represented.",
         ),
-    }
+        _supported_check(
+            "duplicate_offer_merged",
+            len(northstar_deals) == 1
+            and duplicate_merges >= expected_duplicate_merges_min,
+            actual={
+                "canonical_deals_for_fixture": len(northstar_deals),
+                "duplicate_merges": duplicate_merges,
+            },
+            expected={
+                "canonical_deals_for_fixture": 1,
+                "duplicate_merges_min": expected_duplicate_merges_min,
+            },
+            reason="Duplicate fixture mentions should merge into one canonical deal.",
+        ),
+        _supported_check(
+            "conflicting_terms_surfaced",
+            bool(northstar_deals)
+            and northstar_deals[0]["status"] == "needs_review"
+            and conflicts >= 1,
+            actual={
+                "canonical_deals_for_fixture": len(northstar_deals),
+                "deal_status": northstar_deals[0]["status"]
+                if northstar_deals
+                else "missing",
+                "conflicts": conflicts,
+            },
+            expected={
+                "canonical_deals_for_fixture": 1,
+                "deal_status": "needs_review",
+                "conflicts_min": 1,
+            },
+            reason="Conflicting fixture terms should surface as review-needed canonical state.",
+        ),
+        _supported_check(
+            "non_deal_suppressed",
+            len(rejected_candidates) == 1 and non_deal_rejected,
+            actual={
+                "rejected_candidates": len(rejected_candidates),
+                "non_deal_rejected": non_deal_rejected,
+            },
+            expected={
+                "rejected_candidates": 1,
+                "non_deal_rejected": True,
+            },
+            reason="Non-deal fixture text should be rejected instead of canonicalized.",
+        ),
+        _supported_check(
+            "expired_offer_flagged",
+            score_checks["expired_offer_flagged"],
+            actual=score_checks["recommended_actions"].get("Sunset Demo Bank"),
+            expected="expired",
+            reason="Expired fixture offers should score as expired.",
+        ),
+        _supported_check(
+            "low_value_offer_flagged",
+            score_checks["low_value_offer_flagged"],
+            actual=score_checks["recommended_actions"].get("Lakeside Sample Bank"),
+            expected="skip_low_value",
+            reason="Low-value fixture offers should be flagged as low value.",
+        ),
+        _supported_check(
+            "ambiguous_terms_surfaced",
+            any(
+                deal["institution_name"] == "Prairie Example Bank"
+                and deal["bonus_amount_cents"] is None
+                and deal["expires_at"] is None
+                for deal in deals
+            ),
+            actual=_deal_terms_snapshot(deals, "Prairie Example Bank"),
+            expected={
+                "bonus_amount_cents": None,
+                "expires_at": None,
+            },
+            reason="Ambiguous fixture terms should remain unknown instead of inferred.",
+        ),
+        _supported_check(
+            "scores_persisted",
+            all(deal["estimated_net_value_cents"] is not None for deal in deals),
+            actual=sum(
+                1 for deal in deals if deal["estimated_net_value_cents"] is not None
+            ),
+            expected=len(deals),
+            reason="Every canonical supported demo deal should have a persisted score.",
+        ),
+    ]
+    checks = _checks_by_name(check_results)
     failures = [
-        name
-        for name, passed in checks.items()
-        if not passed
+        check["name"]
+        for check in check_results
+        if check["status"] == "fail"
     ]
 
     return {
@@ -327,6 +420,7 @@ def _evaluate_deposit_benchmark(
         "unexpected_deals": unexpected,
         "subcategories_found": subcategories,
         "checks": checks,
+        "supported_checks": check_results,
         "score_sanity": score_checks,
         "failures": failures,
     }
@@ -412,17 +506,24 @@ def _fixture_coverage(fixtures: Sequence[Any]) -> dict[str, Any]:
 def _apply_scenario_coverage(
     deposit_section: dict[str, Any],
     scenario_coverage: Mapping[str, Any],
+    *,
+    expected_scenarios: Sequence[str],
 ) -> None:
     missing_scenarios = list(scenario_coverage["missing_scenarios"])
     deposit_section["scenario_coverage"] = scenario_coverage
     deposit_section["missing_scenarios"] = missing_scenarios
-    deposit_section["checks"]["expected_scenarios_present"] = not missing_scenarios
-    if missing_scenarios:
+    check = _supported_check(
+        "expected_scenarios_present",
+        not missing_scenarios,
+        actual=scenario_coverage["scenario_counts"],
+        expected=sorted(expected_scenarios),
+        reason="Every required fixture scenario should be present in the demo manifest.",
+    )
+    _append_supported_check(deposit_section, check)
+    if check["status"] == "fail":
         deposit_section["status"] = "fail"
         deposit_section["reason_code"] = "deposit_checks_failed"
         deposit_section["reason"] = "Supported deposit and brokerage QA checks failed."
-        if "expected_scenarios_present" not in deposit_section["failures"]:
-            deposit_section["failures"].append("expected_scenarios_present")
 
 
 def _scenario_coverage(
@@ -448,6 +549,60 @@ def _scenario_coverage(
         "missing_scenarios": missing_scenarios,
         "fixture_scenarios": dict(sorted(fixture_scenarios.items())),
     }
+
+
+def _supported_check(
+    name: str,
+    passed: bool,
+    *,
+    actual: Any,
+    expected: Any,
+    reason: str,
+) -> dict[str, Any]:
+    return {
+        "name": name,
+        "status": "pass" if passed else "fail",
+        "actual": actual,
+        "expected": expected,
+        "reason": reason,
+    }
+
+
+def _checks_by_name(checks: Sequence[Mapping[str, Any]]) -> dict[str, bool]:
+    return {str(check["name"]): check["status"] == "pass" for check in checks}
+
+
+def _append_supported_check(
+    section: dict[str, Any],
+    check: Mapping[str, Any],
+) -> None:
+    section["supported_checks"].append(dict(check))
+    section["checks"][str(check["name"])] = check["status"] == "pass"
+    if check["status"] == "fail" and check["name"] not in section["failures"]:
+        section["failures"].append(str(check["name"]))
+
+
+def _supported_checks_for_sections(
+    sections: Mapping[str, Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        {"section": section_name, **dict(check)}
+        for section_name, section in sections.items()
+        for check in section.get("supported_checks", [])
+    ]
+
+
+def _deal_terms_snapshot(
+    deals: Sequence[Mapping[str, Any]],
+    institution_name: str,
+) -> dict[str, Any] | None:
+    for deal in deals:
+        if deal["institution_name"] == institution_name:
+            return {
+                "bonus_amount_cents": deal["bonus_amount_cents"],
+                "expires_at": deal["expires_at"],
+            }
+    return None
 
 
 def _has_existing_rows(db_path: Path) -> bool:

@@ -254,14 +254,17 @@ automation, connect email accounts, send notifications, or perform banking
 actions. `pdi banking qa-benchmark` runs the same reusable demo corpus through
 offline collection, extraction, dedupe, scoring, and QA checks for expected
 deals, duplicate merges, surfaced conflicts, non-deal suppression, score sanity,
-and fixture coverage. Credit-card benchmark coverage is reported as
-`pending_runtime`, and future dependency checks are reported as
+and fixture coverage. Supported checks are reported in deterministic order with
+`status`, `actual`, `expected`, and `reason`; failed supported checks make the
+command exit nonzero and appear in `failures`. Credit-card benchmark coverage is
+reported as `pending_runtime`, and future dependency checks are reported as
 `skipped_dependency` with deterministic reason codes until their dedicated
-issues land. Deposit and brokerage fixture scenarios are declared with stable
-`scenario_ids` in `examples/demo_banking/manifest.yaml` and are reported in
-benchmark JSON as `scenario_coverage` for active checking, active savings,
-checking+savings bundle, brokerage, CD or money-market, expired, duplicate,
-conflicting, low-value, ambiguous, disabled/disallowed, and non-deal cases.
+issues land. Pending and skipped sections are visible but non-blocking. Deposit
+and brokerage fixture scenarios are declared with stable `scenario_ids` in
+`examples/demo_banking/manifest.yaml` and are reported in benchmark JSON as
+`scenario_coverage` for active checking, active savings, checking+savings
+bundle, brokerage, CD or money-market, expired, duplicate, conflicting,
+low-value, ambiguous, disabled/disallowed, and non-deal cases.
 
 Collector support exists under `pdi.collectors` for manual text, manual URL
 records, RSS/Atom fixture content, newsletter/email export text, and

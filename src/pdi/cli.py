@@ -2161,10 +2161,39 @@ def _print_qa_benchmark_summary(summary: Mapping[str, Any]) -> None:
         )
     _print_table(section_rows, empty_message="No QA benchmark sections generated.")
 
+    check_rows = []
+    for check in summary.get("supported_checks", []):
+        check_rows.append(
+            {
+                "section": check.get("section", "n/a"),
+                "check": check["name"],
+                "status": check["status"],
+                "actual": _display_check_value(check.get("actual")),
+                "expected": _display_check_value(check.get("expected")),
+                "reason": check.get("reason", ""),
+            }
+        )
+    if check_rows:
+        print("Supported checks:")
+        _print_table(check_rows, empty_message="No supported checks generated.")
+
     if summary["failures"]:
         print("Failures:")
         for failure in summary["failures"]:
             print(f"  - {failure}")
+
+
+def _display_check_value(value: Any) -> str:
+    if isinstance(value, list) and len(value) > 4:
+        preview = ", ".join(str(item) for item in value[:4])
+        return f"{len(value)} items: {preview}, ..."
+    if isinstance(value, dict) and len(value) > 4:
+        preview = ", ".join(
+            f"{key}={_display_value(value[key])}"
+            for key in sorted(value)[:4]
+        )
+        return f"{len(value)} fields: {preview}, ..."
+    return _display_value(value)
 
 
 def _print_reextract_summary(payload: Mapping[str, Any]) -> None:

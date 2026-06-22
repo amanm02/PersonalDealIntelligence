@@ -1351,6 +1351,42 @@ def test_public_pilot_confirm_live_bad_url_fails_closed_with_json_metadata(tmp_p
     assert source["fetch_result"]["error_type"] == "bad_url"
 
 
+def test_qa_benchmark_supported_failure_returns_nonzero_and_lists_checks(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    seed_deal(
+        db_path,
+        canonical_key="unexpected-fixture",
+        title="Unexpected Fixture Bank $300 Checking Bonus",
+        institution_name="Unexpected Fixture Bank",
+    )
+
+    result = run_cli(db_path, "banking", "qa-benchmark", "--category", "deposit")
+
+    assert result.returncode == 1
+    assert "verification_status" in result.stdout
+    assert "fail" in result.stdout
+    assert "Supported checks:" in result.stdout
+    assert "expected_deals_found" in result.stdout
+    assert "unexpected_deals_absent" in result.stdout
+    assert "Failures:" in result.stdout
+
+
+def test_qa_benchmark_pending_scope_returns_zero_with_reason_code(tmp_path):
+    result = run_cli(
+        tmp_path / "pdi.sqlite",
+        "banking",
+        "qa-benchmark",
+        "--category",
+        "credit_card",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "pending_runtime" in result.stdout
+    assert "credit_card_coverage_deferred_to_24d" in result.stdout
+    assert "Failures:" not in result.stdout
+
+
 def _days_from_now(days):
     return (date.today() + timedelta(days=days)).isoformat()
 
