@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from pdi.qa_benchmark import run_banking_qa_benchmark
+from pdi.storage import list_banking_score_records
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -110,6 +111,17 @@ def test_qa_benchmark_deposit_category_runs_runnable_fixture_scope(tmp_path):
     assert payload["verification_status"] == "pass"
     assert set(payload["sections"]) == {"deposit"}
     assert "brokerage_bonus" in payload["sections"]["deposit"]["subcategories_found"]
+
+
+def test_qa_benchmark_persists_score_records(tmp_path):
+    db_path = tmp_path / "pdi-demo-qa.sqlite"
+
+    payload = run_banking_qa_benchmark(db_path, reset_db=True)
+
+    assert payload["verification_status"] == "pass"
+    assert len(list_banking_score_records(db_path)) == (
+        payload["summary"]["canonical_deals"]
+    )
 
 
 def test_qa_benchmark_credit_card_category_reports_deferred_runtime(tmp_path):

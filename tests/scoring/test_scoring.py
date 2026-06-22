@@ -1,3 +1,4 @@
+import json
 from datetime import date
 from pathlib import Path
 
@@ -8,13 +9,16 @@ from pdi.scoring import (
     load_scoring_config,
     persist_banking_deal_score,
     score_banking_deal,
+    scoring_config_hash,
     validate_scoring_config,
 )
 from pdi.storage import (
     get_banking_deal,
+    get_latest_banking_score_record,
     initialize_database,
     insert_banking_deal,
     insert_deal_change_event,
+    list_banking_score_records,
 )
 
 
@@ -226,18 +230,102 @@ def test_scoring_config_changes_affect_score_predictably(tmp_path):
     assert adjusted.score_0_to_100 < base.score_0_to_100
 
 
-def test_persist_score_updates_existing_net_value_column(tmp_path):
+def test_scoring_config_hash_is_stable_and_changes_with_config():
+    config = load_scoring_config(CONFIG_PATH)
+    equivalent = validate_scoring_config(config.__dict__)
+    adjusted = validate_scoring_config(
+        {
+            **config.__dict__,
+            "hassle_penalties_cents": {
+                **config.hassle_penalties_cents,
+                "direct_deposit_required": 10000,
+            },
+        }
+    )
+
+    assert scoring_config_hash(config) == scoring_config_hash(equivalent)
+    assert len(scoring_config_hash(config)) == 64
+    assert scoring_config_hash(config) != scoring_config_hash(adjusted)
+
+
+def test_persist_score_updates_existing_net_value_and_creates_record(tmp_path):
     db_path = tmp_path / "pdi.sqlite"
     initialize_database(db_path)
     deal_id = deal(db_path)
+    config = load_scoring_config(CONFIG_PATH)
 
     score = persist_banking_deal_score(
         db_path,
         deal_id,
-        config_path=CONFIG_PATH,
+        config=config,
         as_of=AS_OF,
     )
+    record = get_latest_banking_score_record(db_path, deal_id)
 
     assert get_banking_deal(db_path, deal_id)["estimated_net_value_cents"] == (
         score.estimated_net_value
+    )
+    assert record["deal_id"] == deal_id
+    assert record["scoring_version"] == "banking-scoring-v1"
+    assert record["scoring_config_hash"] == scoring_config_hash(config)
+    assert record["scored_as_of"] == AS_OF.isoformat()
+    assert record["estimated_net_value_cents"] == score.estimated_net_value
+    assert record["score_0_to_100"] == score.score_0_to_100
+    assert record["score_band"] == score.score_band
+    assert record["recommended_action"] == score.recommended_action
+    assert record["score_explanation"] == score.score_explanation
+    assert record["expiration_urgency"] == score.expiration_urgency
+    assert json.loads(record["score_components_json"]) == {
+        "gross_bonus_value": score.gross_bonus_value,
+        "estimated_fee_cost": score.estimated_fee_cost,
+        "estimated_cash_lockup_cost": score.estimated_cash_lockup_cost,
+        "estimated_hassle_penalty": score.estimated_hassle_penalty,
+        "estimated_risk_penalty": score.estimated_risk_penalty,
+    }
+    assert json.loads(record["missing_data_warnings_json"]) == (
+        score.missing_data_warnings
+    )
+
+
+def test_repeated_persist_score_creates_history(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    deal_id = deal(db_path)
+    config = load_scoring_config(CONFIG_PATH)
+    higher_friction = validate_scoring_config(
+        {
+            **config.__dict__,
+            "hassle_penalties_cents": {
+                **config.hassle_penalties_cents,
+                "direct_deposit_required": 10000,
+            },
+        }
+    )
+
+    first = persist_banking_deal_score(
+        db_path,
+        deal_id,
+        config=config,
+        as_of=AS_OF,
+    )
+    second = persist_banking_deal_score(
+        db_path,
+        deal_id,
+        config=higher_friction,
+        as_of=AS_OF,
+    )
+
+    records = list_banking_score_records(db_path, deal_id=deal_id)
+    latest = get_latest_banking_score_record(db_path, deal_id)
+
+    assert len(records) == 2
+    assert records[0]["id"] == latest["id"]
+    assert records[0]["estimated_net_value_cents"] == second.estimated_net_value
+    assert records[1]["estimated_net_value_cents"] == first.estimated_net_value
+    assert records[0]["scored_as_of"] == AS_OF.isoformat()
+    assert records[1]["scored_as_of"] == AS_OF.isoformat()
+    assert records[0]["scoring_config_hash"] == scoring_config_hash(higher_friction)
+    assert records[1]["scoring_config_hash"] == scoring_config_hash(config)
+    assert get_banking_deal(db_path, deal_id)["estimated_net_value_cents"] == (
+        second.estimated_net_value
     )

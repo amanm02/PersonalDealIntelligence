@@ -450,6 +450,13 @@ Must validate when implemented:
 - missing data creates warnings
 - expired deals are handled
 - config changes affect outputs predictably
+- persisting a score keeps `banking_deals.estimated_net_value_cents` compatible
+  while creating durable `banking_score_records` history
+- score records preserve scoring version, stable config hash, component JSON,
+  scored-as-of date, missing data warnings, recommendation, explanation, and
+  expiration urgency
+- smoke, demo, and QA benchmark flows create one score record for each scored
+  canonical deal
 - credit-card scoring explains cash-equivalent value, annual fee, minimum spend
   friction, spend-window pressure, missing data, source confidence, and
   valuation assumptions when credit-card scoring is implemented

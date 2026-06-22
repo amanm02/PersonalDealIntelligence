@@ -14,11 +14,14 @@ from pdi.storage import (
     get_banking_deal,
     get_banking_deal_candidate,
     get_banking_run,
+    get_banking_score_record,
+    get_latest_banking_score_record,
     get_raw_snapshot,
     initialize_database,
     insert_banking_deal,
     insert_banking_deal_candidate,
     insert_banking_deal_source_link,
+    insert_banking_score_record,
     insert_banking_run,
     insert_raw_snapshot,
     insert_source_record,
@@ -26,6 +29,7 @@ from pdi.storage import (
     list_banking_deals,
     list_banking_deal_candidates,
     list_banking_deal_source_links,
+    list_banking_score_records,
     list_banking_runs,
     list_pending_banking_deal_candidates,
     list_field_evidence_links,
@@ -63,6 +67,7 @@ def test_initializes_database_from_scratch(tmp_path):
             "banking_deal_terms",
             "banking_deal_candidates",
             "banking_deal_source_links",
+            "banking_score_records",
             "banking_field_evidence_links",
             "banking_runs",
             "banking_run_locks",
@@ -71,7 +76,7 @@ def test_initializes_database_from_scratch(tmp_path):
         }.issubset(table_names)
         assert connection.execute(
             "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0] == 7
+        ).fetchone()[0] == 8
 
 
 def test_migrations_are_idempotent(tmp_path):
@@ -83,7 +88,7 @@ def test_migrations_are_idempotent(tmp_path):
     with sqlite3.connect(db_path) as connection:
         assert connection.execute(
             "SELECT COUNT(*) FROM schema_migrations"
-        ).fetchone()[0] == 7
+        ).fetchone()[0] == 8
 
 
 def test_raw_snapshot_content_hash_is_stable_and_content_derived(tmp_path):
@@ -1035,6 +1040,241 @@ def test_source_link_foreign_keys_are_enforced(tmp_path):
                 "raw_snapshot_id": 999,
                 "source_name": "Source Link FK Fixture",
             },
+        )
+
+
+def test_score_record_schema_is_hardened_on_fresh_database(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+
+    with sqlite3.connect(db_path) as connection:
+        columns = {
+            row[1]: row
+            for row in connection.execute(
+                "PRAGMA table_info(banking_score_records)"
+            )
+        }
+        indexes = [
+            row
+            for row in connection.execute(
+                "PRAGMA index_list(banking_score_records)"
+            )
+        ]
+        foreign_keys = [
+            row
+            for row in connection.execute(
+                "PRAGMA foreign_key_list(banking_score_records)"
+            )
+        ]
+
+    for column in (
+        "deal_id",
+        "scoring_version",
+        "scoring_config_hash",
+        "scored_as_of",
+        "estimated_net_value_cents",
+        "score_0_to_100",
+        "score_band",
+        "recommended_action",
+        "score_components_json",
+        "missing_data_warnings_json",
+        "score_explanation",
+        "expiration_urgency",
+    ):
+        assert columns[column][3] == 1
+    assert "banking_run_id" in columns
+    assert {
+        row[1]
+        for row in indexes
+    }.issuperset(
+        {
+            "idx_banking_score_records_deal_id",
+            "idx_banking_score_records_banking_run_id",
+        }
+    )
+    assert {
+        (row[2], row[3], row[4])
+        for row in foreign_keys
+        if row[2]
+    }.issuperset(
+        {
+            ("banking_deals", "deal_id", "id"),
+            ("banking_runs", "banking_run_id", "id"),
+        }
+    )
+
+
+def test_existing_database_migrates_score_record_table(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    _initialize_through_migration(db_path, "007")
+
+    with sqlite3.connect(db_path) as connection:
+        deal_id = connection.execute(
+            """
+            INSERT INTO banking_deals (
+              canonical_key,
+              title,
+              institution_name,
+              subcategory,
+              bonus_amount_cents,
+              discovered_at,
+              last_seen_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "legacy-score-record",
+                "Legacy Score Bank Bonus",
+                "Legacy Score Bank",
+                "checking_bonus",
+                30000,
+                "2026-06-17T12:00:00+00:00",
+                "2026-06-17T12:00:00+00:00",
+            ),
+        ).lastrowid
+        connection.commit()
+
+    initialize_database(db_path)
+    score_record_id = insert_banking_score_record(
+        db_path,
+        {
+            "deal_id": deal_id,
+            "scoring_version": "banking-scoring-v1",
+            "scoring_config_hash": "hash-a",
+            "scored_as_of": "2026-06-18",
+            "estimated_net_value_cents": 25500,
+            "score_0_to_100": 85,
+            "score_band": "high",
+            "recommended_action": "review_now",
+            "score_components": {
+                "gross_bonus_value": 30000,
+                "estimated_fee_cost": 0,
+            },
+            "missing_data_warnings": [],
+            "score_explanation": "Legacy score record fixture.",
+            "expiration_urgency": "none",
+        },
+    )
+
+    assert get_banking_score_record(db_path, score_record_id)["deal_id"] == deal_id
+
+
+def test_score_record_insert_get_list_latest_and_deterministic_json(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    deal_id = insert_banking_deal(
+        db_path,
+        {
+            "canonical_key": "score-record-fixture",
+            "title": "Score Record Bank Bonus",
+            "institution_name": "Score Record Bank",
+            "subcategory": "checking_bonus",
+            "bonus_amount_cents": 30000,
+            "source_name": "Score Record Fixture",
+        },
+    )
+    run_id = insert_banking_run(
+        db_path,
+        dry_run=True,
+        status="running",
+        started_at="2026-06-18T12:00:00+00:00",
+        metadata={"purpose": "score-record-test"},
+    )
+
+    first_id = insert_banking_score_record(
+        db_path,
+        {
+            "deal_id": deal_id,
+            "banking_run_id": run_id,
+            "scoring_version": "banking-scoring-v1",
+            "scoring_config_hash": "hash-a",
+            "scored_as_of": "2026-06-18",
+            "estimated_net_value_cents": 25500,
+            "score_0_to_100": 85,
+            "score_band": "high",
+            "recommended_action": "review_now",
+            "score_components": {
+                "gross_bonus_value": 30000,
+                "estimated_fee_cost": 0,
+            },
+            "missing_data_warnings": ["expires_at missing"],
+            "score_explanation": "First score record fixture.",
+            "expiration_urgency": "unknown",
+        },
+    )
+    second_id = insert_banking_score_record(
+        db_path,
+        {
+            "deal_id": deal_id,
+            "scoring_version": "banking-scoring-v1",
+            "scoring_config_hash": "hash-b",
+            "scored_as_of": "2026-06-19",
+            "estimated_net_value_cents": 24500,
+            "score_0_to_100": 82,
+            "score_band": "high",
+            "recommended_action": "review_now",
+            "score_components": {
+                "estimated_fee_cost": 1000,
+                "gross_bonus_value": 30000,
+            },
+            "missing_data_warnings": [],
+            "score_explanation": "Second score record fixture.",
+            "expiration_urgency": "none",
+        },
+    )
+
+    first = get_banking_score_record(db_path, first_id)
+    records = list_banking_score_records(db_path, deal_id=deal_id)
+    latest = get_latest_banking_score_record(db_path, deal_id)
+
+    assert first["banking_run_id"] == run_id
+    assert first["scored_as_of"] == "2026-06-18"
+    assert first["score_components_json"] == (
+        '{"estimated_fee_cost": 0, "gross_bonus_value": 30000}'
+    )
+    assert first["missing_data_warnings_json"] == '["expires_at missing"]'
+    assert [record["id"] for record in records] == [second_id, first_id]
+    assert latest["id"] == second_id
+    assert latest["scoring_config_hash"] == "hash-b"
+    assert latest["scored_as_of"] == "2026-06-19"
+
+
+def test_score_record_foreign_keys_are_enforced(tmp_path):
+    db_path = tmp_path / "pdi.sqlite"
+    initialize_database(db_path)
+    deal_id = insert_banking_deal(
+        db_path,
+        {
+            "canonical_key": "score-record-fk-fixture",
+            "title": "Score Record FK Bank Bonus",
+            "institution_name": "Score Record FK Bank",
+            "subcategory": "checking_bonus",
+            "bonus_amount_cents": 30000,
+            "source_name": "Score Record FK Fixture",
+        },
+    )
+
+    base_record = {
+        "deal_id": deal_id,
+        "scoring_version": "banking-scoring-v1",
+        "scoring_config_hash": "hash-a",
+        "scored_as_of": "2026-06-18",
+        "estimated_net_value_cents": 25500,
+        "score_0_to_100": 85,
+        "score_band": "high",
+        "recommended_action": "review_now",
+        "score_components": {"gross_bonus_value": 30000},
+        "missing_data_warnings": [],
+        "score_explanation": "FK score record fixture.",
+        "expiration_urgency": "none",
+    }
+
+    with pytest.raises(sqlite3.IntegrityError):
+        insert_banking_score_record(db_path, {**base_record, "deal_id": 999})
+    with pytest.raises(sqlite3.IntegrityError):
+        insert_banking_score_record(
+            db_path,
+            {**base_record, "banking_run_id": 999},
         )
 
 

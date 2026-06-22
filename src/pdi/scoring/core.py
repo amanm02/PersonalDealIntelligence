@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Mapping
@@ -13,6 +14,7 @@ import yaml
 
 from pdi.storage import (
     get_banking_deal,
+    insert_banking_score_record,
     list_deal_change_events,
     update_banking_deal,
 )
@@ -21,6 +23,7 @@ from pdi.storage import (
 DbPath = str | Path
 CONFIG_DEFAULT_PATH = Path("config/banking_scoring.yaml")
 CHECKING_SUBCATEGORIES = {"checking_bonus", "checking_savings_bundle"}
+SCORING_VERSION = "banking-scoring-v1"
 
 
 @dataclass(frozen=True)
@@ -153,6 +156,13 @@ def validate_scoring_config(raw_config: Any) -> ScoringConfig:
     )
 
 
+def scoring_config_hash(config: ScoringConfig) -> str:
+    """Return a stable content hash for validated scoring assumptions."""
+
+    payload = json.dumps(asdict(config), sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def score_banking_deal(
     db_path: DbPath,
     deal_id: int,
@@ -182,15 +192,36 @@ def persist_banking_deal_score(
     config: ScoringConfig | None = None,
     config_path: str | Path = CONFIG_DEFAULT_PATH,
     as_of: date | None = None,
+    banking_run_id: int | None = None,
 ) -> BankingScore:
-    """Score a deal and persist the estimated net value on the canonical row."""
+    """Score a deal and persist latest summary plus durable score history."""
 
+    resolved_config = config or load_scoring_config(config_path)
+    resolved_as_of = as_of or date.today()
     score = score_banking_deal(
         db_path,
         deal_id,
-        config=config,
+        config=resolved_config,
         config_path=config_path,
-        as_of=as_of,
+        as_of=resolved_as_of,
+    )
+    insert_banking_score_record(
+        db_path,
+        {
+            "deal_id": deal_id,
+            "banking_run_id": banking_run_id,
+            "scoring_version": SCORING_VERSION,
+            "scoring_config_hash": scoring_config_hash(resolved_config),
+            "scored_as_of": resolved_as_of.isoformat(),
+            "estimated_net_value_cents": score.estimated_net_value,
+            "score_0_to_100": score.score_0_to_100,
+            "score_band": score.score_band,
+            "recommended_action": score.recommended_action,
+            "score_components": _score_components(score),
+            "missing_data_warnings": score.missing_data_warnings,
+            "score_explanation": score.score_explanation,
+            "expiration_urgency": score.expiration_urgency,
+        },
     )
     update_banking_deal(
         db_path,
@@ -198,6 +229,16 @@ def persist_banking_deal_score(
         {"estimated_net_value_cents": score.estimated_net_value},
     )
     return score
+
+
+def _score_components(score: BankingScore) -> dict[str, int]:
+    return {
+        "gross_bonus_value": score.gross_bonus_value,
+        "estimated_fee_cost": score.estimated_fee_cost,
+        "estimated_cash_lockup_cost": score.estimated_cash_lockup_cost,
+        "estimated_hassle_penalty": score.estimated_hassle_penalty,
+        "estimated_risk_penalty": score.estimated_risk_penalty,
+    }
 
 
 def score_banking_deal_record(

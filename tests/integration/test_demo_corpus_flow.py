@@ -13,6 +13,7 @@ from pdi.storage import (
     list_field_evidence_links,
     list_banking_deal_candidates,
     list_banking_deals,
+    list_banking_score_records,
     list_deal_change_events,
 )
 
@@ -79,6 +80,7 @@ def test_demo_corpus_flows_through_extraction_dedupe_and_scoring(tmp_path):
     assert any(result.conflict_fields for result in canonicalization_results)
     assert len(scores) == len(deals)
     assert all(deal["estimated_net_value_cents"] is not None for deal in deals)
+    assert len(list_banking_score_records(db_path)) == len(deals)
 
 
 def test_demo_corpus_marks_duplicate_conflict_and_non_deal_cases(tmp_path):

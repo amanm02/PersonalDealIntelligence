@@ -9,6 +9,7 @@ from pdi.smoke import run_offline_banking_smoke
 from pdi.storage import (
     list_banking_deal_candidates,
     list_banking_deals,
+    list_banking_score_records,
     list_deal_change_events,
 )
 
@@ -48,6 +49,7 @@ def test_offline_banking_smoke_runs_full_fixture_flow(tmp_path):
     assert summary.conflicts == 1
     assert summary.scored_deals == 5
     assert summary.expired_scored_deals == 1
+    assert len(list_banking_score_records(db_path)) == 5
     assert digest_path.exists()
     assert "# Banking Deal Digest" in digest_path.read_text(encoding="utf-8")
 
