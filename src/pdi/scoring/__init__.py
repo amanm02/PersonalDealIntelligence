@@ -8,6 +8,7 @@ from pdi.scoring.core import (
     persist_banking_deal_score,
     score_banking_deal,
     score_banking_deal_record,
+    scoring_config_hash,
     validate_scoring_config,
 )
 
@@ -19,5 +20,6 @@ __all__ = [
     "persist_banking_deal_score",
     "score_banking_deal",
     "score_banking_deal_record",
+    "scoring_config_hash",
     "validate_scoring_config",
 ]

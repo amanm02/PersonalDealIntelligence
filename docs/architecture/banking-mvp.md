@@ -298,7 +298,13 @@ Purpose: rank deals based on expected personal value.
 Implemented scoring is exposed under `pdi.scoring` and reads configurable
 assumptions from `config/banking_scoring.yaml`. It scores canonical
 `banking_deals`, can persist `estimated_net_value_cents` to the existing
-canonical row, and returns the full component breakdown for callers.
+canonical row, writes durable history to `banking_score_records`, and returns
+the full component breakdown for callers. Each score record stores the canonical
+deal id, optional banking run id, scoring version, stable scoring config hash,
+the date scored against, score outputs, deterministic JSON component details,
+missing data warnings, explanation, expiration urgency, and creation time.
+Re-scoring creates a new history row instead of overwriting previous score
+details.
 
 Scoring components:
 
@@ -518,8 +524,7 @@ Implemented SQLite-backed concepts:
 - deal change events
 - banking run history
 - banking run locks
-
-Future issues may add score records if durable score history becomes useful.
+- durable banking score records and score history
 
 ## Configuration
 

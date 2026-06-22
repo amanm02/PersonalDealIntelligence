@@ -934,6 +934,99 @@ def list_banking_deal_source_links(
         ]
 
 
+def insert_banking_score_record(
+    db_path: DbPath,
+    score_record: Mapping[str, Any] | None = None,
+    **fields: Any,
+) -> int:
+    """Insert one durable score-history record for a canonical deal."""
+
+    data = _merge_record(score_record, fields)
+    with _connect(db_path) as connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO banking_score_records (
+              deal_id,
+              banking_run_id,
+              scoring_version,
+              scoring_config_hash,
+              scored_as_of,
+              estimated_net_value_cents,
+              score_0_to_100,
+              score_band,
+              recommended_action,
+              score_components_json,
+              missing_data_warnings_json,
+              score_explanation,
+              expiration_urgency
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                data["deal_id"],
+                data.get("banking_run_id"),
+                data["scoring_version"],
+                data["scoring_config_hash"],
+                data["scored_as_of"],
+                data["estimated_net_value_cents"],
+                data["score_0_to_100"],
+                data["score_band"],
+                data["recommended_action"],
+                _json_text(data["score_components"]),
+                _json_text(data["missing_data_warnings"]),
+                data["score_explanation"],
+                data["expiration_urgency"],
+            ),
+        )
+        connection.commit()
+        return int(cursor.lastrowid)
+
+
+def get_banking_score_record(
+    db_path: DbPath,
+    score_record_id: int,
+) -> dict[str, Any] | None:
+    """Return one durable banking score record by id."""
+
+    with _connect(db_path) as connection:
+        row = connection.execute(
+            "SELECT * FROM banking_score_records WHERE id = ?",
+            (score_record_id,),
+        ).fetchone()
+        return _row_to_dict(row) if row is not None else None
+
+
+def list_banking_score_records(
+    db_path: DbPath,
+    *,
+    deal_id: int | None = None,
+) -> list[dict[str, Any]]:
+    """List durable score records newest first."""
+
+    values: list[Any] = []
+    query = "SELECT * FROM banking_score_records"
+    if deal_id is not None:
+        query += " WHERE deal_id = ?"
+        values.append(deal_id)
+    query += " ORDER BY created_at DESC, id DESC"
+
+    with _connect(db_path) as connection:
+        return [
+            _row_to_dict(row)
+            for row in connection.execute(query, tuple(values)).fetchall()
+        ]
+
+
+def get_latest_banking_score_record(
+    db_path: DbPath,
+    deal_id: int,
+) -> dict[str, Any] | None:
+    """Return the newest durable score record for a canonical deal."""
+
+    records = list_banking_score_records(db_path, deal_id=deal_id)
+    return records[0] if records else None
+
+
 def list_field_evidence_links(
     db_path: DbPath,
     *,
